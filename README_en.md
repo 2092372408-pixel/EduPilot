@@ -1,6 +1,6 @@
 <p align="right"><a href="README.md">简体中文</a> | <strong>English</strong></p>
 
-<p align="center"><img src="public/logo-mark.png" alt="EduPilot" width="72" height="72" /></p>
+<p align="center"><img src="docs/banner.png" alt="EduPilot · AI learning companion brand illustration" width="100%" /></p>
 
 <h1 align="center">EduPilot · Your AI Learning Companion</h1>
 
@@ -15,15 +15,44 @@
   <a href="https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-macOS-Intel-Installer.tar.gz"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="Download for Intel Mac" /></a>
 </p>
 
-<p align="center"><a href="#download">Get started</a> · <a href="#demo">See it in action</a> · <a href="#features">Highlights</a> · <a href="#faq">FAQ</a></p>
+<p align="center"><a href="#features">Highlights</a> · <a href="#workspace">See the workspace</a> · <a href="#download">Download</a> · <a href="#demo">Learning demo</a> · <a href="#api-keys">Connect a model</a> · <a href="#faq">FAQ</a></p>
+
+## Your materials. Your course. Your learning journey.
+
+Slides, textbooks and notes contain plenty of knowledge. Studying them on your own often leaves harder questions: Where should I start? What does this passage mean? Have I really understood it?
+
+EduPilot brings your materials, explanations, practice and study history into one workspace. Import a textbook and work through its chapters. Ask when something is unclear, practise what you have learned, then return to consolidate it. Follow the course step by step or explore a question of your own.
+
+Preview questions help you build a map of the topic. Analogies, examples and follow-up questions deepen your understanding, while review checks and mistakes reveal what needs more work. Your materials ground the lessons; progress and long-term memory give your next session a place to continue.
+
+**For independent learners, students revising a course, anyone building a personal study library, and people learning Python through practice.**
 
 <a id="workspace"></a>
 
 <img src="docs/screenshots/study-ready-en.jpg" alt="The actual workspace: an imported chapter-based course with a preview question card in the conversation" width="100%" />
 
+Choose a course and topic on the left, then ask, learn and practise with your companion on the right. The screenshot shows a course created from imported materials; the built-in Python demo is another way to explore the full learning flow.
+
+<details>
+<summary>See the built-in course and focused conversation layout</summary>
+
+<img src="docs/screenshots/home-desktop-en.png" alt="The built-in Python course with its topic list, three-stage progress and learning conversation" width="100%" />
+
+Collapse the sidebar to give explanations and follow-up questions more room.
+
+<img src="docs/screenshots/home-focus-en.png" alt="A wider learning conversation with the sidebar collapsed" width="100%" />
+
+</details>
+
 <a id="download"></a>
 
 ## Three steps to your first lesson
+
+| Your computer | Download |
+| --- | --- |
+| Windows x64 | [Windows installer](https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-Windows-Installer.zip) |
+| Mac · Apple Silicon (M-series chips) | [Apple Silicon installer](https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-macOS-AppleSilicon-Installer.tar.gz) |
+| Mac · Intel | [Intel installer](https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-macOS-Intel-Installer.tar.gz) |
 
 1. **Download and extract** the package for your computer above. Choose Apple Silicon for an M-series Mac.
 2. **Double-click the installer**: EduPilot/install.bat on Windows or EduPilot/install.command on macOS. It creates a desktop icon and opens the learning page.
@@ -32,6 +61,17 @@
 Next time, double-click **EduPilot** on your desktop to study. Closing the last EduPilot page automatically stops the background service; refreshing or moving to practice and reports keeps your session going. Your study records stay on your computer, ready for your next visit.
 
 A tour points to real controls on your first visit, introducing courses, uploads, questions, mistakes and reports. Skip whenever you like, or select **Guide** at the top to replay it. If macOS asks for first-launch confirmation, right-click in Finder and choose **Open**.
+
+<details>
+<summary>A guide for your first visit</summary>
+
+The tour highlights real buttons, with arrows and nearby explanations to help you take the first step. Skip or replay it whenever you like.
+
+<img src="docs/screenshots/onboarding-mobile-en.jpg" alt="The English tour points to the real Upload button" width="390" />
+
+</details>
+
+The installer includes Node.js and application dependencies. Everyday use needs no terminal commands or manual configuration files. See the [desktop launch and exit guide (Chinese)](docs/桌面启动与退出说明.md) for more details.
 
 <a id="demo"></a>
 
@@ -48,33 +88,122 @@ Import materials → Create a course → Preview check → Learn and practise �
 
 <a id="features"></a>
 
-## Three ways to keep learning moving
+## Six ways to keep learning moving
 
-### Your materials become your course
+### 1. Turn a textbook into a course you can work through
 
-Import Chinese or English PDF, Word, PowerPoint, Markdown, TXT or JSON files. EduPilot organises chapters and creates topic lessons, examples, common pitfalls and multiple-choice practice. Once ready, your materials follow the same study flow as the built-in demo.
+Import Chinese or English PDF, Word (.docx), PowerPoint (.pptx), Markdown, TXT or JSON files. EduPilot organises the chapters and generates topic lessons, examples, common pitfalls and multiple-choice practice. Once ready, your course follows the same learning flow as the built-in demo.
 
-Lessons and questions stay grounded in your materials. Look up relevant passages and ask follow-up questions. Add material over time, reusing existing content as your course grows.
+Follow the process from your materials to a ready-to-study course:
 
-### Preview → Learn → Review, with feedback throughout
-
-Use a preview check to discover unfamiliar topics, build understanding through explanations, practise, then return to consolidate it. Answer question cards directly in the conversation and continue with feedback.
-
-Each topic records its own stage and checks. Revisit mistakes in your notebook; use reports to see progress, pending checks and review plans, then choose your next step.
-
-### Keep your goals and pick up where you left off
-
-Tell your companion your starting point, goals and preferences: “I'm new to Python; everyday examples help me.” Useful information can inform later explanations, while courses, conversations and practice records stay on your computer.
-
-Follow the course step by step or explore another learning question. Each question, exercise and review leaves a starting point for the next session.
+- **Keep the chapter structure**: existing headings come first, with support for headings such as “第一章”, “Chapter 1” and “1.1”. Retrieval passages respect detected chapter and section boundaries and retain their sources.
+- **See processing progress**: follow parsing, chapter splitting, retrieval indexing, lesson and question generation, and saving. Parsing shows elapsed time; embedding and course generation show actual completion counts.
+- **Generate from your source**: lessons and questions use the materials as evidence, followed by a separate check against the source before the course becomes available.
+- **Grow your course over time**: add materials and reuse unchanged content, embeddings and lessons. A failed update preserves the previous usable course.
 
 <details>
-<summary>More ways to make the workspace yours</summary>
+<summary>See material import and processing progress</summary>
 
-- **Practise Python**: write, run and submit code for feedback, ask the practice assistant for a hint, and take a comprehensive assessment after the built-in course.
-- **Ask with your materials**: attach an image or document. Choose an image-capable model for pictures.
-- **Research when needed**: enable web search to find additional learning material.
-- **Use your preferences**: switch between English and Chinese, adjust text size and choose your model service.
+Select **Upload** in the sidebar, create a course or add to an existing one, then choose your materials and start processing. When ready, return to the workspace and select the generated chapters and topics.
+
+<img src="docs/screenshots/upload-progress-en.jpg" alt="Material import showing the current stage, completed content chunks and course structure counts" width="100%" />
+
+</details>
+
+### 2. Preview → Learn → Review, with a next step throughout
+
+Use a preview check to discover what is unfamiliar. Build understanding through explanations, get feedback through practice, then revisit the topic to consolidate it. Ask for another example or explain where you got stuck without leaving the learning flow.
+
+<img src="docs/learning-flow.jpg" alt="Learning journey illustration: understand and plan, learn and build, review and transfer" width="100%" />
+
+| Stage | How you learn | How you move forward |
+| --- | --- | --- |
+| Preview | Explore the topic map, answer guiding questions and complete a preview check | Finish the check to enter Learn; mistakes are welcome during preview |
+| Learn | Work through explanations, examples and common pitfalls, then practise | Answer every question in the lesson check correctly to enter Review |
+| Review | Revisit ideas and weak spots, then complete a review test | Answer every review question correctly to record mastery and schedule future review |
+
+Each topic has its own learning stage. Content you have studied and topics you have passed are shown separately, helping you focus on what still needs practice.
+
+<details>
+<summary>Learn and practise in the conversation</summary>
+
+Answer question cards directly in the conversation, then continue with feedback and explanations. Multiple-choice answers are checked against the question bank on the server. Formal stage checks advance progress; extra practice and retrying mistakes help consolidate understanding.
+
+<img src="docs/screenshots/lesson-check-en.png" alt="Answer a question in the learning conversation and receive feedback and an explanation" width="100%" />
+
+</details>
+
+### 3. Keep your goals in view—and pick up where you left off
+
+Tell your companion about your goals, starting point and preferences: “I'm new to Python; everyday examples help me.” Useful information from your study sessions can inform later explanations, so you do not have to introduce yourself each time.
+
+Course progress, conversations and practice history stay on your computer. Goals and preferences can carry across courses, while each course keeps its own progress and difficulties. Come back to the course you were studying, and let your questions and practice build into a continuous learning journey.
+
+<details>
+<summary>How your companion connects study sessions</summary>
+
+Your current goals and course progress inform explanations. Earlier conversations remain searchable, and useful long-term information is retrieved when relevant. Older dialogue is summarised, and model context has a length limit to manage the input volume and cost of longer conversations.
+
+Long-term memory focuses on explicit study goals, stable preferences and recurring difficulties. Tell your companion when a goal or preference changes so later sessions can adapt.
+
+</details>
+
+### 4. Use mistakes, review and reports to focus your effort
+
+Incorrect answers go into your mistake notebook, where you can revisit your answer, read the correct answer and explanation, and try again. Your learning report brings course progress, pending checks and review plans together to help you choose what comes next.
+
+The workspace, notebook and report connect the same learning journey: find a pending check in your report and return to the course, or revisit a topic that needs reinforcement. After meeting the completion requirements in the built-in Python course, take a comprehensive assessment and put the topics together.
+
+<details>
+<summary>See the mistake notebook and learning report</summary>
+
+Open **Mistakes** in the sidebar to revisit answers and retry a question.
+
+<img src="docs/screenshots/mistakes-en.png" alt="Mistake notebook with your answer, the correct answer, explanations and retry controls" width="100%" />
+
+Open **Report** at the top to see study coverage, verified mastery, next steps and review plans.
+
+<img src="docs/screenshots/report-en.png" alt="Learning report with course progress, pending checks, review plans and mistake records" width="100%" />
+
+</details>
+
+### 5. Follow a course, ask a question, or try it yourself
+
+Dedicated companion roles support planning, preview, learning and review. A general education companion helps with questions beyond the course, offering explanations, examples and study advice. Follow the chapters or pause to explore a question that interests you.
+
+- **Ask with your materials**: attach an image or document to discuss it alongside your question. Choose an image-capable model for pictures.
+- **Research when needed**: use the web search toggle beside the input box to find additional learning material. Search needs a separate Tavily key.
+- **Practise Python**: write, run and submit code for feedback. The practice assistant can use the current task and execution results to offer hints.
+
+<details>
+<summary>See attachments, multiple-choice practice and Python coding</summary>
+
+Add an attachment beside the input box and ask about the material.
+
+<img src="docs/screenshots/attachment-en.png" alt="Image and document attachment controls in the conversation" width="100%" />
+
+The built-in Python course has separate multiple-choice and coding workspaces. Imported courses provide their generated multiple-choice questions in the learning conversation.
+
+<img src="docs/screenshots/choice-en.png" alt="The separate multiple-choice practice page for the built-in Python course" width="100%" />
+
+Run code to inspect its output, then submit for grading feedback. Open the practice assistant when you need a hint.
+
+<img src="docs/screenshots/coding-en.png" alt="Python coding workspace with a task, editor, execution, submission and practice assistant" width="100%" />
+
+</details>
+
+### 6. Learn on your computer, with your choice of model and language
+
+Available for Windows and macOS. Once installed, double-click the desktop icon to open your workspace. Closing the last study page automatically stops the background service. Courses, conversations, mistakes and study records stay on your computer, ready for your next visit.
+
+Switch between English and Chinese, adjust the text size or collapse the sidebar. Connect DeepSeek, Qwen, OpenAI, GLM, Kimi or another compatible service, and choose the model that suits how you learn.
+
+Documents are parsed locally. When you use an online model or web search, relevant questions, material excerpts or attachments are sent to your selected provider. Choose which capabilities you want to use.
+
+<details>
+<summary>See language and display settings</summary>
+
+<img src="docs/screenshots/settings-en.png" alt="Settings with language, text size and model options" width="100%" />
 
 </details>
 
@@ -85,6 +214,17 @@ Follow the course step by step or explore another learning question. Each questi
 Open **Settings → LLM model → Configure provider and key**. Choose a provider, enter your API key, select a model and save. Open-ended answers and generating lessons and questions from your materials use this model and are billed by its provider.
 
 Connect DeepSeek, Qwen, OpenAI, GLM, Kimi or another compatible service. For web research, add a [Tavily key](https://app.tavily.com/home) in **Settings → Web search · Tavily**, then turn search on when needed.
+
+Use **Test connection** before saving. If the model you need is missing from the list, enter its provider-supplied custom Model ID. Before sending pictures, select a model that supports image input and test its image capability.
+
+<details>
+<summary>See model configuration</summary>
+
+Choose a provider, check model capability labels and enter your key in the interface, without editing configuration files.
+
+<img src="docs/screenshots/model-setup-en.png" alt="Model configuration with provider, API key, model selection, capability labels and connection testing" width="100%" />
+
+</details>
 
 <details>
 <summary>Official API key pages</summary>
@@ -114,6 +254,10 @@ Yes. The built-in Python demo needs no key. Real open-ended answers and turning 
 
 Yes, in both content and interface. Use PDFs with extractable text; scanned pages need to be converted to text first.
 
+**Why did a correct answer not mark a topic as mastered?**
+
+Each stage has its own check. Finishing the preview check unlocks Learn; a fully correct lesson check unlocks Review; a fully correct review test records mastery. Extra practice and retrying mistakes do not replace formal stage checks.
+
 **Where are my materials and study records stored?**
 
 Materials are parsed on your computer, where courses, conversations and study records are stored. When you use an online model or web search, relevant questions, textbook excerpts or attachments are sent to your selected provider.
@@ -121,6 +265,10 @@ Materials are parsed on your computer, where courses, conversations and study re
 **Do I need to install anything else?**
 
 The installer includes the application runtime, so the demo and normal document parsing work immediately. Coding practice needs Python. Optional local semantic search needs Python and an embedding model; keyword search is available without that setup.
+
+**How long does importing take? Can I close the page?**
+
+Time depends on the material, number of topics, your computer and the model's response speed. Document parsing is local; generating and checking lessons and questions uses your selected model. The page shows the current stage and actual completion counts. Wait until the course is ready before closing it. Follow the retry prompt if processing fails; a failed update preserves the previous usable course.
 
 **Does closing the page quit the app? What about refreshing?**
 
@@ -132,13 +280,17 @@ Use the newer installer to update the same user's installation directory and pre
 
 ## Why we built EduPilot
 
-We want learning to be more scientific, more continuous and more firmly in the learner's hands. Clear goals, exploration, feedback and review help people ask, try, reflect and choose their next step.
+We want education to be more scientific, more structured, and more firmly in the learner's hands. A clear process should not force everyone into the same template. It should make goals, exploration, feedback, and review visible. Learners should not have to wait for a teacher to arrange every next step; they should be able to ask, try, reflect, and choose where to go next.
 
-Learning is a lifelong path. EduPilot aims to make yesterday's understanding today's starting point, so each question, exercise and breakthrough can support tomorrow's exploration.
+Learning is also a lifelong, continuous path rather than a staircase of disconnected levels. What you understood yesterday becomes today's starting point, while today's questions leave useful clues for tomorrow. EduPilot uses AI to preserve that continuity, so every question, exercise, mistake, and breakthrough can support what comes next.
+
+As AI develops rapidly, the speed and efficiency of learning matter more than ever. We want to help more people learn efficiently and continuously without losing the freedom to explore, so they can learn what they truly want to learn and then do what they truly want to do.
 
 > **Learn what you want, then do what you want. Every step deserves to be recorded.**
 
 <a id="feedback"></a>
+
+## Help make learning feel better
 
 Have a suggestion, a course you would like to study or a problem to report? Tell us through [GitHub Issues](https://github.com/2092372408-pixel/EduPilot/issues) or [email](mailto:qiuyanzihan2004@gmail.com).
 
