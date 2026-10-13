@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <script src="ui-en.js"></script>
+  <script src="i18n.js"></script>
+  <script src="settings.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title data-ui="EduPilot · 单元做题区">EduPilot · 单元做题区</title>
+<link rel="stylesheet" href="/style.css?v=43" />
+<style>
+/* 做题区专用样式（coding.html） */
+.coding-main { height: calc(100vh - 60px); }
+.coding-side { flex: 0 0 210px; }
+.coding-panel { display: flex; flex-direction: column; min-width: 0; }
+.coding-body { flex: 1; overflow-y: auto; padding: 24px clamp(18px, 4vw, 56px); display: flex; flex-direction: column; gap: 12px; }
+.problem-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.problem-card h3 { margin: 0 0 8px; font-size: 15px; }
+.problem-card p { margin: 0; color: var(--text-2); line-height: 1.7; font-size: 13px; }
+.problem-example {
+  background: #fafafa; border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin-top: 10px; font-size: 13px; white-space: pre-wrap;
+}
+.code-editor {
+  width: 100%; min-height: 220px; resize: vertical;
+  font-family: Consolas, 'Courier New', monospace; font-size: 13.5px; line-height: 1.6;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: #fafafa; color: var(--text-1); tab-size: 2;
+}
+.code-editor:focus { outline: none; border-color: var(--primary); }
+.coding-actions { display: flex; align-items: center; gap: 10px; }
+.coding-actions .btn-primary { min-height: 36px; padding: 8px 18px; border-radius: 8px; }
+.run-status { font-size: 12px; color: var(--text-2); }
+.run-output { background: #202020; border-radius: 10px; padding: 12px 14px; }
+.run-label { font-size: 11px; color: #858585; margin-bottom: 6px; }
+.stdout { color: #e6e6e6; font-size: 13px; white-space: pre-wrap; margin: 0; }
+.stderr { color: #fca5a5; font-size: 13px; white-space: pre-wrap; margin: 0; }
+.run-meta { font-size: 11px; color: #707070; margin-top: 6px; }
+/* 判分结果 */
+.grade-result {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; animation: fadeIn .25s ease;
+}
+.grade-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.grade-score {
+  width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; font-weight: 500;
+}
+.grade-pass { background: var(--primary-light); color: var(--primary); }
+.grade-fail { background: #fcebeb; color: #a32d2d; }
+.grade-title { font-size: 14px; font-weight: 500; }
+.grade-cases { margin: 8px 0; display: flex; flex-direction: column; gap: 4px; }
+.grade-case { font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+.grade-comment { font-size: 13px; color: var(--text-1); line-height: 1.7; margin: 8px 0; }
+.grade-hints { margin: 4px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--text-2); }
+.grade-hints li { margin: 3px 0; }
+/* 悬浮窗（做题助手） */
+.float-fab {
+  position: fixed; right: 24px; bottom: 24px; z-index: 60;
+  width: 52px; height: 52px; border-radius: 50%; border: none; cursor: pointer;
+  background: var(--primary); color: #fff; font-size: 20px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+}
+.float-fab:hover { transform: scale(1.05); }
+.float-window {
+  position: fixed; right: 24px; bottom: 88px; z-index: 60;
+  width: 360px; height: 500px; max-height: 70vh;
+  background: #fff; border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .10);
+  display: flex; flex-direction: column; overflow: hidden;
+  animation: fadeIn .2s ease;
+}
+.float-window.hidden { display: none; }
+.float-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  font-size: 13px; font-weight: 500; background: var(--panel);
+}
+.float-head button { border: none; background: none; font-size: 16px; cursor: pointer; color: var(--text-2); }
+.float-msgs { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.float-msg {
+  max-width: 88%; padding: 8px 12px; border-radius: 10px;
+  font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word;
+}
+.float-msg.user { align-self: flex-end; background: #f1f1f1; color: var(--text); border-radius: 12px; }
+.float-msg.bot { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); border-radius: 10px 10px 10px 4px; }
+.float-msg.bot.typing { color: var(--text-2); }
+.float-input-bar { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); }
+.float-input-bar input {
+  flex: 1; border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 13px; outline: none;
+}
+.float-input-bar input:focus { border-color: var(--primary); }
+.float-input-bar button {
+  background: var(--primary); color: #fff; border: none; border-radius: 8px;
+  padding: 8px 14px; cursor: pointer; font-size: 13px;
+}
+.float-input-bar button:disabled { opacity: .5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo"><img src="/logo-mark.png" alt="EduPilot" width="42" height="42" /></div>
+      <div>
+        <h1>EduPilot</h1>
+        <p class="sub" data-ui="单元做题区 · 编程实践">单元做题区 · 编程实践</p>
+      </div>
+    </div>
+    <div class="top-right">
+      <a href="/" target="_blank" class="btn-ghost" rel="noopener" data-ui="↩ 返回对话">↩ 返回对话</a>
+    </div>
+  </header>
+
+  <div class="main coding-main">
+    <!-- 左侧：单元导航 -->
+    <aside class="sidebar coding-side">
+      <div class="side-head">
+        <h2 id="courseTitle" data-ui="课程">课程</h2>
+      </div>
+      <div class="chapter-list" id="unitList"></div>
+      <div class="side-foot">
+        <p data-ui="💡 每个知识点是一个单元练习">💡 每个知识点是一个单元练习</p>
+      </div>
+    </aside>
+
+    <!-- 右侧：做题区 -->
+    <main class="chat-panel coding-panel">
+      <div class="chat-head">
+        <div class="now-learning">
+          <span class="dot"></span>
+          <span id="unitLabel" data-ui="选择一个单元开始练习">选择一个单元开始练习</span>
+        </div>
+        <a href="/choice.html" target="_blank" class="btn-ghost" rel="noopener" data-ui="🎯 去选择题">🎯 去选择题</a>
+      </div>
+
+      <div class="coding-body">
+        <!-- 题目卡 -->
+        <div class="problem-card">
+          <h3 id="problemTitle">—</h3>
+          <p id="problemDesc" data-ui="请从左侧选择一个单元">请从左侧选择一个单元</p>
+          <pre class="problem-example hidden" id="problemExample"></pre>
+        </div>
+
+          <!-- 代码编辑器 -->
+          <textarea id="codeEditor" class="code-editor" spellcheck="false" placeholder="# 在这里编写你的 Python 代码…" data-ui-placeholder="# 在这里编写你的 Python 代码…"></textarea>
+
+          <!-- 操作区 -->
+          <div class="coding-actions">
+            <button id="runBtn" class="btn-primary" data-ui="▶ 运行">▶ 运行</button>
+            <button id="submitBtn" class="btn-primary" disabled data-ui="提交判分">提交判分</button>
+            <span id="runStatus" class="run-status"></span>
+          </div>
+
+          <!-- 运行结果 -->
+          <div class="run-output hidden" id="runOutput">
+            <div class="run-label" data-ui="运行输出">运行输出</div>
+            <pre class="stdout hidden" id="stdoutBox"></pre>
+            <pre class="stderr hidden" id="stderrBox"></pre>
+            <div class="run-meta" id="runMeta"></div>
+          </div>
+
+          <!-- 判分结果 -->
+          <div class="grade-result hidden" id="gradeResult"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- 做题助手悬浮窗（P3：对接智能体，带做题上下文） -->
+<button class="float-fab" id="floatFab" title="问做题助手" data-ui-title="问做题助手">💬</button>
+<div class="float-window hidden" id="floatWindow">
+  <div class="float-head">
+    <span id="floatTitle" data-ui="💬 做题助手">💬 做题助手</span>
+    <button id="floatClose" title="关闭" data-ui-title="关闭">✕</button>
+  </div>
+  <div class="float-msgs" id="floatMsgs"></div>
+  <div class="float-input-bar">
+    <input id="floatInput" placeholder="问概念 / 问代码哪里错 / 怎么改…" autocomplete="off" data-ui-placeholder="问概念 / 问代码哪里错 / 怎么改…">
+    <button id="floatSendBtn" data-ui="发送">发送</button>
+  </div>
+</div>
+
+<script src="/markdown.js?v=43"></script>
+<script>
+/* ============ 单元做题区 · 逻辑 ============ */
+/* 课程跟随：从主界面跳转带 ?course=；做题题库仅内置课程提供（素材课显示引导空态） */
+const _uid = localStorage.getItem('eduowl_uid') || ('demo-' + Date.now());
+const _practiceCourse = new URLSearchParams(location.search).get('course') || 'python-intro';
+localStorage.setItem('eduowl_uid', _uid);
+const SESSION_ID = _uid + '@' + _practiceCourse;
+let courseData = null;
+let currentKp = null;
+let currentProblem = null;
+
+const $ = (id) => document.getElementById(id);
+
+/** 轻量转义（页面无 escapeHtml 工具） */
+function escapeHtmlSafe(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** 无题库场景：整页引导（素材课 / 课程加载失败） */
+function showPracticeEmpty(html) {
+  const body = document.querySelector('.coding-body');
+  if (body) body.innerHTML = '<div style="max-width:520px;margin:56px auto;text-align:center;color:var(--text-2);font-size:14px;line-height:2;padding:0 18px;">' + html + '</div>';
+  const t = $('courseTitle');
+  if (t) t.textContent = (courseData && courseData.title) || ui("做题区");
+}
+
+async function loadCourse() {
+  const res = await eduFetch('/api/course?sessionId=' + encodeURIComponent(SESSION_ID));
+  const d = res.ok ? await res.json() : null;
+  if (!d || !d.course) {
+    showPracticeEmpty(ui("⚠️ 课程加载失败：") + escapeHtmlSafe((d && d.error) || ui("服务异常，请刷新重试")));
+    return;
+  }
+  courseData = d.course;
+  if (d.dynamic) {
+    // 素材课程：无内置题库 → 引导回主界面学习，不渲染 Python 单元
+    showPracticeEmpty(
+      ui("💻 当前是素材课程《<b>") + escapeHtmlSafe(courseData.title) + ui("</b>》。<br>") +
+      ui("素材课程没有内置配套编程题——代码实践仅内置《Python 编程入门》提供。<br><br>") +
+      ui("<a href=\"/\" style=\"color:var(--primary)\">↩ 回到主界面，用对话学这份素材</a>"));
+    return;
+  }
+  $('courseTitle').textContent = courseData.title;
+  const list = $('unitList');
+  courseData.chapters.forEach((ch) => {
+    const sec = document.createElement('div');
+    sec.className = 'chapter';
+    const t = document.createElement('div');
+    t.className = 'chapter-title';
+    t.textContent = ch.title;
+    sec.appendChild(t);
+    ch.knowledgePoints.forEach((kp) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'kp-item';
+      item.dataset.kpId = kp.id;
+      item.innerHTML = ui("<span class=\"kp-phase\">练</span><span class=\"kp-name\">") + escapeHtml(kp.title) + '</span>';
+      item.addEventListener('click', () => selectUnit(kp));
+      sec.appendChild(item);
+    });
+    list.appendChild(sec);
+  });
+}
+
+async function selectUnit(kp) {
+  currentKp = kp;
+  document.querySelectorAll('.kp-item').forEach((el) => el.classList.toggle('active', el.dataset.kpId === kp.id));
+  $('unitLabel').textContent = ui("当前单元：") + kp.title;
+  // 加载该单元编程题（P2）
+  const d = await (await eduFetch('/api/coding/problems?kpId=' + kp.id)).json();
+  const probs = d.problems || [];
+  if (probs.length) {
+    currentProblem = probs[0];
+    $('problemTitle').textContent = '📝 ' + currentProblem.title + ui("（") + currentProblem.difficulty + ui("）");
+    $('problemDesc').textContent = currentProblem.description;
+    $('problemExample').textContent = ui("测试要求：\n") + currentProblem.testCases.map((t, i) => (i + 1) + '. ' + t.desc).join('\n');
+    $('problemExample').classList.remove('hidden');
+    $('codeEditor').value = currentProblem.starterCode;
+    $('submitBtn').disabled = false;
+  } else {
+    currentProblem = null;
+    $('problemTitle').textContent = kp.title + ui(" · 自由练习");
+    $('problemDesc').textContent = ui("本单元暂未配置题目，可在下方自由编写 Python 代码练习运行。");
+    $('problemExample').classList.add('hidden');
+    $('codeEditor').value = ui("# 自由练习：") + kp.title + ui("\nprint(\"你好，Python\")");
+    $('submitBtn').disabled = true;
+  }
+  resetOutput();
+  $('gradeResult').classList.add('hidden');
+  problemSubmitted = false; // 切换单元/题目后重置提交状态
+  floatSyncTitle();         // 悬浮窗标题同步当前题目
+}
+
+function resetOutput() {
+  $('runOutput').classList.add('hidden');
+  $('stdoutBox').classList.add('hidden');
+  $('stderrBox').classList.add('hidden');
+  $('runMeta').textContent = '';
+  $('runStatus').textContent = '';
+}
+
+async function runCode() {
+  const code = $('codeEditor').value;
+  if (!code.trim()) { $('runStatus').textContent = ui("⚠️ 代码不能为空"); return; }
+  $('runStatus').textContent = ui("⏳ 运行中…");
+  const out = $('runOutput');
+  out.classList.remove('hidden');
+  const stdoutBox = $('stdoutBox');
+  const stderrBox = $('stderrBox');
+  const meta = $('runMeta');
+  stdoutBox.classList.add('hidden');
+  stderrBox.classList.add('hidden');
+  meta.textContent = '';
+  try {
+    const res = await eduFetch('/api/run/python', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const r = await res.json();
+    if (r.rejected) {
+      stderrBox.textContent = '🚫 ' + (r.error || ui("代码被拦截"));
+      stderrBox.classList.remove('hidden');
+      meta.textContent = ui("安全拦截");
+    } else if (r.timeout) {
+      stderrBox.textContent = '⏱️ ' + (r.error || ui("运行超时（5 秒）"));
+      stderrBox.classList.remove('hidden');
+      meta.textContent = 'timeout';
+    } else if (r.stderr.trim()) {
+      stderrBox.textContent = r.stderr;
+      stderrBox.classList.remove('hidden');
+      meta.textContent = 'exit=' + r.exitCode;
+    } else {
+      stdoutBox.textContent = r.stdout || ui("（无输出）");
+      stdoutBox.classList.remove('hidden');
+      meta.textContent = 'exit=' + r.exitCode;
+    }
+    $('runStatus').textContent = '';
+  } catch (e) {
+    $('runStatus').textContent = ui("⚠️ 请求失败");
+    stderrBox.textContent = String(e.message || e);
+    stderrBox.classList.remove('hidden');
+  }
+}
+
+async function submitCode() {
+  if (!currentProblem) { $('runStatus').textContent = ui("⚠️ 当前单元没有可提交的题目"); return; }
+  const code = $('codeEditor').value;
+  if (!code.trim()) { $('runStatus').textContent = ui("⚠️ 代码不能为空"); return; }
+  $('runStatus').textContent = ui("⏳ 判分中…");
+  $('submitBtn').disabled = true;
+  try {
+    const res = await eduFetch('/api/coding/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: SESSION_ID, kpId: currentKp.id, problemId: currentProblem.id, code }),
+    });
+    const r = await res.json();
+    renderGrade(r);
+    // 全部用例通过 → 标记已提交（悬浮窗答疑从"只提示"切换为"可给答案"）
+    if (!r.error && r.passed === r.total) {
+      problemSubmitted = true;
+      floatSyncTitle();
+    }
+    // 判分与成绩记录由服务端提交接口一起完成。
+    $('runStatus').textContent = '';
+  } catch (e) {
+    $('runStatus').textContent = ui("⚠️ 判分请求失败");
+  } finally {
+    $('submitBtn').disabled = false;
+  }
+}
+
+function renderGrade(r) {
+  const box = $('gradeResult');
+  box.classList.remove('hidden');
+  if (r.error) {
+    box.innerHTML = '<div class="grade-comment">⚠️ ' + escapeHtml(r.error) + '</div>';
+    return;
+  }
+  const allPass = r.passed === r.total;
+  const score = r.review && r.review.score != null ? r.review.score : (allPass ? 100 : Math.round(r.passed / r.total * 100));
+  const casesHtml = r.results.map((c) =>
+    '<div class="grade-case">' + (c.pass ? '<span style="color:#3b6d11">✓</span>' : '<span style="color:#a32d2d">✗</span>') + escapeHtml(c.desc) +
+    (c.output ? ' <span style="color:#888">(' + escapeHtml(c.output).slice(0, 60) + ')</span>' : '') + '</div>'
+  ).join('');
+  const hintsHtml = r.review && r.review.hints && r.review.hints.length
+    ? '<ul class="grade-hints">' + r.review.hints.map((h) => '<li>💡 ' + escapeHtml(h) + '</li>').join('') + '</ul>'
+    : '';
+  box.innerHTML =
+    '<div class="grade-head">' +
+    '<div class="grade-score ' + (allPass ? 'grade-pass' : 'grade-fail') + '">' + score + '</div>' +
+    ui("<div><div class=\"grade-title\">提交结果：") + r.passed + ' / ' + r.total + ui(" 用例通过") + (allPass ? ' 🎉' : '') + '</div>' +
+    '<div class="grade-cases">' + casesHtml + '</div></div></div>' +
+    (r.review && r.review.comment ? '<div class="grade-comment">' + escapeHtml(r.review.comment) + '</div>' : '') +
+    hintsHtml;
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+$('runBtn').addEventListener('click', runCode);
+$('submitBtn').addEventListener('click', submitCode);
+
+/* ============ 做题助手悬浮窗（P3） ============ */
+const FLOAT_SESSION = 'float-' + Date.now();
+let floatBusy = false;
+let problemSubmitted = false; // 当前题目是否已提交通过（提交前智能体只提示不给答案）
+
+function floatCodingContext() {
+  const out = $('stdoutBox'), err = $('stderrBox');
+  return {
+    mode: 'coding',
+    kpId: currentKp ? currentKp.id : '',
+    problemTitle: currentProblem ? currentProblem.title : (currentKp ? currentKp.title : ''),
+    submitted: problemSubmitted,
+    code: $('codeEditor').value,
+    lastRun: {
+      stdout: out.classList.contains('hidden') ? '' : out.textContent,
+      stderr: err.classList.contains('hidden') ? '' : err.textContent,
+      exitCode: $('runMeta').textContent || '',
+    },
+  };
+}
+
+/** 悬浮窗头部同步显示"当前题目"，让用户知道智能体感知到了什么 */
+function floatSyncTitle() {
+  const title = currentProblem ? currentProblem.title : (currentKp ? currentKp.title + ui("（自由练习）") : ui("未选择单元"));
+  const state = problemSubmitted ? ui(" · 已提交 ✅") : (currentProblem ? ui(" · 未提交（只能提示）") : '');
+  $('floatTitle').textContent = ui("💬 做题助手 · ") + title + state;
+}
+
+const floatSimpleMarkdown = EduMarkdown.renderMarkdown;
+
+function floatAddMsg(role, content, typing) {
+  const box = $('floatMsgs');
+  const el = document.createElement('div');
+  el.className = 'float-msg ' + role + (typing ? ' typing' : '');
+  el.innerHTML = typing ? ui("🤔 正在思考…") : floatSimpleMarkdown(content);
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+  return el;
+}
+
+async function floatSend() {
+  const input = $('floatInput');
+  const msg = input.value.trim();
+  if (!msg || floatBusy) return;
+  input.value = '';
+  floatBusy = true;
+  $('floatSendBtn').disabled = true;
+  floatAddMsg('user', msg);
+  const botEl = floatAddMsg('bot', '', true);
+  let reply = '';
+  try {
+    const res = await eduFetch('/api/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: FLOAT_SESSION, message: msg, context: floatCodingContext() }),
+    });
+    if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split('\n\n');
+      buffer = blocks.pop();
+      for (const block of blocks) {
+        let type = '', dataStr = '';
+        for (const line of block.split('\n')) {
+          if (line.startsWith('event:')) type = line.slice(6).trim();
+          else if (line.startsWith('data:')) dataStr += line.slice(5).trim();
+        }
+        if (type === 'delta') {
+          try { reply += JSON.parse(dataStr).text || ''; } catch (_) {}
+          botEl.classList.remove('typing');
+          botEl.innerHTML = floatSimpleMarkdown(reply);
+          $('floatMsgs').scrollTop = $('floatMsgs').scrollHeight;
+        } else if (type === 'error') {
+          try { reply = '⚠️ ' + (JSON.parse(dataStr).message || ui("出错了")); } catch (_) {}
+        }
+      }
+    }
+    botEl.classList.remove('typing');
+    if (!reply) botEl.innerHTML = ui("（没有收到回复，请重试）");
+  } catch (e) {
+    botEl.classList.remove('typing');
+    botEl.innerHTML = ui("⚠️ 请求失败：") + escapeHtml(e.message || e);
+  } finally {
+    floatBusy = false;
+    $('floatSendBtn').disabled = false;
+    $('floatInput').focus();
+  }
+}
+
+$('floatFab').addEventListener('click', () => $('floatWindow').classList.toggle('hidden'));
+$('floatClose').addEventListener('click', () => $('floatWindow').classList.add('hidden'));
+$('floatSendBtn').addEventListener('click', floatSend);
+$('floatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') floatSend(); });
+$('codeEditor').addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const t = e.target;
+    const s = t.selectionStart;
+    t.value = t.value.slice(0, s) + '  ' + t.value.slice(t.selectionEnd);
+    t.selectionStart = t.selectionEnd = s + 2;
+  }
+});
+loadCourse();
+</script>
+</body>
+</html>

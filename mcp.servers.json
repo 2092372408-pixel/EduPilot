@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "_comment": "MCP Server 注册表（可入库）。deny-by-default：Server 需 enabled:true 且 agents 列出角色才对该角色可见。密钥一律用 ${ENV} 引用 .env，不写明文。",
+  "defaults": {
+    "startTimeoutMs": 20000,
+    "timeoutMs": 15000,
+    "callsPerTurn": 2,
+    "maxResultChars": 8000
+  },
+  "servers": {
+    "webtools": {
+      "label": "网页工具（自建 · stdio）",
+      "description": "读取指定网页正文（HTML→文本），SSRF 防护：仅公网 http/https，内网/保留网段默认拒绝。",
+      "enabled": true,
+      "transport": "stdio",
+      "command": "node",
+      "args": ["server/mcp/servers/webtools.js"],
+      "env": {},
+      "agents": ["learn", "review", "general"],
+      "tools": {
+        "fetch_page": { "enabled": true },
+        "server_info": { "enabled": true }
+      }
+    },
+    "devsites": {
+      "label": "权威站点（自建 · stdio）",
+      "description": "编程 / AI 权威站点专属检索：search_dev（在 CSDN/GitHub/MDN/PyTorch 等站内检索，Tavily 限定域名）+ github_search（GitHub 仓库/代码/issue，官方 API）+ list_dev_sites（站点目录）。",
+      "enabled": true,
+      "transport": "stdio",
+      "command": "node",
+      "args": ["server/mcp/servers/devsites.js"],
+      "env": { "TAVILY_API_KEY": "${TAVILY_API_KEY}", "GITHUB_TOKEN": "${GITHUB_TOKEN}" },
+      "agents": ["learn", "review", "general"],
+      "timeoutMs": 22000,
+      "tools": {
+        "list_dev_sites": { "enabled": true },
+        "search_dev": { "enabled": true, "callsPerTurn": 2 },
+        "github_search": { "enabled": true, "callsPerTurn": 2 }
+      }
+    },
+    "tavily": {
+      "label": "联网搜索（Tavily 官方 MCP · stdio）",
+      "description": "通用联网检索 + 网页正文提取（tavily_search / tavily_extract）。联网检索的唯一通用入口（内置 web_search 已下线）。整站抓取/站点地图/深度研究（tavily_crawl / tavily_map / tavily_research）成本与延迟高，默认关闭。",
+      "enabled": true,
+      "transport": "stdio",
+      "command": "node",
+      "args": ["node_modules/tavily-mcp/build/index.js"],
+      "env": { "TAVILY_API_KEY": "${TAVILY_API_KEY}" },
+      "agents": ["learn", "review", "general"],
+      "timeoutMs": 25000,
+      "tools": {
+        "tavily_search": { "enabled": true, "callsPerTurn": 2 },
+        "tavily_extract": { "enabled": true, "callsPerTurn": 2 },
+        "tavily_research": { "enabled": false },
+        "tavily_crawl": { "enabled": false },
+        "tavily_map": { "enabled": false }
+      }
+    }
+  }
+}

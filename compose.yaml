@@ -1,0 +1,32 @@
+services:
+  edupilot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: edupilot:local
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8787}:8787"
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+      EDUOWL_DB: /app/data/app.db
+      PYTHON_BIN: /opt/eduowl-venv/bin/python
+      EDUOWL_AUTH_TOKEN: ${EDUOWL_AUTH_TOKEN:?Set EDUOWL_AUTH_TOKEN in .env before starting Docker}
+    volumes:
+      - edupilot-data:/app/data
+      - ./.env:/app/.env
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 1g
+
+volumes:
+  edupilot-data:

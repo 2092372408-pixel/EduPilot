@@ -1,0 +1,21 @@
+# 统一换行符：仓库内一律 LF，避免 Windows 上每次提交都出现 CRLF 警告与无意义 diff
+* text=auto eol=lf
+
+# 二进制文件（不做换行转换、不做文本 diff）
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.pptx binary
+*.xlsx binary
+*.db binary
+*.woff binary
+*.woff2 binary
+
+# 生成物/数据文件：GitHub 语言统计与 diff 里降噪
+package-lock.json linguist-generated=true
+data/kb/chunks/** linguist-generated=true
+data/kb/index.json linguist-generated=true

@@ -1,0 +1,20 @@
+{
+  "files": [
+    ".dockerignore", ".eduowl-bundle", ".env.example", ".gitattributes", ".gitignore",
+    "AGENTS.md", "Dockerfile", "LICENSE", "README.md", "README_en.md", "THIRD_PARTY_NOTICES.md",
+    ".githooks/pre-commit", ".githooks/pre-push",
+    "build-shortcut-icon.ps1", "compose.yaml", "install.bat", "install.command", "install.ps1",
+    "mcp.servers.json", "package-lock.json", "package.json", "requirements-docker.txt",
+    "start-background.bat", "start.bat", "start.command", "start.ps1", "stop.bat", "stop.command", "stop.ps1",
+    ".github/publication-files.json", ".github/check-publication.cjs",
+    ".github/workflows/ci.yml", ".github/workflows/desktop-release.yml",
+    "tools/check-desktop-package.js", "release-manifest.json",
+    "data/kb/index.json", "data/kb/questions.json",
+    "docs/banner.png", "docs/learning-flow.jpg", "docs/学生端说明书.md", "docs/桌面启动与退出说明.md",
+    "docs/demos/learning-journey-zh.gif", "docs/demos/learning-journey-en.gif", "docs/releases/v1.1.4.md"
+  ],
+  "directories": [
+    "server/", "public/", "data/kb/books/python-intro/", "data/kb/chunks/python-intro/",
+    "docs/screenshots/", "docs/diagrams/", "docs/exam-shots/"
+  ]
+}

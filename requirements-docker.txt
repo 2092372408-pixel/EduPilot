@@ -1,0 +1,3 @@
+# Optional Python features used by document upload and local vector search.
+fastembed==0.8.0
+markitdown[pdf,docx,pptx]==0.1.7

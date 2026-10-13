@@ -1,0 +1,216 @@
+{
+  "courseId": "python-intro",
+  "count": 15,
+  "questions": [
+    {
+      "q": "下面哪个是合法的变量名？",
+      "options": [
+        "2name",
+        "my-name",
+        "my_name",
+        "my name"
+      ],
+      "answer": "C",
+      "explanation": "变量名不能以数字开头（A），不能包含连字符（B）和空格（D），下划线可以（C）。",
+      "kpId": "kp1",
+      "kpTitle": "变量与赋值",
+      "chapter": "第一章 变量与数据类型"
+    },
+    {
+      "q": "执行 a = 5; b = a; a = 10 后，b 的值是？",
+      "options": [
+        "5",
+        "10",
+        "报错",
+        "15"
+      ],
+      "answer": "A",
+      "explanation": "b = a 是在该时刻把 a 的值 5 赋给 b，之后 a 变成 10 不影响 b。",
+      "kpId": "kp1",
+      "kpTitle": "变量与赋值",
+      "chapter": "第一章 变量与数据类型"
+    },
+    {
+      "q": "Python 中变量是否需要声明类型？",
+      "options": [
+        "需要，如 int x = 5",
+        "不需要，类型自动推断",
+        "需要，但可省略",
+        "只有字符串需要声明"
+      ],
+      "answer": "B",
+      "explanation": "Python 是动态类型语言，x = 5 会自动推断为整数。",
+      "kpId": "kp1",
+      "kpTitle": "变量与赋值",
+      "chapter": "第一章 变量与数据类型"
+    },
+    {
+      "q": "type(3.14) 的结果是？",
+      "options": [
+        "<class 'int'>",
+        "<class 'float'>",
+        "<class 'str'>",
+        "<class 'bool'>"
+      ],
+      "answer": "B",
+      "explanation": "3.14 是浮点数，type() 返回 <class 'float'>。",
+      "kpId": "kp2",
+      "kpTitle": "常见数据类型",
+      "chapter": "第一章 变量与数据类型"
+    },
+    {
+      "q": "执行 \"3\" + 5 会发生什么？",
+      "options": [
+        "得到 8",
+        "得到 \"35\"",
+        "报 TypeError 错误",
+        "得到 35"
+      ],
+      "answer": "C",
+      "explanation": "字符串和整数不能直接相加，Python 会抛出 TypeError。",
+      "kpId": "kp2",
+      "kpTitle": "常见数据类型",
+      "chapter": "第一章 变量与数据类型"
+    },
+    {
+      "q": "判断两个值是否相等应该用哪个运算符？",
+      "options": [
+        "=",
+        "==",
+        "===",
+        ":="
+      ],
+      "answer": "B",
+      "explanation": "Python 中 == 判断相等，= 是赋值，没有 === 运算符。",
+      "kpId": "kp3",
+      "kpTitle": "条件判断 if / elif / else",
+      "chapter": "第二章 流程控制"
+    },
+    {
+      "q": "if 语句体必须满足什么要求？",
+      "options": [
+        "使用花括号括起来",
+        "末尾加分号",
+        "下一行缩进，条件后加冒号",
+        "必须使用 else"
+      ],
+      "answer": "C",
+      "explanation": "Python 用冒号 + 缩进表示代码块，不依赖花括号。",
+      "kpId": "kp3",
+      "kpTitle": "条件判断 if / elif / else",
+      "chapter": "第二章 流程控制"
+    },
+    {
+      "q": "range(5) 生成哪些数字？",
+      "options": [
+        "1,2,3,4,5",
+        "0,1,2,3,4",
+        "0,1,2,3,4,5",
+        "1,2,3,4"
+      ],
+      "answer": "B",
+      "explanation": "range(n) 生成 0 到 n-1，所以 range(5) 是 0,1,2,3,4。",
+      "kpId": "kp4",
+      "kpTitle": "循环 for / while",
+      "chapter": "第二章 流程控制"
+    },
+    {
+      "q": "break 语句的作用是？",
+      "options": [
+        "跳过本次循环",
+        "结束整个循环",
+        "退出程序",
+        "跳到下一行代码"
+      ],
+      "answer": "B",
+      "explanation": "break 立即终止整个循环；continue 才是跳过本次进入下一次。",
+      "kpId": "kp4",
+      "kpTitle": "循环 for / while",
+      "chapter": "第二章 流程控制"
+    },
+    {
+      "q": "一个没有 return 的函数，调用后返回什么？",
+      "options": [
+        "0",
+        "空字符串",
+        "None",
+        "报错"
+      ],
+      "answer": "C",
+      "explanation": "没有 return 的函数默认返回 None。",
+      "kpId": "kp5",
+      "kpTitle": "函数定义与调用",
+      "chapter": "第三章 函数"
+    },
+    {
+      "q": "def f(a, b=2): return a + b，f(3) 的结果是？",
+      "options": [
+        "5",
+        "报错",
+        "2",
+        "3"
+      ],
+      "answer": "A",
+      "explanation": "a 传入 3，b 使用默认值 2，3 + 2 = 5。",
+      "kpId": "kp5",
+      "kpTitle": "函数定义与调用",
+      "chapter": "第三章 函数"
+    },
+    {
+      "q": "列表 fruits = [\"苹果\",\"香蕉\"]，执行 fruits.append(\"橘子\") 后长度是？",
+      "options": [
+        "2",
+        "3",
+        "报错",
+        "4"
+      ],
+      "answer": "B",
+      "explanation": "append 在末尾添加一个元素，长度从 2 变为 3。",
+      "kpId": "kp6",
+      "kpTitle": "列表与字典",
+      "chapter": "第四章 列表与字典"
+    },
+    {
+      "q": "d = {\"a\": 1}，访问 d.get(\"b\") 的结果是？",
+      "options": [
+        "报错",
+        "None",
+        "0",
+        "false"
+      ],
+      "answer": "B",
+      "explanation": "get() 在键不存在时返回 None（或指定的默认值），不会报错。",
+      "kpId": "kp6",
+      "kpTitle": "列表与字典",
+      "chapter": "第四章 列表与字典"
+    },
+    {
+      "q": "构造方法（初始化方法）在 Python 中的名称是？",
+      "options": [
+        "init()",
+        "__init__()",
+        "constructor()",
+        "__init()__"
+      ],
+      "answer": "B",
+      "explanation": "Python 用 __init__（前后各两个下划线）作为构造方法。",
+      "kpId": "kp7",
+      "kpTitle": "类与对象",
+      "chapter": "第五章 面向对象基础"
+    },
+    {
+      "q": "实例方法的第一个参数通常是？",
+      "options": [
+        "this",
+        "self",
+        "cls",
+        "obj"
+      ],
+      "answer": "B",
+      "explanation": "实例方法第一个参数是 self，代表当前实例；类方法用 cls。",
+      "kpId": "kp7",
+      "kpTitle": "类与对象",
+      "chapter": "第五章 面向对象基础"
+    }
+  ]
+}

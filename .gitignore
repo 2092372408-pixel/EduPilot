@@ -1,0 +1,99 @@
+node_modules/
+.env
+data/app.db
+data/logs/
+scripts/test-render.js
+.venv-upload/
+.runtime/
+
+# 动态课程运行时产物（上传素材建课，不入库）
+data/courses/
+data/kb/books/user-*/
+data/kb/chunks/user-*/
+data/kb/.tmp/
+data/kb/versions/
+data/verification/
+data/kb/samples/
+data/app.db-wal
+data/app.db-shm
+data/app.db-journal
+data/trash/
+data/models/
+edu-agent-server.log
+edu-agent-server.err.log
+.eduowl.pid
+.edupilot-instance
+
+data/profiles.json
+
+# 任意临时/调试 SQLite 库（避免误提交）
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.db-journal
+data/*.db.instance
+
+# SFT 训练数据（本地生成，不入库）
+data/sft/
+.git-msg.txt
+
+# Python 字节码
+__pycache__/
+*.pyc
+
+# 个人求职/简历材料（不入库；不随仓库公开）
+docs/career/
+
+# Internal development material kept locally and excluded from publication
+/scripts/
+data-eval*.json
+# Local release-maintenance scripts kept outside the published tree
+/cleanup.js
+/fix*.js
+/trans*.js
+/update*.js
+/update*.py
+docs/MCP接入方案-调研与实施路径.md
+docs/README-早期版本归档-2026-09-12.md
+docs/做题区设计方案.md
+docs/功能全景与项目梳理.md
+docs/开源调研与融合路线图.md
+docs/实现路径规划-v1.md
+docs/对话练习一体化方案.md
+docs/架构与技术栈全景总结.md
+docs/架构对标与RAG记忆改进.md
+docs/测试计划.md
+docs/素材上传机制设计方案.md
+docs/项目介绍.md
+docs/项目全景与实现规划.md
+docs/项目总览.md
+docs/项目架构全览.md
+docs/项目梳理与改进建议-2026-09-10.md
+docs/记忆改进A-B测试报告.md
+docs/语音输入方案-调研与选型.md
+docs/screenshots/home-mobile.png
+
+# Private interview material, test suites and reports never enter publication.
+/test/
+/tests/
+/tools/*
+!/tools/check-desktop-package.js
+/.private/
+*.bundle
+
+# Documentation is opt-in; new files need a publication review.
+/docs/*
+!/docs/banner.png
+!/docs/learning-flow.jpg
+!/docs/学生端说明书.md
+!/docs/桌面启动与退出说明.md
+!/docs/screenshots/
+!/docs/diagrams/
+!/docs/exam-shots/
+!/docs/releases/
+!/docs/demos/
+/docs/demos/*
+!/docs/demos/learning-journey-zh.gif
+!/docs/demos/learning-journey-en.gif
+/docs/releases/*
+!/docs/releases/v1.1.4.md

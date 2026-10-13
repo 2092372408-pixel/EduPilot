@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <script src="ui-en.js"></script>
+  <script src="i18n.js"></script>
+  <script src="settings.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title data-ui="EduPilot · 运行后台">EduPilot · 运行后台</title>
+<style>
+  :root {
+    --bg: #fafafa; --panel: #ffffff; --border: #e3e6ea; --text: #2c2c2a; --text-2: #6b6b66;
+    --primary: #404040; --primary-light: #f1f1f1; --ok: #3b6d11; --ok-light: #eaf3de;
+    --warn: #854f0b; --warn-light: #fdf3e3; --purple: #626262; --purple-light: #f1f1f1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); }
+  header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 14px; position: sticky; top: 0; z-index: 10; }
+  header h1 { font-size: 16px; }
+  header .badge { font-size: 12px; background: var(--ok-light); color: var(--ok); border: 1px solid var(--ok); padding: 2px 10px; border-radius: 999px; }
+  header .right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  button { font: inherit; border: 1px solid var(--border); background: var(--panel); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
+  button:hover { border-color: var(--primary); color: var(--primary); }
+  button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .layout { display: flex; height: calc(100vh - 57px); }
+  .sidebar { width: 280px; border-right: 1px solid var(--border); background: var(--panel); overflow-y: auto; padding: 12px; }
+  .sidebar .title { font-size: 12px; color: var(--text-2); margin-bottom: 8px; }
+  .sess-item { padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
+  .sess-item:hover, .sess-item.active { border-color: var(--primary); background: var(--primary-light); }
+  .sess-item .id { font-weight: 600; font-size: 13px; font-family: monospace; }
+  .sess-item .meta { font-size: 11px; color: var(--text-2); margin-top: 4px; }
+  .main { flex: 1; overflow-y: auto; padding: 20px; }
+  .empty { color: var(--text-2); text-align: center; margin-top: 80px; font-size: 14px; }
+  .turn { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .turn-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .turn-head .time { font-size: 12px; color: var(--text-2); font-family: monospace; }
+  .chip { font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--border); }
+  .chip.agent { background: var(--purple-light); color: var(--purple); border-color: var(--purple); }
+  .chip.intent { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+  .chip.phase { background: var(--ok-light); color: var(--ok); border-color: var(--ok); }
+  .chip.dur { background: var(--warn-light); color: var(--warn); border-color: var(--warn); }
+  /* 图路径可视化 */
+  .path { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 8px 0 12px; }
+  .path .node { font-size: 12px; padding: 4px 12px; border-radius: 999px; background: var(--panel); border: 1px solid var(--border); }
+  .path .node.start { background: var(--purple-light); color: var(--purple); border-color: var(--purple); }
+  .path .node.worker { background: var(--primary-light); color: var(--primary); border-color: var(--primary); font-weight: 600; }
+  .path .node.end { background: var(--ok-light); color: var(--ok); border-color: var(--ok); }
+  .path .arrow { color: var(--text-2); font-size: 12px; }
+  /* 工具链 */
+  .tools { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+  .tool { font-size: 11.5px; font-family: monospace; background: var(--warn-light); color: var(--warn); border: 1px solid var(--warn); border-radius: 6px; padding: 2px 8px; }
+  .tool.err { background: #fdeaea; color: #a53f3f; border-color: #a53f3f; }
+  .detail { font-size: 12px; color: var(--text-2); line-height: 1.8; }
+  .detail code { background: #f1f1f1; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+  .steps { font-size: 12px; color: var(--text-2); margin-top: 6px; }
+  .steps div { padding: 2px 0; }
+  .steps .ok { color: var(--ok); }
+  .sect { font-size: 12px; color: var(--text-2); margin: 10px 0 4px; font-weight: 600; }
+  .msg { font-size: 12.5px; padding: 8px 12px; border-radius: 8px; margin: 4px 0; }
+  .msg.user { background: var(--primary-light); color: var(--primary); }
+  .msg.bot { background: #f4f4f4; color: var(--text); }
+  .msg.bot .preview { display: block; white-space: pre-wrap; font-size: 12px; color: var(--text-2); }
+  .main { min-width: 0; overflow-wrap: anywhere; }
+  .sess-item .id { overflow-wrap: anywhere; }
+  :focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+  @media (max-width: 760px) {
+    header { flex-wrap: wrap; gap: 8px; padding: 12px; }
+    header .right { margin-left: 0; flex-wrap: wrap; }
+    .layout { height: auto; flex-direction: column; }
+    .sidebar { width: 100%; max-height: 220px; border-right: 0; border-bottom: 1px solid var(--border); }
+    .main { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1 data-ui="EduPilot · 运行后台">EduPilot · 运行后台</h1>
+  <span class="badge" data-ui="LangGraph 轨迹观测">LangGraph 轨迹观测</span>
+  <span id="health" class="badge" style="background:var(--purple-light);color:var(--purple);border-color:var(--purple)" data-ui="检测中…">检测中…</span>
+  <div class="right">
+    <a href="/" target="_blank"><button data-ui="打开对话页">打开对话页</button></a>
+    <button onclick="showLogs()" data-ui="运行日志">运行日志</button>
+    <button id="refreshBtn" class="primary" data-ui="刷新">刷新</button>
+  </div>
+</header>
+<div class="layout">
+  <div class="sidebar">
+    <div class="title" data-ui="会话列表（按最近活动排序）">会话列表（按最近活动排序）</div>
+    <div id="sessList"><div class="empty" data-ui="加载中…">加载中…</div></div>
+  </div>
+  <div class="main" id="detail"><div class="empty" data-ui="← 选择一个会话查看运行轨迹">← 选择一个会话查看运行轨迹</div></div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+let currentSession = null;
+let timer = null;
+
+/** 运行日志（服务端留存，排查工具报错/断连） */
+async function showLogs() {
+  const detail = $('detail');
+  const r = await eduFetch('/api/logs?n=60').catch(() => null);
+  if (!r) { detail.innerHTML = ui("<div class=\"empty\">无法读取日志</div>"); return; }
+  const d = await r.json();
+  detail.innerHTML = `${ui("\n    <div style=\"display:flex;align-items:center;gap:12px;margin-bottom:14px\">\n      <h2 style=\"font-size:16px\">运行日志（服务端留存 · 最近 ")}${d.logs.length}${ui(" 条）</h2>\n      <button onclick=\"refresh()\">刷新</button>\n    </div>\n    ")}${d.logs.map((lg) => `
+      <div class="turn" style="padding:10px 14px">
+        <div class="turn-head">
+          <span class="time">${(lg.at || '').slice(5, 19).replace('T', ' ')}</span>
+          <span class="chip" style="border-color:${lg.level === 'error' ? '#a53f3f' : lg.level === 'warn' ? '#854f0b' : '#3b6d11'};color:${lg.level === 'error' ? '#a53f3f' : lg.level === 'warn' ? '#854f0b' : '#3b6d11'}">${lg.level}</span>
+          <span class="chip intent">${lg.tag}</span>
+        </div>
+        <div class="detail" style="margin-top:6px">${lg.msg || ''}</div>
+        ${lg.data ? `<div class="detail" style="margin-top:4px;word-break:break-all"><code>${JSON.stringify(lg.data).slice(0, 300)}</code></div>` : ''}
+      </div>`).join('') || ui("<div class=\"empty\">暂无日志</div>")}`;
+}
+
+async function loadSessions() {
+  try {
+    const r = await eduFetch('/api/sessions');
+    const d = await r.json();
+    const list = $('sessList');
+    if (!d.sessions.length) { list.innerHTML = ui("<div class=\"empty\">暂无会话，先去对话页发几条消息</div>"); return; }
+    list.innerHTML = d.sessions.map((s) => `
+      <div class="sess-item ${s.id === currentSession ? 'active' : ''}" onclick="select('${s.id}')">
+        <div class="id">${s.id}</div>
+        <div class="meta">${s.turns}${ui(" 轮 · 最后: ")}${s.lastIntent || '-'} @ ${(s.lastAgent || {}).name || '-'}</div>
+      </div>`).join('');
+  } catch (e) {
+    $('sessList').innerHTML = ui("<div class=\"empty\">⚠️ 无法连接服务</div>");
+  }
+}
+
+async function select(id) {
+  currentSession = id;
+  await loadSessions();
+  const r = await eduFetch('/api/session/' + encodeURIComponent(id));
+  const s = await r.json();
+  render(s);
+}
+
+function pathHtml(p) {
+  if (!p || !p.length) return ui("<div class=\"detail\">（legacy 引擎，无图路径）</div>");
+  const names = { START: 'START', supervisor: '🧭 supervisor', worker_preview: '🔎 worker_preview', worker_learn: '📖 worker_learn', worker_review: '🔁 worker_review', worker_coordinator: '🧭 worker_coordinator', END: 'END' };
+  const cls = { START: 'start', supervisor: '', worker_preview: 'worker', worker_learn: 'worker', worker_review: 'worker', worker_coordinator: 'worker', END: 'end' };
+  return `<div class="path">${p.map((n, i) => (i ? '<span class="arrow">→</span>' : '') + `<span class="node ${cls[n] || ''}">${names[n] || n}</span>`).join('')}</div>`;
+}
+
+function render(s) {
+  const detail = $('detail');
+  const turns = [...s.turnLog].reverse();
+  detail.innerHTML = `${ui("\n    <div style=\"display:flex;align-items:center;gap:12px;margin-bottom:16px\">\n      <h2 style=\"font-size:16px\">会话 <code>")}${s.id}</code></h2>
+      <span class="chip">${s.messages.length}${ui(" 条消息</span>\n      <span class=\"chip dur\">创建 ")}${(s.createdAt || '').slice(0, 19).replace('T', ' ')}${ui("</span>\n    </div>\n    <div style=\"display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap\">\n      <div class=\"chip\">🎯 当前知识点: <b>")}${(s.learning.currentKpId) || '-'}${ui("</b></div>\n      <div class=\"chip\">📝 测验: ")}${s.learning.currentQuiz ? s.learning.currentQuiz.mode + ' ' + s.learning.currentQuizIndex + '/' + s.learning.currentQuiz.total : ui("无")}${ui("</div>\n      <div class=\"chip\">🧩 知识点阶段: ")}${Object.entries(s.learning.kps).map(([id, r]) => id + '=' + r.phase).join(' ')}${ui("</div>\n    </div>\n    <div class=\"sect\">学习状态（状态机）</div>\n    ")}${Object.entries(s.learning.kps).map(([id, r]) => `
+      <div style="font-size:12px;margin:2px 0">  <b>${id}</b> ${r.phaseLabel}${ui(" · 练习正确率 ")}${r.quizTotal ? (r.mastery * 100).toFixed(0) + '%' : ui("未测验")}${ui(" · 答对 ")}${r.quizCorrect}/${r.quizTotal} · ${r.assessment?.passed ? ui("已验证掌握") : r.assessment ? ui("待巩固") : ui("未评估")}</div>`).join('')}${ui("\n    <hr style=\"border:none;border-top:1px solid var(--border);margin:18px 0\">\n    <div class=\"sect\">运行轨迹（最新在前）</div>\n    ")}${turns.map((t) => `
+      <div class="turn">
+        <div class="turn-head">
+          <span class="time">${(t.at || '').slice(11, 19)}${ui("</span>\n          <span class=\"chip intent\">意图: ")}${t.intent}</span>
+          <span class="chip agent">${t.agent.emoji} ${t.agent.name}</span>
+          ${t.handoff && t.handoff.length ? t.handoff.map(h => `<span class="chip" style="border-color:var(--warn);color:var(--warn)">🤝 ${h.from} → ${h.to}</span>`).join('') : ''}
+          <span class="chip dur">${t.durationMs ? (t.durationMs / 1000).toFixed(1) + 's' : ''}${ui("</span>\n          <span class=\"chip\">回复 ")}${t.replyLen}${ui(" 字</span>\n        </div>\n        ")}${pathHtml(t.graphPath)}
+        ${t.toolCalls.length ? `${ui("<div class=\"sect\">工具调用（")}${t.toolCalls.length}${ui("）</div><div class=\"tools\">")}${t.toolCalls.map((c) => `<span class="tool ${c.output && c.output.error ? 'err' : ''}">${c.name}</span>`).join('')}</div>` : ''}
+        ${t.phaseChanged && t.phaseChanged.length ? `${ui("<div class=\"detail\">🔄 阶段变化: ")}${t.phaseChanged.map(p => `<code>${p.kpId}</code> ${p.from} → ${p.to}`).join(ui("，"))}</div>` : ''}
+        ${t.reactSteps && t.reactSteps.length ? `<div class="steps">${t.reactSteps.map(st => st.type === 'tool' ? `<div>⚙️ step${st.step}${ui(" 调工具 → <span class=\"ok\">")}${st.call.name}</span> <code>${JSON.stringify(st.call.input).slice(0, 60)}</code></div>` : `<div>💬 step${st.step} ${st.type === 'finish' ? ui("完成 → 回复学生") : ui("直接输出正文")}</div>`).join('')}</div>` : ''}
+      </div>`).join('')}
+  `;
+}
+
+async function refresh() {
+  const r = await eduFetch('/api/health').catch(() => null);
+  $('health').textContent = r && r.ok ? ui("● 服务在线") : ui("✗ 服务离线");
+  await loadSessions();
+  if (currentSession) {
+    const rs = await eduFetch('/api/session/' + encodeURIComponent(currentSession)).catch(() => null);
+    if (rs && rs.ok) render(await rs.json());
+  }
+}
+
+$('refreshBtn').onclick = refresh;
+refresh();
+timer = setInterval(refresh, 5000); // 5s 自动刷新
+</script>
+</body>
+</html>

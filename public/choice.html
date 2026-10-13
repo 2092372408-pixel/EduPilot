@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <script src="ui-en.js"></script>
+  <script src="i18n.js"></script>
+  <script src="settings.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title data-ui="EduPilot · 选择题练习">EduPilot · 选择题练习</title>
+<link rel="stylesheet" href="/style.css?v=43" />
+<style>
+/* 选择题页专用样式 */
+.coding-main { height: calc(100vh - 60px); }
+.coding-side { flex: 0 0 210px; }
+.coding-panel { display: flex; flex-direction: column; min-width: 0; }
+.coding-body { flex: 1; overflow-y: auto; padding: 24px clamp(18px, 4vw, 56px); display: flex; flex-direction: column; gap: 12px; }
+.problem-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.problem-card h3 { margin: 0 0 8px; font-size: 15px; }
+.choice-list { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.choice-item { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: #fff; }
+.choice-q { font-size: 13.5px; margin-bottom: 10px; line-height: 1.7; }
+.choice-opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice-opt {
+  font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
+  padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px;
+  background: #fff; color: var(--text-1);
+}
+.choice-opt:hover { border-color: var(--primary); }
+.choice-opt.right { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+.choice-opt.wrong { background: #fcebeb; color: #a32d2d; border-color: #e24b4a; }
+.choice-opt:disabled { cursor: default; opacity: 1; }
+.choice-feedback { font-size: 12.5px; margin-top: 8px; line-height: 1.6; color: var(--text-2); }
+.choice-stats { margin-top: 14px; font-size: 13px; color: var(--text-2); border-top: 1px dashed var(--border); padding-top: 10px; }
+/* 悬浮窗（做题助手） */
+.float-fab {
+  position: fixed; right: 24px; bottom: 24px; z-index: 60;
+  width: 52px; height: 52px; border-radius: 50%; border: none; cursor: pointer;
+  background: var(--primary); color: #fff; font-size: 20px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+}
+.float-fab:hover { transform: scale(1.05); }
+.float-window {
+  position: fixed; right: 24px; bottom: 88px; z-index: 60;
+  width: 360px; height: 500px; max-height: 70vh;
+  background: #fff; border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .10);
+  display: flex; flex-direction: column; overflow: hidden;
+  animation: fadeIn .2s ease;
+}
+.float-window.hidden { display: none; }
+.float-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  font-size: 13px; font-weight: 500; background: var(--panel);
+}
+.float-head button { border: none; background: none; font-size: 16px; cursor: pointer; color: var(--text-2); }
+.float-msgs { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.float-msg {
+  max-width: 88%; padding: 8px 12px; border-radius: 10px;
+  font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word;
+}
+.float-msg.user { align-self: flex-end; background: #f1f1f1; color: var(--text); border-radius: 12px; }
+.float-msg.bot { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); border-radius: 10px 10px 10px 4px; }
+.float-msg.bot.typing { color: var(--text-2); }
+.float-input-bar { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); }
+.float-input-bar input {
+  flex: 1; border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 13px; outline: none;
+}
+.float-input-bar input:focus { border-color: var(--primary); }
+.float-input-bar button {
+  background: var(--primary); color: #fff; border: none; border-radius: 8px;
+  padding: 8px 14px; cursor: pointer; font-size: 13px;
+}
+.float-input-bar button:disabled { opacity: .5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo"><img src="/logo-mark.png" alt="EduPilot" width="42" height="42" /></div>
+      <div>
+        <h1>EduPilot</h1>
+        <p class="sub" data-ui="单元做题区 · 选择题">单元做题区 · 选择题</p>
+      </div>
+    </div>
+    <div class="top-right">
+      <a href="/coding.html" target="_blank" class="btn-ghost" rel="noopener" data-ui="去代码实践">去代码实践</a>
+      <a href="/" target="_blank" class="btn-ghost" rel="noopener" data-ui="↩ 返回对话">↩ 返回对话</a>
+    </div>
+  </header>
+
+  <div class="main coding-main">
+    <aside class="sidebar coding-side">
+      <div class="side-head">
+        <h2 id="courseTitle" data-ui="课程">课程</h2>
+      </div>
+      <div class="chapter-list" id="unitList"></div>
+      <div class="side-foot">
+        <p data-ui="💡 选择一个单元开始选择题练习">💡 选择一个单元开始选择题练习</p>
+      </div>
+    </aside>
+
+    <main class="chat-panel coding-panel">
+      <div class="chat-head">
+        <div class="now-learning">
+          <span class="dot"></span>
+          <span id="unitLabel" data-ui="选择一个单元开始练习">选择一个单元开始练习</span>
+        </div>
+      </div>
+
+      <div class="coding-body">
+        <div class="problem-card">
+          <h3 id="choiceTitle">—</h3>
+          <div class="choice-list" id="choiceList"></div>
+          <div class="choice-stats hidden" id="choiceStats"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- 做题助手悬浮窗（选择题页也可问概念） -->
+<button class="float-fab" id="floatFab" title="问做题助手" data-ui-title="问做题助手">💬</button>
+<div class="float-window hidden" id="floatWindow">
+  <div class="float-head">
+    <span id="floatTitle" data-ui="💬 做题助手">💬 做题助手</span>
+    <button id="floatClose" title="关闭" data-ui-title="关闭">✕</button>
+  </div>
+  <div class="float-msgs" id="floatMsgs"></div>
+  <div class="float-input-bar">
+    <input id="floatInput" placeholder="问概念 / 问这道题怎么解…" autocomplete="off" data-ui-placeholder="问概念 / 问这道题怎么解…">
+    <button id="floatSendBtn" data-ui="发送">发送</button>
+  </div>
+</div>
+
+<script src="/markdown.js?v=43"></script>
+<script>
+/* ============ 选择题页 · 逻辑 ============ */
+/* 课程跟随：从主界面跳转带 ?course=；选择题题库仅内置课程提供（素材课显示引导空态） */
+const _uid = localStorage.getItem('eduowl_uid') || ('demo-' + Date.now());
+const _practiceCourse = new URLSearchParams(location.search).get('course') || 'python-intro';
+localStorage.setItem('eduowl_uid', _uid);
+const SESSION_ID = _uid + '@' + _practiceCourse;
+let courseData = null;
+let currentKp = null;
+let choiceStats = { total: 0, correct: 0 };
+
+const $ = (id) => document.getElementById(id);
+
+/** 轻量转义（页面无 escapeHtml 工具） */
+function escapeHtmlSafe(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** 无题库场景：整页引导（素材课 / 课程加载失败） */
+function showPracticeEmpty(html) {
+  const body = document.querySelector('.coding-body');
+  if (body) body.innerHTML = '<div style="max-width:520px;margin:56px auto;text-align:center;color:var(--text-2);font-size:14px;line-height:2;padding:0 18px;">' + html + '</div>';
+  const t = $('courseTitle');
+  if (t) t.textContent = (courseData && courseData.title) || ui("做题区");
+}
+
+/** 判分结果回写主会话学习状态（打通做题区 ↔ 主对话记忆，静默失败不影响做题） */
+async function recordAnswer(kind, kpId, question, userAnswer, correct, explanation) {
+  try {
+    await eduFetch('/api/coding/record', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: SESSION_ID, kind, kpId, question, userAnswer, correct, explanation: explanation || undefined }),
+    });
+  } catch (_) {}
+}
+
+async function loadCourse() {
+  const res = await eduFetch('/api/course?sessionId=' + encodeURIComponent(SESSION_ID));
+  const d = res.ok ? await res.json() : null;
+  if (!d || !d.course) {
+    showPracticeEmpty(ui("⚠️ 课程加载失败：") + escapeHtmlSafe((d && d.error) || ui("服务异常，请刷新重试")));
+    return;
+  }
+  courseData = d.course;
+  if (d.dynamic) {
+    // 素材课程：无内置题库 → 引导回主界面学习，不渲染 Python 单元
+    showPracticeEmpty(
+      ui("📚 当前是素材课程《<b>") + escapeHtmlSafe(courseData.title) + ui("</b>》。<br>") +
+      ui("素材课程没有内置配套题库——选择题练习仅内置《Python 编程入门》提供。<br><br>") +
+      ui("<a href=\"/\" style=\"color:var(--primary)\">↩ 回到主界面，用对话学这份素材</a>"));
+    return;
+  }
+  $('courseTitle').textContent = courseData.title;
+  const list = $('unitList');
+  courseData.chapters.forEach((ch) => {
+    const sec = document.createElement('div');
+    sec.className = 'chapter';
+    const t = document.createElement('div');
+    t.className = 'chapter-title';
+    t.textContent = ch.title;
+    sec.appendChild(t);
+    ch.knowledgePoints.forEach((kp) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'kp-item';
+      item.dataset.kpId = kp.id;
+      item.innerHTML = ui("<span class=\"kp-phase\">练</span><span class=\"kp-name\">") + escapeHtml(kp.title) + '</span>';
+      item.addEventListener('click', () => selectUnit(kp));
+      sec.appendChild(item);
+    });
+    list.appendChild(sec);
+  });
+}
+
+async function selectUnit(kp) {
+  currentKp = kp;
+  document.querySelectorAll('.kp-item').forEach((el) => el.classList.toggle('active', el.dataset.kpId === kp.id));
+  $('unitLabel').textContent = ui("当前单元：") + kp.title;
+  const d = await (await eduFetch('/api/coding/quiz?kpId=' + kp.id)).json();
+  const quiz = d.quiz || [];
+  $('choiceTitle').textContent = kp.title + ui(" · 选择题");
+  const list = $('choiceList');
+  list.innerHTML = '';
+  choiceStats = { total: 0, correct: 0 };
+  $('choiceStats').classList.add('hidden');
+  floatSyncTitle();
+  if (!quiz.length) {
+    list.innerHTML = ui("<div class=\"choice-feedback\">本单元暂无选择题</div>");
+    return;
+  }
+  quiz.forEach((q, qi) => {
+    const item = document.createElement('div');
+    item.className = 'choice-item';
+    item.innerHTML = '<div class="choice-q">' + (qi + 1) + '. ' + escapeHtml(q.q) + '</div><div class="choice-opts"></div><div class="choice-feedback hidden"></div>';
+    const opts = item.querySelector('.choice-opts');
+    const fb = item.querySelector('.choice-feedback');
+    (q.options || []).forEach((opt, oi) => {
+      const letter = String.fromCharCode(65 + oi);
+      const btn = document.createElement('button');
+      btn.className = 'choice-opt';
+      btn.textContent = letter + '. ' + opt;
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return;
+        opts.querySelectorAll('.choice-opt').forEach((b) => (b.disabled = true));
+        const correct = letter === q.answer;
+        choiceStats.total++;
+        if (correct) { choiceStats.correct++; btn.classList.add('right'); }
+        else {
+          btn.classList.add('wrong');
+          opts.querySelectorAll('.choice-opt').forEach((b) => { if (b.textContent.startsWith(q.answer + '.')) b.classList.add('right'); });
+        }
+        fb.classList.remove('hidden');
+        fb.innerHTML = (correct ? ui("✅ 回答正确！") : ui("❌ 正确答案是 ") + q.answer + ui("。")) + (q.explanation ? '<br/>💡 ' + escapeHtml(q.explanation) : '');
+        renderChoiceStats();
+        // 判分结果回写主会话（报告错题本/复习/主对话记忆可见）
+        recordAnswer('choice', currentKp.id, q.q, letter, correct, q.explanation);
+      });
+      opts.appendChild(btn);
+    });
+    list.appendChild(item);
+  });
+}
+
+function renderChoiceStats() {
+  const s = $('choiceStats');
+  s.classList.remove('hidden');
+  s.textContent = ui("已完成 ") + choiceStats.total + ui(" 题，答对 ") + choiceStats.correct + ui(" 题（正确率 ") + (choiceStats.total ? Math.round(choiceStats.correct / choiceStats.total * 100) : 0) + ui("%）");
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* ============ 做题助手悬浮窗 ============ */
+const FLOAT_SESSION = 'float-choice-' + Date.now();
+let floatBusy = false;
+
+function floatChoiceContext() {
+  return {
+    mode: 'choice',
+    kpId: currentKp ? currentKp.id : '',
+    problemTitle: currentKp ? currentKp.title : '',
+    submitted: true, // 选择题已即时判分，答疑可正常讲解
+    code: '',
+    lastRun: null,
+  };
+}
+
+function floatSyncTitle() {
+  $('floatTitle').textContent = ui("💬 做题助手 · ") + (currentKp ? currentKp.title + ui(" · 选择题") : ui("未选择单元"));
+}
+
+const floatSimpleMarkdown = EduMarkdown.renderMarkdown;
+
+function floatAddMsg(role, content, typing) {
+  const box = $('floatMsgs');
+  const el = document.createElement('div');
+  el.className = 'float-msg ' + role + (typing ? ' typing' : '');
+  el.innerHTML = typing ? ui("🤔 正在思考…") : floatSimpleMarkdown(content);
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+  return el;
+}
+
+async function floatSend() {
+  const input = $('floatInput');
+  const msg = input.value.trim();
+  if (!msg || floatBusy) return;
+  input.value = '';
+  floatBusy = true;
+  $('floatSendBtn').disabled = true;
+  floatAddMsg('user', msg);
+  const botEl = floatAddMsg('bot', '', true);
+  let reply = '';
+  try {
+    const res = await eduFetch('/api/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: FLOAT_SESSION, message: msg, context: floatChoiceContext() }),
+    });
+    if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split('\n\n');
+      buffer = blocks.pop();
+      for (const block of blocks) {
+        let type = '', dataStr = '';
+        for (const line of block.split('\n')) {
+          if (line.startsWith('event:')) type = line.slice(6).trim();
+          else if (line.startsWith('data:')) dataStr += line.slice(5).trim();
+        }
+        if (type === 'delta') {
+          try { reply += JSON.parse(dataStr).text || ''; } catch (_) {}
+          botEl.classList.remove('typing');
+          botEl.innerHTML = floatSimpleMarkdown(reply);
+          $('floatMsgs').scrollTop = $('floatMsgs').scrollHeight;
+        } else if (type === 'error') {
+          try { reply = '⚠️ ' + (JSON.parse(dataStr).message || ui("出错了")); } catch (_) {}
+        }
+      }
+    }
+    botEl.classList.remove('typing');
+    if (!reply) botEl.innerHTML = ui("（没有收到回复，请重试）");
+  } catch (e) {
+    botEl.classList.remove('typing');
+    botEl.innerHTML = ui("⚠️ 请求失败：") + escapeHtml(e.message || e);
+  } finally {
+    floatBusy = false;
+    $('floatSendBtn').disabled = false;
+    $('floatInput').focus();
+  }
+}
+
+$('floatFab').addEventListener('click', () => $('floatWindow').classList.toggle('hidden'));
+$('floatClose').addEventListener('click', () => $('floatWindow').classList.add('hidden'));
+$('floatSendBtn').addEventListener('click', floatSend);
+$('floatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') floatSend(); });
+
+loadCourse();
+</script>
+</body>
+</html>

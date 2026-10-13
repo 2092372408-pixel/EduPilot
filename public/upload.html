@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <script src="ui-en.js"></script>
+  <script src="i18n.js"></script>
+  <script src="settings.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title data-ui="上传素材 · EduPilot">上传素材 · EduPilot</title>
+<link rel="stylesheet" href="/style.css?v=43" />
+<style>
+  /* 上传页专属样式 */
+  .up-wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 60px; }
+  .up-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .up-head h1 { font-size: 20px; }
+  .up-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+  .up-card h2 { font-size: 14px; margin-bottom: 12px; color: var(--text); }
+  .dropzone {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 36px 20px;
+    text-align: center; color: var(--text-2); cursor: pointer; transition: all .15s;
+    background: #fafafa;
+  }
+  .dropzone:hover, .dropzone.over { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+  .dropzone .dz-main { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .dropzone .dz-sub { font-size: 12.5px; }
+  .file-list { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .file-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 12px;
+    border: 1px solid var(--border); border-radius: 10px; font-size: 13px; background: #fff;
+  }
+  .file-row .name { flex: 1 1 180px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-row .size { color: var(--text-2); font-size: 12px; flex-shrink: 0; }
+  .file-row .state { flex-shrink: 0; font-size: 12px; font-weight: 600; min-width: 110px; text-align: right; }
+  .state.ok { color: var(--green); }
+  .state.err { color: var(--red); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+  .state.run { color: var(--primary); }
+  .file-row .state.run { flex-shrink: 1; max-width: 100%; overflow-wrap: anywhere; }
+  .file-progress { width: 100%; height: 7px; accent-color: var(--primary); }
+  .file-detail { width: 100%; color: var(--text-2); font-size: 12px; }
+  .progress-text { margin-top: 8px; color: var(--text-2); font-size: 12px; }
+  .file-row .rm { border: none; background: none; color: var(--text-2); cursor: pointer; font-size: 15px; }
+  .file-row .rm:hover { color: var(--red); }
+  .opt-row { display: flex; gap: 18px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+  .opt-row label { font-size: 13px; color: var(--text-2); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .opt-row input[type="text"] {
+    border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font: inherit;
+    font-size: 13px; width: 260px; outline: none; background: #fff; color: var(--text);
+  }
+  .opt-row input[type="text"]:focus { border-color: var(--primary); }
+  .opt-row select {
+    border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font: inherit;
+    font-size: 13px; outline: none; background: #fff; color: var(--text);
+  }
+  .up-actions { display: flex; gap: 10px; margin-top: 18px; align-items: center; }
+  .up-actions .btn-primary { padding: 10px 26px; font-size: 14px; }
+  .up-summary { margin-top: 16px; background: var(--primary-light); border: 1px solid #dedede; border-radius: 12px; padding: 14px 16px; font-size: 13.5px; line-height: 1.8; }
+  .up-summary.err { background: #fef2f2; border-color: #fecaca; }
+  .hidden { display: none !important; }
+  .up-progress { margin-top: 14px; height: 6px; background: #eeeeee; border-radius: 4px; overflow: hidden; }
+  .up-progress .bar { height: 100%; width: 0; background: var(--primary); transition: width .3s; }
+</style>
+</head>
+<body>
+<div class="up-wrap">
+  <div class="up-head">
+    <h1 data-ui="上传学习素材">上传学习素材</h1>
+    <a href="/" class="btn-ghost small" data-ui="← 返回主页">← 返回主页</a>
+  </div>
+
+  <!-- 模式选择 -->
+  <div class="up-card">
+    <h2 data-ui="1. 上传到哪里">1. 上传到哪里</h2>
+    <div class="opt-row">
+      <label><input type="radio" name="mode" value="new" checked /><span data-ui="创建新课程"> 创建新课程</span></label>
+      <label><input type="radio" name="mode" value="append" /><span data-ui="追加到已有课程"> 追加到已有课程</span></label>
+      <select id="appendSelect" class="hidden"></select>
+    </div>
+    <div class="opt-row" id="titleRow">
+      <label for="courseTitleInput" data-ui="课程名称：">课程名称：</label>
+      <input type="text" id="courseTitleInput" placeholder="留空则取第一个文件的标题" maxlength="60" data-ui-placeholder="留空则取第一个文件的标题">
+    </div>
+    <p style="font-size:12px;color:var(--text-2);margin-top:10px;" data-ui="💡 一次可选多个文件，会依次解析并合并到同一门课（每个文件成为一个章节来源）。支持 docx / pdf / pptx / md / txt / json。">💡 一次可选多个文件，会依次解析并合并到同一门课（每个文件成为一个章节来源）。支持 docx / pdf / pptx / md / txt / json。</p>
+    <p style="font-size:12px;color:var(--text-2);margin-top:10px;" data-ui="向量化完成后，AI 会继续生成每节教学讲义和题目；全部就绪后即可进入课程学习。">向量化完成后，AI 会继续生成每节教学讲义和题目；全部就绪后即可进入课程学习。</p>
+  </div>
+
+  <!-- 文件选择 -->
+  <div class="up-card">
+    <h2 data-ui="2. 选择文件（可多选）">2. 选择文件（可多选）</h2>
+    <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="选择上传文件" data-ui-aria-label="选择上传文件">
+      <div class="dz-main" data-ui="点击选择或拖拽文件到这里">点击选择或拖拽文件到这里</div>
+      <div class="dz-sub" data-ui="支持 docx / pdf / pptx / md / txt / json，单个 ≤ 10MB（超限请压缩或拆分）">支持 docx / pdf / pptx / md / txt / json，单个 ≤ 10MB（超限请压缩或拆分）</div>
+    </div>
+    <input type="file" id="fileInput" multiple accept=".docx,.pdf,.pptx,.md,.markdown,.txt,.json" hidden />
+    <div class="file-list" id="fileList"></div>
+    <div class="up-progress hidden" id="upProgress" role="progressbar" aria-label="已处理文件" data-ui-aria-label="已处理文件" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0"><div class="bar" id="upBar"></div></div>
+    <div class="progress-text hidden" id="upProgressText" role="status" aria-live="polite"></div>
+  </div>
+
+  <!-- 操作 -->
+  <div class="up-actions">
+    <button id="startBtn" class="btn-primary" disabled data-ui="开始上传">开始上传</button>
+    <button id="clearBtn" class="btn-ghost" disabled data-ui="清空列表">清空列表</button>
+    <span style="font-size:13px;color:var(--text-2);" id="statusTip" data-ui="先选择文件">先选择文件</span>
+  </div>
+
+  <div class="up-summary hidden" id="summary"></div>
+</div>
+
+<script src="/markdown.js?v=43"></script>
+<script src="/upload.js?v=45"></script>
+</body>
+</html>

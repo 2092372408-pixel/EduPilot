@@ -1,0 +1,26 @@
+{
+  "name": "edupilot",
+  "version": "1.1.4",
+  "description": "EduPilot · AI 学习向导 —— 本地优先的中文教育智能体：预习 → 学习 → 复习闭环，教材 RAG，联网/站点检索统一走 MCP。",
+  "private": true,
+  "license": "SEE LICENSE IN LICENSE",
+  "dependencies": {
+    "@firecrawl/anydoc": "0.2.4",
+    "@langchain/core": "^1.2.9",
+    "@langchain/langgraph": "^1.4.12",
+    "@langchain/openai": "^1.5.10",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "better-sqlite3": "^13.0.3",
+    "jsonrepair": "3.15.0",
+    "tavily-mcp": "0.2.22",
+    "zod": "^4.4.3"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "check:publication": "node .github/check-publication.cjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

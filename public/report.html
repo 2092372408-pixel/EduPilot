@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <script src="ui-en.js"></script>
+  <script src="i18n.js"></script>
+  <script src="settings.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title data-ui="EduPilot · 学习报告">EduPilot · 学习报告</title>
+<link rel="stylesheet" href="/style.css?v=43" />
+<style>
+body { margin: 0; background: var(--bg, #f7f7f7); color: var(--text, #222); font: 14px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.report-head { display: flex; align-items: center; gap: 14px; padding: 14px 22px; background: #fff; border-bottom: 1px solid var(--border, #e5e5ea); position: sticky; top: 0; z-index: 5; }
+.report-head h1 { font-size: 17px; margin: 0; }
+.report-head .sub { color: #707070; font-size: 12.5px; }
+.report-head .spacer { flex: 1; }
+.rp-btn { font: inherit; font-size: 12.5px; padding: 6px 12px; border: 1px solid var(--border, #e5e5ea); border-radius: 8px; background: #fff; cursor: pointer; color: inherit; text-decoration: none; }
+.rp-btn:hover { border-color: #6155d9; color: #6155d9; }
+.report-body { max-width: 1080px; margin: 0 auto; padding: 18px 20px 60px; display: flex; flex-direction: column; gap: 18px; }
+.rp-card { background: #fff; border: 1px solid var(--border, #e5e5ea); border-radius: 12px; padding: 16px 18px; }
+.rp-card h2 { font-size: 14.5px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+.rp-card h2 small { color: #737373; font-weight: 400; font-size: 12px; }
+.rp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.rp-stat { background: #f5f3ff; border-radius: 10px; padding: 12px 14px; }
+.rp-stat .num { font-size: 24px; font-weight: 500; }
+.rp-stat .lbl { color: #888; font-size: 12px; }
+.rp-bar { height: 8px; border-radius: 5px; background: #eee; overflow: hidden; margin: 8px 0 4px; }
+.rp-bar i { display: block; height: 100%; background: #6155d9; }
+.rp-bar i.warn { background: #ef9f27; }
+.rp-bar i.done { background: #3b6d11; }
+.course-row { border: 1px solid #eee; border-radius: 10px; padding: 12px 14px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.course-row .ring-wrap { width: 64px; height: 64px; flex-shrink: 0; }
+.course-row .info { flex: 1; min-width: 200px; }
+.course-row .info .t { font-weight: 500; }
+.course-row .info .m { color: #888; font-size: 12.5px; margin-top: 2px; }
+.rp-tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 20px; margin-right: 6px; }
+.rp-tag.t-mastered { background: #eaf3de; color: #3b6d11; }
+.rp-tag.t-learning { background: #e9f3ff; color: #3573a8; }
+.rp-tag.t-not_started { background: #f1efef; color: #888; }
+.rp-tag.t-preview, .rp-tag.t-reviewing { background: #eee9ff; color: #7450ad; }
+.mem-item, .mistake-item, .rev-item { border-bottom: 1px dashed #eee; padding: 8px 2px; font-size: 13px; }
+.mem-item:last-child, .mistake-item:last-child, .rev-item:last-child { border-bottom: none; }
+.mem-type { font-size: 11px; padding: 1px 8px; border-radius: 20px; margin-right: 8px; background: #f1f1f1; color: #626262; }
+.mistake-q { font-weight: 500; }
+.mistake-a { color: #a32d2d; }
+.mistake-e { color: #888; font-size: 12.5px; margin-top: 2px; }
+.rev-title { font-weight: 500; }
+.rev-meta { color: #999; font-size: 12px; margin-left: 8px; }
+.sec-head { font-weight: 500; margin: 10px 0 6px; color: #555; font-size: 13px; }
+.empty { color: #999; padding: 10px 2px; font-size: 13px; }
+#busy { text-align: center; color: #888; padding: 40px 0; }
+.btn-go { font-size: 12px; padding: 3px 10px; border-radius: 8px; border: 1px solid #6155d9; color: #6155d9; background: #fff; cursor: pointer; margin-left: 8px; }
+.btn-go:hover { background: #f1f1f1; }
+</style>
+</head>
+<body>
+<header class="report-head">
+  <h1 data-ui="学习报告">学习报告</h1>
+  <span class="sub" id="subInfo" data-ui="加载中…">加载中…</span>
+  <div class="spacer"></div>
+  <a class="rp-btn" href="/" id="backHome" data-ui="↩ 回到对话">↩ 回到对话</a>
+  <a class="rp-btn" href="/upload.html" data-ui="＋ 添加课程">＋ 添加课程</a>
+</header>
+
+<div class="report-body">
+  <div id="busy" data-ui="正在汇总你的学习数据…">正在汇总你的学习数据…</div>
+  <div id="content" style="display:none;flex-direction:column;gap:18px;">
+
+    <!-- 总览 -->
+    <section class="rp-card">
+      <h2><span data-ui="学习总览">学习总览 </span><small id="ovlSub"></small></h2>
+      <div class="rp-grid" id="ovlStats"></div>
+    </section>
+
+    <!-- 课程明细 -->
+    <section class="rp-card">
+      <h2><span data-ui="各课程学习情况">各课程学习情况 </span><small data-ui="学习覆盖记录已学范围，完整随堂 / 复习测验全对才确认掌握">学习覆盖记录已学范围，完整随堂 / 复习测验全对才确认掌握</small></h2>
+      <div id="courseList" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </section>
+
+    <!-- 复习清单（连接学习状态：按计划到期时间分组） -->
+    <section class="rp-card">
+      <h2><span data-ui="复习清单">复习清单 </span><small data-ui="按测验后的复习计划安排，与首页提醒一致">按测验后的复习计划安排，与首页提醒一致</small></h2>
+      <div id="reviewZone"></div>
+    </section>
+
+    <!-- 错题本 -->
+    <section class="rp-card">
+      <h2><span data-ui="错题本">错题本 </span><small data-ui="判分记录里答错过的题（近 50 条）">判分记录里答错过的题（近 50 条）</small></h2>
+      <div id="mistakeZone"></div>
+    </section>
+  </div>
+</div>
+
+<script src="/progress.js?v=43"></script>
+<script src="/report-util.js?v=43"></script>
+<script>
+/* ============ 学习报告页 · 逻辑 ============ */
+const UID = localStorage.getItem('eduowl_uid') || ('demo-' + Date.now());
+const $ = (id) => document.getElementById(id);
+const sessionIdFor = (courseId) => `${UID}@${courseId}`;
+
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+async function loadReport() {
+  let courses = [];
+  try {
+    const d = await (await eduFetch('/api/courses')).json();
+    courses = (d.courses || []).map((c) => ({ id: c.id, title: c.title, dynamic: c.source === 'upload' }));
+  } catch (e) { return fail(e); }
+
+  // 并行拉：课程大纲（kp 标题映射，动态课才有两级）+ 会话信息（learning/summary/memories）
+  const infos = {};
+  const courseObjs = await Promise.all(courses.map(async (c) => {
+    const obj = { id: c.id, title: c.title, dynamic: c.dynamic, titleMap: {} };
+    try {
+      const cd = await (await eduFetch('/api/course?sessionId=' + encodeURIComponent(sessionIdFor(c.id)))).json();
+      if (cd && cd.course) {
+        obj.titleMap = {};
+        (cd.course.chapters || []).forEach((ch) => (ch.knowledgePoints || []).forEach((k) => { obj.titleMap[k.id] = k.title; }));
+      }
+    } catch (_) {}
+    try {
+      const res = await eduFetch('/api/session/' + encodeURIComponent(sessionIdFor(c.id)));
+      if (res.ok) infos[c.id] = await res.json();
+      else infos[c.id] = null;
+    } catch (_) { infos[c.id] = null; }
+    return obj;
+  }));
+
+  const report = EduReport.aggregate(courseObjs, infos);
+  render(report);
+}
+
+function fail(e) {
+  $('busy').textContent = ui("⚠️ 加载失败：") + (e.message || ui("未知错误")) + ui("（请确认服务已启动）");
+}
+
+function render(r) {
+  $('busy').style.display = 'none';
+  $('content').style.display = 'flex';
+  const t = r.totals;
+  $('subInfo').textContent = `${ui("共 ")}${r.courses.length}${ui(" 门课程 · 最近生成 ")}${new Date(r.generatedAt).toLocaleString(eduLocale())}`;
+  $('ovlSub').textContent = `${ui("已学习 ")}${t.studied}/${t.totalKps}${ui(" 个知识点 · 通过检测 ")}${t.assessed}${ui(" 个 · 答题 ")}${t.quizTotal}${ui(" 次 · 对话 ")}${t.activityTurns}${ui(" 轮")}`;
+
+  // 总览卡（旅程口径：进行中 / 已验证掌握 / 待完成检测 / 到期该复习）
+  const inProgress = (t.stages.preview || 0) + (t.stages.learning || 0) + (t.stages.reviewing || 0);
+  const stats = [
+    { n: t.studied + '/' + t.totalKps, l: ui("学习覆盖 / 知识点") },
+    { n: inProgress, l: ui("进行中 / 学习中或复习中") },
+    { n: t.mastered + '/' + t.totalKps, l: ui("已验证掌握 / 知识点") },
+    { n: t.pendingCount || 0, l: ui("待完成检测") },
+    { n: t.dueCount || 0, l: ui("到期该复习") },
+    { n: r.mistakes.length, l: ui("错题记录") },
+  ];
+  $('ovlStats').innerHTML = stats.map((s) => `<div class="rp-stat"><div class="num">${s.n}</div><div class="lbl">${s.l}</div></div>`).join('');
+
+  // 课程明细（旅程口径：各阶段分布 + 下一步 + 复习到期；素材课按节级状态同样呈现）
+  const listEl = $('courseList');
+  listEl.innerHTML = r.courses.map((c) => {
+    const cls = ['preview', 'learning', 'reviewing', 'mastered'].map(p => `<span class="rp-tag t-${p}">${c.stages[p] || 0} ${EduReport.PHASE_CN[p]}</span>`).join('') +
+      (c.stages.not_started ? `<span class="rp-tag t-not_started">${c.stages.not_started}${ui(" 未开始</span>")}` : '');
+    const coverage = c.totalKps ? Math.round(c.studied / c.totalKps * 100) : 0;
+    const nextHint = c.pending.length
+      ? `${ui("下一步：")}${esc(c.pending[0].title)}${ui(" · 待做「")}${esc(c.pending[0].label)}${ui("」")}${c.pending.length > 1 ? `${ui("（还有 ")}${c.pending.length - 1}${ui(" 项待检测）")}` : ''}`
+      : (c.dueCount ? `🔁 ${c.dueCount}${ui(" 个知识点到了复习时间")}` : (c.totalKps ? ui("本课知识点都已通过检测") : ''));
+    const sub = c.hasSession
+      ? `${ui("对话 ")}${c.activityTurns}${ui(" 轮")}${c.quizTotal ? ui(" · 答题 ") + c.quizCorrect + '/' + c.quizTotal + ui(" 对") : ''}${c.lastActivity ? ui(" · 最近学习 ") + (c.lastDays === 0 ? ui("今天") : c.lastDays === Infinity ? '' : c.lastDays + ui(" 天前")) : ''}`
+      : ui("还没开始学这门课");
+    return `${ui("<div class=\"course-row\">\n      <svg role=\"img\" aria-label=\"学习覆盖 ")}${coverage}%" viewBox="0 0 36 36" width="64" height="64"><circle cx="18" cy="18" r="15.9" fill="none" stroke="#eee" stroke-width="3.5"/><circle cx="18" cy="18" r="15.9" fill="none" stroke="#6155d9" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="${coverage} ${100 - coverage}" stroke-dashoffset="25"/><text x="18" y="21" text-anchor="middle" font-size="9">${coverage}%</text></svg>
+      <div class="info"><div class="t">${esc(c.title)}${ui("</div>\n      <div class=\"m\">学习覆盖 ")}${c.studied}/${c.totalKps}${ui(" · 已验证掌握 ")}${c.mastered}/${c.totalKps}${ui("</div><div class=\"m\">旅程：")}${cls}</div><div class="m">${nextHint}</div><div class="m">${sub}</div></div>
+      <a class="btn-go" href="/?course=${encodeURIComponent(c.courseId)}${ui("\">去学习 →</a></div>")}`;
+  }).join('');
+
+  // 下一步：待完成检测（严格梯级的下一步，插在复习清单之前）
+  const allPending = r.courses.flatMap((c) => c.pending.map((p) => ({ ...p, courseTitle: c.title })));
+  if (allPending.length) {
+    const rows = allPending.slice(0, 12).map((p) =>
+      `<div class="rev-item"><span class="rp-tag t-${p.phase}">${EduReport.PHASE_CN[p.phase]}</span><span class="rev-title">${esc(p.title)}</span><span class="rev-meta">${esc(p.courseTitle)}${ui(" · 待做")}${esc(p.label)}</span><a class="btn-go" href="/?course=${encodeURIComponent(p.courseId)}${ui("\" title=\"去对话里继续这一步\">继续学习 →</a></div>")}`).join('');
+    $('reviewZone').insertAdjacentHTML('beforebegin',
+      `${ui("<section class=\"rp-card\"><h2>下一步 <small>按顺序学习：每步先通过检测</small></h2>")}${rows}${allPending.length > 12 ? `${ui("<div class=\"empty\">…共 ")}${allPending.length}${ui(" 项</div>")}` : ''}</section>`);
+  }
+
+  // 复习清单
+  const rz = $('reviewZone');
+  const bucketMeta = [
+    { k: 'due', t: ui("已到期 · 建议复习") },
+    { k: 'soon', t: ui("已安排 · 尚未到期") },
+    { k: 'now', t: ui("继续学习 · 尚无复习计划") },
+  ];
+  const totalRev = r.reviewBuckets.now.length + r.reviewBuckets.soon.length + r.reviewBuckets.due.length;
+  if (!totalRev) { rz.innerHTML = ui("<div class=\"empty\">还没有学过任何内容——去课程里学一个知识点，这里就会出现复习计划。</div>"); }
+  else {
+    rz.innerHTML = bucketMeta.map((b) => {
+      const items = r.reviewBuckets[b.k];
+      if (!items.length) return '';
+      const rows = items.slice(0, 12).map((it) =>
+        `<div class="rev-item"><span class="rp-tag t-${it.phase}">${EduReport.PHASE_CN[it.phase]}</span><span class="rev-title">${esc(it.title)}</span><span class="rev-meta">${esc(it.courseTitle)}${it.dueAt ? ui(" · 复习时间 ") + new Date(it.dueAt).toLocaleDateString(eduLocale()) : Number.isFinite(it.daysAgo) ? (it.daysAgo === 0 ? ui(" · 今天学过") : ' · ' + it.daysAgo + ui(" 天前学过")) : ''}</span><a class="btn-go" href="/?course=${encodeURIComponent(it.courseId)}${ui("\" title=\"去对话里复习这个知识点\">")}${b.k === 'now' ? ui("去学习") : ui("去复习")} →</a></div>`).join('');
+      return `<div class="sec-head">${b.t}</div>${rows}${items.length > 12 ? `${ui("<div class=\"empty\">…共 ")}${items.length}${ui(" 项</div>")}` : ''}`;
+    }).join('');
+  }
+
+  // 记忆区域已被移除
+
+  // 错题本
+  $('mistakeZone').innerHTML = r.mistakes.length
+    ? r.mistakes.map((m) => `<div class="mistake-item"><div class="mistake-q">❌ ${esc(m.question)}${ui("</div><div class=\"mistake-a\">你的答案：")}${esc(m.userAnswer)}</div>${m.explanation ? `<div class="mistake-e">${esc(m.explanation)}</div>` : ''}${ui("<div class=\"rev-meta\">《")}${esc(m.courseTitle)}${ui("》 · ")}${esc(m.kpTitle)}</div></div>`).join('')
+    : ui("<div class=\"empty\">没有答错过题（或还没做过题）——继续保持！</div>");
+}
+
+loadReport();
+</script>
+</body>
+</html>

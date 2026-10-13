@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eu
+node .github/check-publication.cjs --staged --history

@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check publication boundary
+        run: npm run check:publication
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: 'false'
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: edupilot:ci
+
+  desktop:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: |
+          npm ci --ignore-scripts
+          node -e "new (require('better-sqlite3'))(':memory:').close()"
+      - name: Check publication boundary
+        run: npm run check:publication
+      - name: Verify SQLite and desktop startup
+        shell: bash
+        run: |
+          node <<'NODE'
+          const { spawn } = require('node:child_process');
+          const path = require('node:path');
+          const Database = require('better-sqlite3');
+          const db = new Database(':memory:');
+          db.close();
+          const app = spawn(process.execPath, ['server/index.js'], {
+            stdio: 'inherit',
+            env: { ...process.env, HOST: '127.0.0.1', PORT: '8787', LLM_MODE: 'mock',
+              EDUOWL_DB: path.join(process.env.RUNNER_TEMP, 'desktop-smoke.db'),
+              LLM_API_KEY: '', TAVILY_API_KEY: '', EDUOWL_WEB_ENABLED: '0' },
+          });
+          (async () => {
+            try {
+              let ready = false;
+              for (let i = 0; i < 45; i++) {
+                if (app.exitCode !== null) throw new Error('Server exited before becoming ready');
+                try { ready = (await fetch('http://127.0.0.1:8787/api/health')).ok; } catch (_) {}
+                if (ready) break;
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+              if (!ready) throw new Error('Desktop startup timed out');
+              const html = await (await fetch('http://127.0.0.1:8787/')).text();
+              if (!html.includes('llmSettingsSummary') || !html.includes('webSaveBtn')) throw new Error('Separate settings are missing');
+              for (const [route, body] of [
+                ['/api/llm/save', { provider: 'openai', model: 'gpt-4o' }],
+                ['/api/web/config', { enabled: true }],
+              ]) {
+                const result = await fetch('http://127.0.0.1:8787' + route, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+                });
+                if (result.status !== 400) throw new Error('Missing key was accepted: ' + route);
+              }
+              console.log('SQLite, startup, and separate key validation passed');
+            } finally { app.kill(); }
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          NODE
+      - name: Check macOS launchers
+        if: runner.os == 'macOS'
+        run: |
+          bash -n install.command start.command stop.command
+          test -x install.command && test -x start.command && test -x stop.command

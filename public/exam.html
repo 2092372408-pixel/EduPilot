@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <script src="ui-en.js"></script>
+  <script src="i18n.js"></script>
+  <script src="settings.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title data-ui="期末大实践 · EduPilot">期末大实践 · EduPilot</title>
+<style>
+  :root { --primary:#6155d9; --text:#22212a; --text-2:#6b6a75; --line:#e6e4ee; --danger:#c0392b; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif; color:var(--text); background:#f6f5fa; }
+  .exam-bar { position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:14px; padding:12px 20px;
+    background:#fff; border-bottom:1px solid var(--line); }
+  .exam-bar h1 { margin:0; font-size:16px; font-weight:600; }
+  .exam-bar .grow { flex:1; }
+  .timer { font-variant-numeric:tabular-nums; font-size:15px; font-weight:600; color:var(--primary); }
+  .timer.warn { color:var(--danger); }
+  .lock { font-size:12px; color:var(--text-2); }
+  .wrap { max-width:820px; margin:0 auto; padding:20px 20px 120px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin-bottom:14px; }
+  .card h2 { margin:0 0 10px; font-size:15px; }
+  .btn { border:none; border-radius:9px; padding:9px 16px; font-size:14px; cursor:pointer; background:#efedf7; color:var(--text); }
+  .btn.primary { background:var(--primary); color:#fff; }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  /* 交卷确认框（页面内，替代原生 confirm） */
+  .confirm-overlay { position:fixed; inset:0; z-index:200; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; padding:16px; }
+  .confirm-box { width:min(420px,92vw); background:#fff; border-radius:14px; padding:20px 20px 16px; box-shadow:0 18px 50px rgba(15,23,42,.25); }
+  .confirm-box h3 { margin:0 0 10px; font-size:16px; }
+  .confirm-box p { margin:0 0 18px; font-size:13.5px; line-height:1.8; color:#6b7285; white-space:pre-wrap; }
+  .confirm-actions { display:flex; justify-content:flex-end; gap:10px; }
+  .btn.ghost { background:#f3f2fa; }
+  .q { margin:0 0 8px; font-size:14px; line-height:1.7; }
+  .opts { display:flex; flex-direction:column; gap:6px; }
+  .opt { display:flex; gap:8px; align-items:flex-start; padding:8px 10px; border:1px solid var(--line); border-radius:9px; cursor:pointer; font-size:13px; }
+  .opt:hover { border-color:var(--primary); }
+  .opt input { margin-top:2px; }
+  .kp-tag { display:inline-block; margin-right:6px; padding:1px 6px; font-size:11px; border-radius:6px; background:#efedf7; color:#5a4fc7; }
+  .code-input { width:100%; min-height:170px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px;
+    line-height:1.6; padding:10px; border:1px solid var(--line); border-radius:9px; resize:vertical; }
+  .submit-bar { position:fixed; left:0; right:0; bottom:0; display:flex; align-items:center; gap:12px; padding:12px 20px;
+    background:#fff; border-top:1px solid var(--line); }
+  .submit-bar .grow { flex:1; }
+  .score-hero { text-align:center; padding:26px 20px; }
+  .score-hero .num { font-size:44px; font-weight:700; color:var(--primary); }
+  .score-hero .lbl { color:var(--text-2); font-size:13px; margin-top:4px; }
+  .row-item { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); font-size:13px; }
+  .ok { color:#1d9e75; font-weight:600; } .no { color:var(--danger); font-weight:600; }
+  .muted { color:var(--text-2); font-size:12px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<!-- 交卷确认框：不依赖原生 confirm（内嵌浏览器会拦截原生弹窗）。
+     ⚠ 必须放在脚本之前：脚本顶部就绑定这些元素（同步执行） -->
+<div id="examConfirm" class="confirm-overlay hidden">
+  <div class="confirm-box">
+    <h3 data-ui="确认交卷">确认交卷</h3>
+    <p id="examConfirmMsg"></p>
+    <div class="confirm-actions">
+      <button class="btn ghost" id="examConfirmCancel" data-ui="再检查一下">再检查一下</button>
+      <button class="btn" id="examConfirmOk" data-ui="确认交卷">确认交卷</button>
+    </div>
+  </div>
+</div>
+<div class="exam-bar">
+  <h1 data-ui="期末大实践">期末大实践</h1>
+  <span class="timer hidden" id="timer">60:00</span>
+  <span class="lock muted hidden" id="lockInfo" data-ui="闭卷进行中 · 请勿离开本页">闭卷进行中 · 请勿离开本页</span>
+  <span class="grow"></span>
+  <button class="btn hidden" id="submitTop" data-ui="提交试卷">提交试卷</button>
+  <a class="btn" id="backHome" href="/" data-ui="返回对话">返回对话</a>
+</div>
+
+<div class="wrap">
+  <div class="card" id="introCard">
+    <h2 data-ui="开始前请确认">开始前请确认</h2>
+    <div class="muted" id="rules"></div>
+    <div id="unlockInfo" style="margin-top:12px;"></div>
+    <div style="margin-top:14px;">
+      <button class="btn primary" id="startBtn" data-ui="开始答题">开始答题</button>
+    </div>
+  </div>
+  <div id="paper"></div>
+</div>
+
+<div class="submit-bar hidden" id="submitBar">
+  <span class="muted" id="progressInfo" data-ui="已作答 0 题">已作答 0 题</span>
+  <span class="grow"></span>
+  <button class="btn primary" id="submitBtn" data-ui="提交试卷">提交试卷</button>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+// uid/auto 仅用于本地演示与自动化截图（不带参数时行为完全不变）
+const UID = params.get('uid') || localStorage.getItem('eduowl_uid') || ('demo-' + Date.now());
+const COURSE = params.get('course') || 'python-intro';
+const AUTO = params.get('auto'); // paper=直接进入答题界面；submit=自动作答并交卷
+const SID = UID + '@' + COURSE;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+let paper = null;
+let timerId = null;
+let submitted = false;
+
+function fmt(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+}
+
+async function api(path, body) {
+  const opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {};
+  const r = await eduFetch(path, opt);
+  return r.json();
+}
+
+function renderRules(rules) {
+  $('rules').innerHTML = [
+    `${ui("· 卷面：")}${rules.choiceCount}${ui(" 道选择题 + ")}${rules.codingCount}${ui(" 道代码实践题，满分 100 分（")}${rules.passScore}${ui(" 分通过）")}`,
+    `${ui("· 限时 ")}${rules.minutes}${ui(" 分钟，开考后计时不停；到点自动按已作答内容评分")}`,
+    `${ui("· 闭卷：题目按你的学习情况现场生成，中途离开本页会被记录")}`,
+    `${ui("· 可以重考，成绩保留历史并取最高分")}`,
+  ].join('<br/>');
+}
+
+async function init() {
+  const st = await api('/api/exam?sessionId=' + encodeURIComponent(SID));
+  renderRules(st.rules);
+  if (!st.unlocked) {
+    $('unlockInfo').innerHTML = `${ui("<div><b>还差 ")}${st.missing.length}${ui(" 个知识点</b>（已完成 ")}${st.progress}${ui("）——")}`
+      + `${ui("先把每个知识点的「随堂练习」做全对，才可以参加期末大实践：</div>")}`
+      + st.missing.map((m) => `<div class="muted">· ${esc(m.title)}${ui("（当前：")}${{not_started:ui("未开始"),preview:ui("预习中"),learning:ui("学习中"),reviewing:ui("复习中"),mastered:ui("已掌握")}[m.phase] || m.phase}${ui("）</div>")}`).join('');
+    $('startBtn').disabled = true;
+  } else {
+    $('unlockInfo').innerHTML = `${ui("<div class=\"muted\">已解锁：")}${st.progress}${ui(" 个知识点均通过了学习检测")}`
+      + (st.best ? `${ui(" · 历史最好成绩 <b>")}${st.best.score}${ui("</b> 分（")}${st.attempts.length}${ui(" 次）")}` : '') + '</div>';
+  }
+  if (st.inProgress) {
+    $('introCard').querySelector('h2').textContent = ui("你有一份未提交的试卷");
+    $('startBtn').textContent = ui("继续答题");
+  }
+}
+
+async function start() {
+  const r = await api('/api/exam/start', { sessionId: SID });
+  if (r.error) { alert(r.error); return; }
+  paper = r.paper;
+  submitted = false;
+  renderPaper();
+  $('introCard').classList.add('hidden');
+  $('submitBar').classList.remove('hidden');
+  $('submitTop').classList.remove('hidden');
+  $('timer').classList.remove('hidden');
+  $('lockInfo').classList.remove('hidden');
+  startTimer();
+}
+
+function startTimer() {
+  clearInterval(timerId);
+  const endsAt = Date.parse(paper.endsAt);
+  const tick = () => {
+    const left = endsAt - Date.now();
+    $('timer').textContent = fmt(left) + (left <= 0 ? ui(" 已超时") : '');
+    $('timer').classList.toggle('warn', left < 5 * 60000);
+    // Send just before the hard server deadline to leave time for local HTTP transport.
+    if (left <= 1500 && !submitted) { clearInterval(timerId); submit(true); }
+  };
+  tick();
+  timerId = setInterval(tick, 1000);
+}
+
+function renderPaper() {
+  const parts = [];
+  parts.push(ui("<div class=\"card\"><h2>一、选择题（每题 6 分）</h2>"));
+  for (const q of paper.choice) {
+    parts.push(`<div class="q" style="margin-top:14px;"><span class="kp-tag">${esc(q.kpTitle)}</span>${esc(q.q)}</div>`);
+    parts.push('<div class="opts">' + q.options.map((o, j) => {
+      const L = String.fromCharCode(65 + j);
+      return `<label class="opt"><input type="radio" name="${q.id}" value="${L}" /> <span>${L}. ${esc(o)}</span></label>`;
+    }).join('') + '</div>');
+  }
+  parts.push('</div>');
+  parts.push(ui("<div class=\"card\"><h2>二、代码实践题（每题 26 分，按测试用例通过率给分）</h2>"));
+  for (const p of paper.coding) {
+    parts.push(`<div class="q" style="margin-top:14px;"><span class="kp-tag">${esc(p.kpTitle)}</span><b>${esc(p.title)}${ui("</b>（")}${p.testCount}${ui(" 个用例）</div>")}`);
+    parts.push(`<div class="muted" style="white-space:pre-wrap;margin-bottom:8px;">${esc(p.description)}</div>`);
+    parts.push(`<textarea class="code-input" id="code_${p.id}" spellcheck="false">${esc(p.starterCode)}</textarea>`);
+  }
+  parts.push('</div>');
+  $('paper').innerHTML = parts.join('');
+  $('paper').addEventListener('change', updateProgress);
+  $('paper').addEventListener('input', updateProgress);
+  updateProgress();
+}
+
+function collect() {
+  const answers = {};
+  for (const q of paper.choice) {
+    const el = document.querySelector(`input[name="${q.id}"]:checked`);
+    if (el) answers[q.id] = el.value;
+  }
+  const code = {};
+  for (const p of paper.coding) {
+    const el = $('code_' + p.id);
+    if (el) code[p.id] = el.value;
+  }
+  return { answers, code };
+}
+
+function updateProgress() {
+  const { answers, code } = collect();
+  const a = Object.keys(answers).length;
+  const c = paper.coding.filter((p) => (code[p.id] || '').trim()).length;
+  $('progressInfo').textContent = `${ui("选择题 ")}${a}/${paper.choice.length}${ui(" · 编程题 ")}${c}/${paper.coding.length}`;
+}
+
+async function submit(auto = false) {
+  if (submitted) return;
+  const { answers, code } = collect();
+  const answered = Object.keys(answers).length;
+  // 用页面内确认框而非原生 confirm：内嵌浏览器会拦截原生弹窗，
+  // 而交卷是不可逆操作，最不能出现"点了没反应"。
+  if (!auto) {
+    const okConfirm = await askConfirm(`${ui("确认交卷？选择题已答 ")}${answered}/${paper.choice.length}${ui(" 题，交卷后不能修改。")}`);
+    if (!okConfirm) return;
+  }
+  submitted = true;
+  $('submitBtn').disabled = true;
+  $('submitTop').disabled = true;
+  $('submitBtn').textContent = ui("评分中…");
+  let r = null;
+  try {
+    r = await api('/api/exam/submit', { sessionId: SID, attemptId: paper.id, answers, code });
+  } catch (e) {
+    // 交卷失败（网络异常/无进行中考试等）→ 恢复可操作并提示，不要卡在"评分中…"
+    submitted = false;
+    $('submitBtn').disabled = false;
+    $('submitTop').disabled = false;
+    $('submitBtn').textContent = ui("提交试卷");
+    const msg = (e && e.message) || ui("未知错误");
+    $('paper').insertAdjacentHTML('afterbegin', `${ui("<div class=\"card\">⚠️ 交卷失败：")}${esc(msg)}${ui("<br/>请检查后重试；若提示\"没有进行中的考试\"，请返回对话页重新进入考试。</div>")}`);
+    return;
+  }
+  clearInterval(timerId);
+  $('submitBar').classList.add('hidden');
+  $('submitTop').classList.add('hidden');
+  $('timer').classList.add('hidden');
+  $('lockInfo').classList.add('hidden');
+  renderResult(r);
+}
+
+/** 页面内确认框（不依赖原生 confirm） */
+let _confirmResolve = null;
+function askConfirm(message) {
+  return new Promise((resolve) => {
+    _confirmResolve = resolve;
+    const el = document.getElementById('examConfirm');
+    document.getElementById('examConfirmMsg').textContent = message;
+    el.classList.remove('hidden');
+    document.getElementById('examConfirmOk').focus();
+  });
+}
+function closeAskConfirm(result) {
+  document.getElementById('examConfirm').classList.add('hidden');
+  if (_confirmResolve) { const r = _confirmResolve; _confirmResolve = null; r(result); }
+}
+
+function renderResult(r) {
+  if (r.error) { $('paper').innerHTML = `<div class="card">${esc(r.error)}</div>`; return; }
+  const a = r.attempt;
+  const rows = a.detail.map((d) => {
+    if (d.type === 'choice') {
+      return `<div class="row-item"><span class="${d.ok ? 'ok' : 'no'}">${d.ok ? '✓' : '✗'}</span>`
+        + `<div><div><span class="kp-tag">${esc(d.kpTitle)}</span>${esc(d.q)}</div>`
+        + `${ui("<div class=\"muted\">你的答案：")}${esc(d.picked || ui("未作答"))}${ui(" · 正确答案：")}${esc(d.answer)}</div>`
+        + (d.explanation ? `<div class="muted">${esc(d.explanation)}</div>` : '') + '</div></div>';
+    }
+    const cases = (d.results || []).map((x) => `${x.pass ? '✓' : '✗'} ${esc(x.desc)}`).join(ui("　"));
+    return `<div class="row-item"><span class="${d.score > 0 ? 'ok' : 'no'}">${d.score}/${d.reached || 26}</span>`
+      + `<div><div><span class="kp-tag">${esc(d.kpTitle)}</span>${esc(d.title || '')}</div>`
+      + `${ui("<div class=\"muted\">用例通过 ")}${d.passed}/${d.total}${d.skipped ? ui("（未作答）") : ''}</div>`
+      + (cases ? `<div class="muted">${cases}</div>` : '')
+      + (d.error ? `${ui("<div class=\"muted\">运行错误：")}${esc(d.error)}</div>` : '') + '</div></div>';
+  }).join('');
+  $('paper').innerHTML = `
+    <div class="card score-hero"><div class="num">${a.score}${ui("</div><div class=\"lbl\">总分 100 · 通过线 ")}${r.passScore} · ${a.passed ? ui("通过 🎉") : ui("未通过")}${ui("</div>\n      <div class=\"muted\" style=\"margin-top:8px;\">选择题 ")}${a.choice.got}/${a.choice.total}${ui(" · 编程题 ")}${a.coding.got}/${a.coding.total}${a.leftCount ? `${ui(" · 中途离开 ")}${a.leftCount}${ui(" 次")}` : ''}${a.expired ? ui(" · 超时交卷") : ''}${ui("</div>\n      <div class=\"muted\" style=\"margin-top:6px;\">历史最好成绩：")}${r.best.score}${ui(" 分（共 ")}${r.attempts}${ui(" 次）</div>\n    </div>\n    <div class=\"card\"><h2>逐题解析</h2>")}${rows}${ui("</div>\n    <div class=\"card\" style=\"display:flex;gap:10px;\">\n      <button class=\"btn primary\" id=\"againBtn\">再考一次</button>\n      <a class=\"btn\" href=\"/?course=")}${encodeURIComponent(COURSE)}${ui("\">回到对话</a>\n    </div>")}`;
+  $('againBtn').addEventListener('click', () => { location.reload(); });
+}
+
+// 闭卷约束：答题中拦截离开 + 记录
+window.addEventListener('beforeunload', (e) => {
+  if (paper && !submitted) { e.preventDefault(); e.returnValue = ui("考试进行中，离开将中断答题"); }
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && paper && !submitted) {
+    eduFetch('/api/exam/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: SID }) }).catch(() => {});
+  }
+});
+
+// 本地演示/截图：auto=paper 直接进入答题界面；auto=submit 自动作答并交卷；auto=result 回看最近成绩单
+async function autoRun() {
+  if (AUTO === 'result') {
+    const st = await api('/api/exam?sessionId=' + encodeURIComponent(SID));
+    if (st.lastDetail) {
+      $('introCard').classList.add('hidden');
+      renderResult({ attempt: st.lastDetail, best: st.best, attempts: st.attempts.length, passScore: st.rules.passScore });
+    }
+    return;
+  }
+  if (document.getElementById('startBtn').disabled) return;
+  await start();
+  if (AUTO !== 'submit') return;
+  document.querySelectorAll('.opts').forEach((g) => { const r = g.querySelector('input'); if (r) r.checked = true; });
+  document.querySelectorAll('.code-input').forEach((t) => { t.value = 'a = 1\nb = 2\na, b = b, a\n'; });
+  updateProgress();
+  submit(true);
+}
+
+$('startBtn').addEventListener('click', start);
+$('submitBtn').addEventListener('click', () => submit(false));
+$('submitTop').addEventListener('click', () => submit(false));
+$('examConfirmOk').addEventListener('click', () => closeAskConfirm(true));
+$('examConfirmCancel').addEventListener('click', () => closeAskConfirm(false));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAskConfirm(false); });
+init().then(() => { if (AUTO) autoRun(); });
+</script>
+</body>
+</html>
