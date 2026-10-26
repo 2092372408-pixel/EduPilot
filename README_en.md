@@ -9,10 +9,10 @@
 <p align="center">Import Chinese or English materials and move naturally between explanations, practice and review.<br />Native desktop app for Windows / macOS · English and Chinese · Try the built-in demo without a key</p>
 
 <p align="center">
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.5"><img src="https://img.shields.io/badge/Release-v1.1.5-2563eb" alt="Desktop release v1.1.5" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="Download the native Windows installer" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="Download the native Apple Silicon installer" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="Download the native Intel Mac installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.6"><img src="https://img.shields.io/badge/Release-v1.1.6-2563eb" alt="Desktop release v1.1.6" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="Download the native Windows installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="Download the native Apple Silicon installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="Download the native Intel Mac installer" /></a>
 </p>
 
 <p align="center"><a href="#features">Highlights</a> · <a href="#workspace">See the workspace</a> · <a href="#download">Download</a> · <a href="#demo">Learning demo</a> · <a href="#api-keys">Connect a model</a> · <a href="#faq">FAQ</a></p>
@@ -52,9 +52,9 @@ Download the native desktop app and start learning from its icon, with no server
 
 | Your computer | Download |
 | --- | --- |
-| Windows x64 | [Download Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-Windows-x64-Setup.exe) |
-| Mac · Apple Silicon (M-series chips) | [Download Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-arm64.dmg) |
-| Mac · Intel | [Download Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-x64.dmg) |
+| Windows x64 | [Download Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-Windows-x64-Setup.exe) |
+| Mac · Apple Silicon (M-series chips) | [Download Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-arm64.dmg) |
+| Mac · Intel | [Download Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-x64.dmg) |
 
 1. **Download** the installer for your computer. Choose Apple Silicon for an M-series Mac.
 2. **Double-click to install**: run `Setup.exe` on Windows and follow the prompts. On macOS, open the `.dmg` and drag EduPilot into Applications.
@@ -62,7 +62,7 @@ Download the native desktop app and start learning from its icon, with no server
 
 Next time, open **EduPilot** from the Windows desktop or Mac Launchpad. Closing the window hides it to the tray (the menu bar on Mac) while the backend keeps running. Select **Quit EduPilot** from the menu to exit completely. Your study records stay on your computer for your next session.
 
-A tour points to real controls on your first visit, introducing courses, uploads, questions, mistakes and reports. Skip whenever you like, or select **Guide** at the top to replay it. Current installers are unsigned, and Mac packages are not notarized; your OS may warn or block opening them. Check the attachments and SHA-256 checksums on the [Release page](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.5). Older browser-based packages remain available in [v1.1.4](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.4).
+A tour points to real controls on your first visit, introducing courses, uploads, questions, mistakes and reports. Skip whenever you like, or select **Guide** at the top to replay it. Current installers are unsigned, and Mac packages are not notarized; your OS may warn or block opening them. Check the attachments and SHA-256 checksums on the [Release page](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.6). Older browser-based packages remain available in [v1.1.4](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.4).
 
 <details>
 <summary>A guide for your first visit</summary>

@@ -11,7 +11,7 @@
     "tools/check-desktop-package.js", "release-manifest.json",
     "data/kb/index.json", "data/kb/questions.json",
     "docs/banner.png", "docs/learning-flow.jpg", "docs/学生端说明书.md", "docs/桌面启动与退出说明.md",
-    "docs/demos/learning-journey-zh.gif", "docs/demos/learning-journey-en.gif", "docs/releases/v1.1.4.md", "docs/releases/v1.1.5.md"
+    "docs/demos/learning-journey-zh.gif", "docs/demos/learning-journey-en.gif", "docs/releases/v1.1.4.md", "docs/releases/v1.1.5.md", "docs/releases/v1.1.6.md"
   ],
   "directories": [
     "server/", "public/", "desktop/", "data/kb/books/python-intro/", "data/kb/chunks/python-intro/",

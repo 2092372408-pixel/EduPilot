@@ -9,10 +9,10 @@
 <p align="center">导入中英文资料，按章节学习，在讲解、练习和复习之间自然衔接。<br />Windows / macOS 原生桌面 App · 中英文界面 · 内置演示课无需密钥</p>
 
 <p align="center">
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.5"><img src="https://img.shields.io/badge/Release-v1.1.5-2563eb" alt="桌面版 v1.1.5" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="下载 Windows 原生安装包" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="下载 Mac M 系列芯片原生安装包" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="下载 Mac Intel 原生安装包" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.6"><img src="https://img.shields.io/badge/Release-v1.1.6-2563eb" alt="桌面版 v1.1.6" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="下载 Windows 原生安装包" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="下载 Mac M 系列芯片原生安装包" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="下载 Mac Intel 原生安装包" /></a>
 </p>
 
 <p align="center"><a href="#features">核心亮点</a> · <a href="#workspace">看看界面</a> · <a href="#download">下载体验</a> · <a href="#demo">学习演示</a> · <a href="#api-keys">接入模型</a> · <a href="#faq">常见问题</a></p>
@@ -52,9 +52,9 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 | 你的电脑 | 下载 |
 | --- | --- |
-| Windows x64 | [下载 Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-Windows-x64-Setup.exe) |
-| Mac · Apple Silicon（M 系列芯片） | [下载 Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-arm64.dmg) |
-| Mac · Intel 芯片 | [下载 Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-x64.dmg) |
+| Windows x64 | [下载 Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-Windows-x64-Setup.exe) |
+| Mac · Apple Silicon（M 系列芯片） | [下载 Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-arm64.dmg) |
+| Mac · Intel 芯片 | [下载 Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-x64.dmg) |
 
 1. **下载**适合自己电脑的安装包。Mac M 系列芯片请选择 Apple Silicon。
 2. **双击安装**：Windows 运行 `Setup.exe`，按提示安装；macOS 打开 `.dmg`，把 EduPilot 拖入 Applications。
@@ -62,7 +62,7 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 以后从 Windows 桌面或 Mac 启动台打开 **EduPilot** 即可。关闭窗口会隐藏到托盘（Mac 菜单栏），后台继续运行；完全退出请从菜单选择 **退出 EduPilot**。学习记录保存在本机，下次打开接着学。
 
-首次打开有按钮指向式教程，带你认识选课、上传、提问、错题本和报告。可以跳过，也可以从顶部 **教程** 重新查看。当前安装包未签名，Mac 包也未公证，系统可能提示来源或阻止打开；请核对 [Release 页面](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.5) 的附件与 SHA-256。旧版浏览器启动包保留在 [v1.1.4](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.4)。
+首次打开有按钮指向式教程，带你认识选课、上传、提问、错题本和报告。可以跳过，也可以从顶部 **教程** 重新查看。当前安装包未签名，Mac 包也未公证，系统可能提示来源或阻止打开；请核对 [Release 页面](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.6) 的附件与 SHA-256。旧版浏览器启动包保留在 [v1.1.4](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.4)。
 
 <details>
 <summary>第一次用，也有人带你上手</summary>
