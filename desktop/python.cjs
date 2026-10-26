@@ -19,3 +19,6 @@ const requirements = path.join(staging, 'python-requirements.txt');
 execFileSync(uv, ['export', '--project', __dirname, '--locked', '--python', python, '--no-dev', '--no-emit-project', '--output-file', requirements, '--quiet'], { stdio: 'inherit' });
 execFileSync(uv, ['pip', 'install', '--python', python, '--target', packages, '--only-binary=:all:', '--link-mode', 'copy', '--require-hashes', '-r', requirements], { stdio: 'inherit' });
 execFileSync(python, ['-I', '-c', 'import sqlite3, fastembed, markitdown; print("Bundled Python, document conversion and embeddings ready")'], { stdio: 'inherit' });
+if (process.platform === 'darwin') execFileSync(python, ['-I', '-c',
+  'from PIL import Image; import sys; Image.open(sys.argv[1]).convert("RGBA").resize((1024, 1024), Image.Resampling.LANCZOS).save(sys.argv[2])',
+  path.join(root, 'public/logo-mark.png'), path.join(staging, 'EduPilot.png')], { stdio: 'inherit' });

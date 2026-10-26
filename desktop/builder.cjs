@@ -22,7 +22,7 @@ module.exports = {
   ],
   win: { target: ['nsis'], icon: path.resolve(__dirname, '../.desktop-build/EduPilot.ico'), artifactName: 'EduPilot-${version}-Windows-${arch}-Setup.${ext}' },
   nsis: { oneClick: false, perMachine: false, allowElevation: false, allowToChangeInstallationDirectory: true, createDesktopShortcut: true, deleteAppDataOnUninstall: false },
-  mac: { target: ['dmg', 'zip'], icon: path.resolve(__dirname, '../public/logo-mark.png'), category: 'public.app-category.education', artifactName: 'EduPilot-${version}-macOS-${arch}.${ext}',
+  mac: { target: ['dmg', 'zip'], icon: path.resolve(__dirname, '../.desktop-build/EduPilot.png'), category: 'public.app-category.education', artifactName: 'EduPilot-${version}-macOS-${arch}.${ext}',
     notarize: Boolean(process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID) },
   dmg: { contents: [{ x: 150, y: 190 }, { x: 430, y: 190, type: 'link', path: '/Applications' }] },
 };
