@@ -304,6 +304,14 @@ function cleanup(text) {
  */
 async function convertToMarkdown(srcPath, opts = {}) {
   const ext = path.extname(srcPath).toLowerCase();
+  // A permissive fallback must not turn renamed plain text into a valid PDF.
+  if (ext === '.pdf') {
+    const data = fs.readFileSync(srcPath);
+    if (!/^%PDF-1\.[0-9]|^%PDF-2\.0/.test(data.subarray(0, 16).toString('ascii'))
+      || !data.subarray(-4096).includes(Buffer.from('%%EOF'))) {
+      throw new Error('PDF 文件无效或不完整，请上传有效的文字版 PDF');
+    }
+  }
   // fallbackTitle 优先用调用方给的真实文档名（如原文件名）；默认才退回源文件名
   const fallbackTitle = (opts.fallbackTitle && String(opts.fallbackTitle).trim())
     || path.basename(srcPath, path.extname(srcPath)).replace(/[_-]+/g, ' ');

@@ -132,5 +132,9 @@ function embedModel(provider) {
   return '自动选择';
 }
 
-if (require.main === module) { buildVectors(process.argv[2] || 'python-intro'); }
+if (require.main === module) {
+  buildVectors(process.argv[2] || 'python-intro')
+    .catch(e => { console.error(e.message); process.exitCode = 1; })
+    .finally(() => require('./embed').closeLocal());
+}
 module.exports = { buildVectors };

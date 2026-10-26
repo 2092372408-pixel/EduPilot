@@ -38,7 +38,8 @@ COPY data ./data
 COPY mcp.servers.json ./mcp.servers.json
 
 RUN mkdir -p /app/data /app/data/logs /app/data/courses /app/data/trash \
-  && chown -R node:node /app /opt/eduowl-venv
+  && chown node:node /app \
+  && chown -R node:node /app/data
 
 USER node
 

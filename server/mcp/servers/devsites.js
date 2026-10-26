@@ -61,7 +61,7 @@ function resolveDomains(site) {
   return d && d.includes('.') ? [d] : null;
 }
 
-async function tavilySearch(query, domains, maxResults) {
+async function tavilySearch(query, domains, maxResults, signal) {
   if (!TAVILY_KEY) throw new Error('未配置 TAVILY_API_KEY');
   const body = {
     query,
@@ -73,16 +73,16 @@ async function tavilySearch(query, domains, maxResults) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TAVILY_KEY}` },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]) : AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Tavily HTTP ${res.status}`);
   return res.json();
 }
 
-async function githubApi(path) {
+async function githubApi(path, signal) {
   const headers = { Accept: 'application/vnd.github+json', 'User-Agent': UA, 'X-GitHub-Api-Version': '2022-11-28' };
   if (GITHUB_TOKEN) headers.Authorization = `Bearer ${GITHUB_TOKEN}`;
-  const res = await fetch(`https://api.github.com${path}`, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const res = await fetch(`https://api.github.com${path}`, { headers, signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]) : AbortSignal.timeout(TIMEOUT_MS) });
   if (res.status === 403 || res.status === 429) throw new Error('GitHub API 触发限流，请稍后再试（或配置 GITHUB_TOKEN 提高配额）');
   if (res.status === 401) throw new Error('GitHub 代码检索需要登录：请配置 GITHUB_TOKEN');
   if (!res.ok) throw new Error(`GitHub HTTP ${res.status}`);
@@ -124,13 +124,13 @@ server.registerTool(
       maxResults: z.number().int().min(1).max(8).optional().describe('返回条数，默认 5'),
     },
   },
-  async ({ query, site, maxResults }) => {
+  async ({ query, site, maxResults }, extra) => {
     const q = String(query || '').trim();
     if (!q) return errResult('query 不能为空');
     const domains = resolveDomains(site);
     if (site && !domains) return errResult(`无法识别的站点：${site}（可先用 list_dev_sites 查看，或传完整域名）`);
     try {
-      const data = await tavilySearch(q, domains, maxResults);
+      const data = await tavilySearch(q, domains, maxResults, extra.signal);
       const results = (data.results || []).map((r) => ({
         title: r.title,
         url: r.url,
@@ -145,6 +145,7 @@ server.registerTool(
         note: results.length ? undefined : '该站点内未检索到相关内容，可换个关键词或去掉 site 限定。',
       });
     } catch (e) {
+      extra.signal.throwIfAborted();
       console.error(`[${NAME}] search_dev 失败: ${e.message} | ${q}`);
       return errResult(`检索失败：${e.message}`);
     }
@@ -164,14 +165,14 @@ server.registerTool(
       maxResults: z.number().int().min(1).max(10).optional().describe('返回条数，默认 5'),
     },
   },
-  async ({ query, type, maxResults }) => {
+  async ({ query, type, maxResults }, extra) => {
     const q = String(query || '').trim();
     if (!q) return errResult('query 不能为空');
     const kind = type || 'repo';
     const per = Math.min(Math.max(Number(maxResults) || 5, 1), 10);
     try {
       if (kind === 'repo') {
-        const data = await githubApi(`/search/repositories?q=${encodeURIComponent(q)}&per_page=${per}&sort=stars`);
+        const data = await githubApi(`/search/repositories?q=${encodeURIComponent(q)}&per_page=${per}&sort=stars`, extra.signal);
         const results = (data.items || []).map((r) => ({
           name: r.full_name,
           url: r.html_url,
@@ -184,7 +185,7 @@ server.registerTool(
       }
       if (kind === 'code') {
         if (!GITHUB_TOKEN) return errResult('GitHub 代码检索需要 GITHUB_TOKEN（未配置）。可改用 type=repo 或 type=issue。');
-        const data = await githubApi(`/search/code?q=${encodeURIComponent(q)}&per_page=${per}`);
+        const data = await githubApi(`/search/code?q=${encodeURIComponent(q)}&per_page=${per}`, extra.signal);
         const results = (data.items || []).map((r) => ({
           name: r.repository && r.repository.full_name,
           path: r.path,
@@ -192,7 +193,7 @@ server.registerTool(
         }));
         return textResult({ query: q, type: 'code', count: results.length, results });
       }
-      const data = await githubApi(`/search/issues?q=${encodeURIComponent(q)}&per_page=${per}&sort=reactions`);
+      const data = await githubApi(`/search/issues?q=${encodeURIComponent(q)}&per_page=${per}&sort=reactions`, extra.signal);
       const results = (data.items || []).map((r) => ({
         title: r.title,
         url: r.html_url,
@@ -202,6 +203,7 @@ server.registerTool(
       }));
       return textResult({ query: q, type: 'issue', count: results.length, results });
     } catch (e) {
+      extra.signal.throwIfAborted();
       console.error(`[${NAME}] github_search 失败: ${e.message} | ${q}`);
       return errResult(`GitHub 检索失败：${e.message}`);
     }

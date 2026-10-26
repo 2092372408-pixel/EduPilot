@@ -19,6 +19,7 @@ const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport, getDefaultEnvironment } = require('@modelcontextprotocol/sdk/client/stdio.js');
 const config = require('./config');
 const logger = require('../store/logger');
+const execution = require('../agent/execution');
 
 const CLIENT_INFO = { name: 'eduowl-agent', version: '1.0.0' };
 const RETRY_COOLDOWN_MS = 30000; // failed → 重试冷却
@@ -62,6 +63,8 @@ async function connect(conn) {
   conn.lastAttemptAt = Date.now();
 
   const env = { ...getDefaultEnvironment(), ...cfg.env };
+  // The desktop app uses Electron as Node; SDK's safe environment omits this flag.
+  if (process.versions.electron && process.env.ELECTRON_RUN_AS_NODE === '1' && cfg.command === process.execPath) env.ELECTRON_RUN_AS_NODE = '1';
   const transport = new StdioClientTransport({
     command: cfg.command,
     args: cfg.args,
@@ -197,7 +200,9 @@ class McpManager {
 
   /** 调用 MCP 工具（带超时；失败返回 {ok:false, error}，不抛） */
   async call(serverName, toolName, args = {}) {
+    execution.throwIfAborted();
     const conn = await this.ensure(serverName);
+    execution.throwIfAborted();
     if (!conn) {
       const c = this.conns.get(serverName);
       const why = c ? (c.error || c.status) : '未在 mcp.servers.json 中启用';
@@ -208,7 +213,7 @@ class McpManager {
       const res = await conn.client.callTool(
         { name: toolName, arguments: args },
         undefined,
-        { timeout: conn.cfg.limits.timeoutMs }
+        { timeout: conn.cfg.limits.timeoutMs, signal: execution.currentSignal() }
       );
       conn.calls += 1;
       conn.lastCallAt = new Date().toISOString();
@@ -216,6 +221,7 @@ class McpManager {
       logger.info('mcp_call', `[${serverName}.${toolName}] ${ms}ms ${res && res.isError ? 'isError' : 'ok'}`);
       return { ok: true, result: res, ms };
     } catch (e) {
+      execution.throwIfAborted();
       conn.errors += 1;
       const ms = Date.now() - t0;
       logger.warn('mcp_call_failed', `[${serverName}.${toolName}] ${ms}ms ${e.message}`);

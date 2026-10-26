@@ -23,6 +23,7 @@
 
 const { embedTexts, cosine } = require('../kb/embed');
 const { tokenize } = require('../kb/search');
+const execution = require('../agent/execution');
 
 /* -------------------------------- 可调参数 -------------------------------- */
 const CORE_BLOCK_LIMIT = { student: 1200, course_progress: 1000 }; // 每块字符上限
@@ -84,12 +85,16 @@ function init() {
         importance  REAL NOT NULL DEFAULT 0.5,
         hits        INTEGER NOT NULL DEFAULT 0,
         source      TEXT,
+        provenance  TEXT,
         created_at  INTEGER NOT NULL,
         updated_at  INTEGER NOT NULL,
         invalid_at  INTEGER
       );
       CREATE INDEX IF NOT EXISTS idx_archival_scope ON archival(scope, invalid_at);
     `);
+    if (!db.prepare('PRAGMA table_info(archival)').all().some(column => column.name === 'provenance')) {
+      db.exec('ALTER TABLE archival ADD COLUMN provenance TEXT');
+    }
     migrateLegacy();
     ready = true;
     return db;
@@ -337,21 +342,26 @@ function listArchival(scope, inclInvalid = false) {
     return d.prepare(sql).all(scope).map((r) => ({
       id: r.id, type: r.type, text: r.text, vec: parseVec(r.vec),
       importance: r.importance, hits: r.hits, at: r.updated_at,
-      invalidAt: r.invalid_at, source: r.source,
+      invalidAt: r.invalid_at, source: r.source, provenance: parseProvenance(r.provenance),
     }));
   } catch (_) { return []; }
 }
 
-function insertArchival(scope, type, text, vec, importance, source) {
+function parseProvenance(value) {
+  try { return value ? JSON.parse(value) : null; } catch (_) { return null; }
+}
+
+function insertArchival(scope, type, text, vec, importance, source, provenance = null) {
   const d = init();
   if (!d) return null;
   const t = now();
   const id = `am-${t}-${Math.floor(Math.random() * 10000)}`;
   try {
-    d.prepare(`INSERT INTO archival (id,scope,type,text,vec,importance,hits,source,created_at,updated_at,invalid_at)
-      VALUES (?,?,?,?,?,?,0,?,?,?,NULL)`)
+    d.prepare(`INSERT INTO archival (id,scope,type,text,vec,importance,hits,source,provenance,created_at,updated_at,invalid_at)
+      VALUES (?,?,?,?,?,?,0,?,?,?,?,NULL)`)
       .run(id, scope, type, text, vec ? JSON.stringify(vec) : null,
-        importance != null ? importance : (TYPE_IMPORTANCE[type] || 0.5), source || null, t, t);
+        importance != null ? importance : (TYPE_IMPORTANCE[type] || 0.5), source || null,
+        provenance ? JSON.stringify(provenance) : null, t, t);
     return { id, type, text, at: t };
   } catch (_) { return null; }
 }
@@ -416,6 +426,7 @@ async function decide(newText, candidates, llm) {
  * @param {object} opts { llm, scopeMode: 'course'|'uid' }
  */
 async function ingestArchival(sessionId, facts, opts = {}) {
+  execution.throwIfAborted();
   const result = { added: 0, updated: 0, invalidated: 0, deferred: 0 };
   const d = init();
   if (!d || !Array.isArray(facts) || !facts.length) return result;
@@ -423,7 +434,7 @@ async function ingestArchival(sessionId, facts, opts = {}) {
   const scope = opts.scopeMode === 'uid' ? uid : courseScope;
 
   const items = facts
-    .map((f) => ({ type: TYPES.has(f && f.type) ? f.type : 'fact', text: String((f && f.text) || '').trim().slice(0, 200) }))
+    .map((f) => ({ type: TYPES.has(f && f.type) ? f.type : 'fact', text: String((f && f.text) || '').trim().slice(0, 200), provenance: f && f.provenance || null }))
     .filter((x) => x.text);
   if (!items.length) return result;
 
@@ -431,7 +442,8 @@ async function ingestArchival(sessionId, facts, opts = {}) {
   try { vecs = await embedTexts(items.map((x) => x.text)); } catch (_) { vecs = null; }
 
   for (let i = 0; i < items.length; i++) {
-    const { type, text } = items[i];
+    execution.throwIfAborted();
+    const { type, text, provenance } = items[i];
     const vec = vecs ? vecs[i] : null;
 
     const existing = listArchival(scope).filter((m) => m.type === type);
@@ -450,12 +462,13 @@ async function ingestArchival(sessionId, facts, opts = {}) {
 
     if (near.length && opts.llm) {
       const decision = await decide(text, near.map((x) => x.m), opts.llm).catch(() => null);
+      execution.throwIfAborted();
       // Failed conflict checks preserve the old memory; do not add an unverified contradiction.
       if (!decision) { result.deferred += 1; continue; }
       if (decision && decision.action === 'NONE') continue;
       if (['UPDATE', 'DELETE'].includes(decision.action)) {
         const replaced = d.transaction(() => {
-          const rec = insertArchival(scope, type, text, vec, decision.importance, sessionId);
+          const rec = insertArchival(scope, type, text, vec, decision.importance, sessionId, provenance);
           if (!rec || !invalidateArchival(decision.targetId)) throw Error('Memory replacement failed');
           return rec;
         });
@@ -465,7 +478,7 @@ async function ingestArchival(sessionId, facts, opts = {}) {
         continue;
       }
     }
-    const rec = insertArchival(scope, type, text, vec, null, sessionId);
+    const rec = insertArchival(scope, type, text, vec, null, sessionId, provenance);
     if (rec) {
       result.added += 1;
     }

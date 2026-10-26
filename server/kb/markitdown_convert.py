@@ -7,6 +7,7 @@ stdout: 转换后的 Markdown 文本（UTF-8），解析失败 exit code != 0 + 
 环境: 项目 .venv-upload/（pip install markitdown[pdf,docx,pptx]）。
 """
 import sys
+from pathlib import Path
 
 def main() -> int:
     if len(sys.argv) < 2:
@@ -21,7 +22,14 @@ def main() -> int:
         return 3
     try:
         md = MarkItDown()
-        result = md.convert(src)
+        if Path(src).suffix.lower() == '.pdf':
+            # Do not let content sniffing fall back to plain text for a bad PDF.
+            from markitdown import StreamInfo
+            from markitdown.converters import PdfConverter
+            with open(src, 'rb') as stream:
+                result = PdfConverter().convert(stream, StreamInfo(extension='.pdf', mimetype='application/pdf'))
+        else:
+            result = md.convert(src)
         out = result.text_content or ""
         sys.stdout.write(out)
         return 0

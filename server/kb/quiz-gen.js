@@ -19,6 +19,7 @@ const { randomUUID } = require('crypto');
 const llm = require('../agent/llm');
 const kbSearch = require('./search');
 const courseRegistry = require('./course-registry');
+const execution = require('../agent/execution');
 
 const COURSES_DIR = path.join(__dirname, '..', '..', 'data', 'courses');
 const PER_SECTION = 3;      // 每节生成的选择题数量
@@ -149,6 +150,7 @@ async function generate(cid, key, meta = {}) {
   if (!course) return null;
   const indexVersion = versionOf(cid);
   const context = await sectionContext(cid, key, meta.chapterTitle, meta.sectionTitle);
+  execution.throwIfAborted();
   if (versionOf(cid) !== indexVersion || !courseRegistry.getDynamicCourse(cid)) return null;
   if (!context) return null;
   const where = [meta.chapterTitle, meta.sectionTitle].filter(Boolean).join(' · ');
@@ -168,6 +170,7 @@ async function generate(cid, key, meta = {}) {
   for (let attempt = 0; attempt < 2; attempt++) {
     if (versionOf(cid) !== indexVersion || !courseRegistry.getDynamicCourse(cid)) return null;
     const raw = await llm.callApi([{ role: 'user', content: prompt + (attempt ? `\n上次输出只有 ${questions.length} 道通过格式校验。请重新输出完整的 ${PER_SECTION} 道不同题目，答案只能是 A/B/C/D，每题四个不同选项。` : '') }]);
+    execution.throwIfAborted();
     if (versionOf(cid) !== indexVersion || !courseRegistry.getDynamicCourse(cid)) return null;
     questions = parseQuestions(raw).map(normalize).filter(Boolean).filter((q, i, all) => all.findIndex(other => other.q === q.q) === i).slice(0, PER_SECTION);
     if (questions.length === PER_SECTION) break;
@@ -188,16 +191,24 @@ async function generate(cid, key, meta = {}) {
 
 /** 对外：取该节题目（缓存优先 → 当场生成并落盘）；失败返回 null */
 const pending = new Map();
+// Request-owned jobs must not inherit another request's cancellation. Background
+// pre-generation keeps its shared map; calls within one request still coalesce.
+const requestPending = new WeakMap();
 async function getQuiz(cid, key, meta = {}) {
+  execution.throwIfAborted();
   const hit = cachedQuiz(cid, key);
   if (hit) return hit;
   const jobKey = JSON.stringify([cid, versionOf(cid), key]);
-  if (pending.has(jobKey)) return pending.get(jobKey);
+  const signal = execution.currentSignal();
+  if (signal && !requestPending.has(signal)) requestPending.set(signal, new Map());
+  const jobs = signal ? requestPending.get(signal) : pending;
+  if (jobs.has(jobKey)) return jobs.get(jobKey);
   const job = generate(cid, key, meta).catch(e => {
+    execution.throwIfAborted();
     console.warn('[quiz-gen] 生成失败:', e.message);
     return null;
-  }).finally(() => pending.delete(jobKey));
-  pending.set(jobKey, job);
+  }).finally(() => jobs.delete(jobKey));
+  jobs.set(jobKey, job);
   return job;
 }
 

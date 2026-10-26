@@ -6,13 +6,13 @@
 
 <p align="center"><strong>Turn your materials into an AI course—with lessons, practice and a companion to learn alongside you.</strong></p>
 
-<p align="center">Import Chinese or English materials and move naturally between explanations, practice and review.<br />Windows / macOS · English and Chinese · Try the built-in demo without a key</p>
+<p align="center">Import Chinese or English materials and move naturally between explanations, practice and review.<br />Native desktop app for Windows / macOS · English and Chinese · Try the built-in demo without a key</p>
 
 <p align="center">
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/latest"><img src="https://img.shields.io/badge/Release-v1.1.4-2563eb" alt="Latest release v1.1.4" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-Windows-Installer.zip"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="Download for Windows" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-macOS-AppleSilicon-Installer.tar.gz"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="Download for Apple Silicon Mac" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-macOS-Intel-Installer.tar.gz"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="Download for Intel Mac" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.5"><img src="https://img.shields.io/badge/Release-v1.1.5-2563eb" alt="Desktop release v1.1.5" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="Download the native Windows installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="Download the native Apple Silicon installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="Download the native Intel Mac installer" /></a>
 </p>
 
 <p align="center"><a href="#features">Highlights</a> · <a href="#workspace">See the workspace</a> · <a href="#download">Download</a> · <a href="#demo">Learning demo</a> · <a href="#api-keys">Connect a model</a> · <a href="#faq">FAQ</a></p>
@@ -48,19 +48,21 @@ Collapse the sidebar to give explanations and follow-up questions more room.
 
 ## Three steps to your first lesson
 
+Download the native desktop app and start learning from its icon, with no server to manage or separate Node.js / Python installation. The app uses its own window, stays in the tray when closed, and automatically attempts to recover a failed backend.
+
 | Your computer | Download |
 | --- | --- |
-| Windows x64 | [Windows installer](https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-Windows-Installer.zip) |
-| Mac · Apple Silicon (M-series chips) | [Apple Silicon installer](https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-macOS-AppleSilicon-Installer.tar.gz) |
-| Mac · Intel | [Intel installer](https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-macOS-Intel-Installer.tar.gz) |
+| Windows x64 | [Download Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-Windows-x64-Setup.exe) |
+| Mac · Apple Silicon (M-series chips) | [Download Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-arm64.dmg) |
+| Mac · Intel | [Download Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-x64.dmg) |
 
-1. **Download and extract** the package for your computer above. Choose Apple Silicon for an M-series Mac.
-2. **Double-click the installer**: EduPilot/install.bat on Windows or EduPilot/install.command on macOS. It creates a desktop icon and opens the learning page.
+1. **Download** the installer for your computer. Choose Apple Silicon for an M-series Mac.
+2. **Double-click to install**: run `Setup.exe` on Windows and follow the prompts. On macOS, open the `.dmg` and drag EduPilot into Applications.
 3. **Try the demo, then bring your materials**: explore the built-in Python course without a key. Connect a model in Settings when you are ready to turn your own materials into a course.
 
-Next time, double-click **EduPilot** on your desktop to study. Closing the last EduPilot page automatically stops the background service; refreshing or moving to practice and reports keeps your session going. Your study records stay on your computer, ready for your next visit.
+Next time, open **EduPilot** from the Windows desktop or Mac Launchpad. Closing the window hides it to the tray (the menu bar on Mac) while the backend keeps running. Select **Quit EduPilot** from the menu to exit completely. Your study records stay on your computer for your next session.
 
-A tour points to real controls on your first visit, introducing courses, uploads, questions, mistakes and reports. Skip whenever you like, or select **Guide** at the top to replay it. If macOS asks for first-launch confirmation, right-click in Finder and choose **Open**.
+A tour points to real controls on your first visit, introducing courses, uploads, questions, mistakes and reports. Skip whenever you like, or select **Guide** at the top to replay it. Current installers are unsigned, and Mac packages are not notarized; your OS may warn or block opening them. Check the attachments and SHA-256 checksums on the [Release page](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.5). Older browser-based packages remain available in [v1.1.4](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.4).
 
 <details>
 <summary>A guide for your first visit</summary>
@@ -71,7 +73,7 @@ The tour highlights real buttons, with arrows and nearby explanations to help yo
 
 </details>
 
-The installer includes Node.js and application dependencies. Everyday use needs no terminal commands or manual configuration files. See the [desktop launch and exit guide (Chinese)](docs/桌面启动与退出说明.md) for more details.
+The native installer includes the application runtime, Python and document conversion dependencies. Semantic search downloads its model on first use; online answers still require your own model service configuration. See the [desktop launch and exit guide (Chinese)](docs/桌面启动与退出说明.md) for more details.
 
 <a id="demo"></a>
 
@@ -194,7 +196,7 @@ Run code to inspect its output, then submit for grading feedback. Open the pract
 
 ### 6. Learn on your computer, with your choice of model and language
 
-Available for Windows and macOS. Once installed, double-click the desktop icon to open your workspace. Closing the last study page automatically stops the background service. Courses, conversations, mistakes and study records stay on your computer, ready for your next visit.
+Available for Windows and macOS. Double-click the icon to open your workspace. The native app stays in the tray when its window closes; select Quit EduPilot to stop it. Browser-based compatibility packages stop after their last page closes. Courses, conversations, mistakes and study records stay on your computer.
 
 Switch between English and Chinese, adjust the text size or collapse the sidebar. Connect DeepSeek, Qwen, OpenAI, GLM, Kimi or another compatible service, and choose the model that suits how you learn.
 
@@ -264,7 +266,7 @@ Materials are parsed on your computer, where courses, conversations and study re
 
 **Do I need to install anything else?**
 
-The installer includes the application runtime, so the demo and normal document parsing work immediately. Coding practice needs Python. Optional local semantic search needs Python and an embedding model; keyword search is available without that setup.
+The native installer includes the application runtime, Python and document conversion dependencies. Local semantic search downloads an embedding model on first use and falls back to keyword search if unavailable. Older browser-based packages still need a separate Python installation for coding practice.
 
 **How long does importing take? Can I close the page?**
 
@@ -272,11 +274,11 @@ Time depends on the material, number of topics, your computer and the model's re
 
 **Does closing the page quit the app? What about refreshing?**
 
-When launched from the desktop icon, the service stops about 15 seconds after the last EduPilot page closes. Keep any workspace, practice or report page open to continue; refreshing reconnects. Accepted tasks get a short period to save their results. Double-click the desktop icon to return. To stop immediately, use stop.bat or stop.command in the installation directory.
+Closing the native window hides it to the tray while the backend keeps running. Click the tray icon or launch the app again to return; select Quit EduPilot to exit completely. Older browser-based packages stop about 15 seconds after their last page closes. Refreshing does not stop the backend.
 
 **Will upgrading keep my learning history?**
 
-Use the newer installer to update the same user's installation directory and preserve settings, courses and learning records. Close EduPilot pages and let the old service exit before installing the update.
+Native updates preserve the same system user's settings, courses and learning records. Quit the app completely before installing an update. Data from older script packages is not migrated automatically; keep the original folder as a backup.
 
 ## Why we built EduPilot
 

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; script-src 'self'">
+  <title>EduPilot</title>
+  <link rel="stylesheet" href="status.css">
+</head>
+<body>
+  <main aria-live="polite">
+    <img src="logo.png" width="64" height="64" alt="EduPilot">
+    <h1 id="title">准备好，继续学习。</h1>
+    <p id="message">正在打开你的学习工作台。</p>
+    <div id="progress" role="progressbar" aria-label="正在启动"></div>
+    <div id="actions" hidden><button id="retry">重新连接</button><button id="logs" class="secondary">查看日志</button></div>
+    <p class="note">教材、对话与学习进度，保存在这台电脑上。</p>
+  </main>
+  <script src="status.js"></script>
+</body>
+</html>

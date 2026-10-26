@@ -6,13 +6,13 @@
 
 <p align="center"><strong>把你的教材，变成能讲、能练、能陪你学下去的 AI 课程。</strong></p>
 
-<p align="center">导入中英文资料，按章节学习，在讲解、练习和复习之间自然衔接。<br />Windows / macOS · 中英文界面 · 内置演示课无需密钥</p>
+<p align="center">导入中英文资料，按章节学习，在讲解、练习和复习之间自然衔接。<br />Windows / macOS 原生桌面 App · 中英文界面 · 内置演示课无需密钥</p>
 
 <p align="center">
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/latest"><img src="https://img.shields.io/badge/Release-v1.1.4-2563eb" alt="最新版 v1.1.4" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-Windows-Installer.zip"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="下载 Windows 安装包" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-macOS-AppleSilicon-Installer.tar.gz"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="下载 Mac M 系列芯片安装包" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-macOS-Intel-Installer.tar.gz"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="下载 Mac Intel 安装包" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.5"><img src="https://img.shields.io/badge/Release-v1.1.5-2563eb" alt="桌面版 v1.1.5" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="下载 Windows 原生安装包" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="下载 Mac M 系列芯片原生安装包" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="下载 Mac Intel 原生安装包" /></a>
 </p>
 
 <p align="center"><a href="#features">核心亮点</a> · <a href="#workspace">看看界面</a> · <a href="#download">下载体验</a> · <a href="#demo">学习演示</a> · <a href="#api-keys">接入模型</a> · <a href="#faq">常见问题</a></p>
@@ -48,19 +48,21 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 ## 三步，开始你的第一节课
 
+下载原生桌面 App，双击图标即可学习，无需管理服务器或另外安装 Node.js / Python。应用使用独立窗口，关闭窗口后驻留托盘，后台异常会自动尝试恢复。
+
 | 你的电脑 | 下载 |
 | --- | --- |
-| Windows x64 | [Windows 安装包](https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-Windows-Installer.zip) |
-| Mac · Apple Silicon（M 系列芯片） | [Apple Silicon 安装包](https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-macOS-AppleSilicon-Installer.tar.gz) |
-| Mac · Intel 芯片 | [Intel 安装包](https://github.com/2092372408-pixel/EduPilot/releases/latest/download/EduPilot-macOS-Intel-Installer.tar.gz) |
+| Windows x64 | [下载 Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-Windows-x64-Setup.exe) |
+| Mac · Apple Silicon（M 系列芯片） | [下载 Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-arm64.dmg) |
+| Mac · Intel 芯片 | [下载 Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.5/EduPilot-1.1.5-macOS-x64.dmg) |
 
-1. **下载并解压**上方对应平台的安装包。Mac M 系列芯片请选择 Apple Silicon。
-2. **双击安装**：Windows 打开 EduPilot/install.bat；macOS 打开 EduPilot/install.command。安装后创建带图标的桌面入口，并打开学习页面。
+1. **下载**适合自己电脑的安装包。Mac M 系列芯片请选择 Apple Silicon。
+2. **双击安装**：Windows 运行 `Setup.exe`，按提示安装；macOS 打开 `.dmg`，把 EduPilot 拖入 Applications。
 3. **先体验，再导入**：无需密钥体验内置 Python 演示课；在设置中接入模型后，上传自己的教材，开始新的课程。
 
-以后双击桌面 **EduPilot** 图标即可开始学习。关闭最后一个 EduPilot 页面后，后台服务会自动退出；刷新或切换到练习、报告页面可以继续使用。学习记录保存在本机，下次打开接着学。
+以后从 Windows 桌面或 Mac 启动台打开 **EduPilot** 即可。关闭窗口会隐藏到托盘（Mac 菜单栏），后台继续运行；完全退出请从菜单选择 **退出 EduPilot**。学习记录保存在本机，下次打开接着学。
 
-首次打开有按钮指向式教程，带你认识选课、上传、提问、错题本和报告。可以跳过，也可以从顶部 **教程** 重新查看。macOS 首次打开若出现系统确认，请在 Finder 中右键选择“打开”。
+首次打开有按钮指向式教程，带你认识选课、上传、提问、错题本和报告。可以跳过，也可以从顶部 **教程** 重新查看。当前安装包未签名，Mac 包也未公证，系统可能提示来源或阻止打开；请核对 [Release 页面](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.5) 的附件与 SHA-256。旧版浏览器启动包保留在 [v1.1.4](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.4)。
 
 <details>
 <summary>第一次用，也有人带你上手</summary>
@@ -71,7 +73,7 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 </details>
 
-安装包自带 Node.js 和应用依赖，日常启动无需打开终端或手动修改配置文件。更多使用方式见 [桌面启动与退出说明](docs/桌面启动与退出说明.md)。
+原生安装包自带应用运行环境、Python 和文档解析依赖。首次使用语义检索需联网下载模型；在线问答仍需配置自己的模型服务。更多使用方式见 [桌面启动与退出说明](docs/桌面启动与退出说明.md)。
 
 <a id="demo"></a>
 
@@ -194,7 +196,7 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 ### 6. 在自己的电脑上学习，用顺手的模型与语言
 
-支持 Windows 和 macOS，安装后双击桌面图标即可打开。关闭最后一个学习页面后，后台服务自动退出；课程、对话、错题和学习记录保存在本机，下次打开接着学。
+支持 Windows 和 macOS，安装后双击桌面图标即可打开。原生版关闭窗口后驻留托盘，从菜单选择“退出 EduPilot”才会停止后台；浏览器兼容包关闭最后一个页面后自动停服。课程、对话、错题和学习记录保存在本机，下次打开接着学。
 
 界面支持中文和英文，也可以调整字号、收起侧栏。模型由你选择：接入 DeepSeek、Qwen、OpenAI、GLM、Kimi 等服务，或使用兼容接口的其他服务，让学伴适应自己的使用习惯。
 
@@ -264,7 +266,7 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 **需要额外安装环境吗？**
 
-安装包自带应用运行环境，演示课和普通文档解析可以直接体验。Python 代码实践需要安装 Python；可选的本地语义检索需要额外配置 Python 与向量模型，未配置时使用关键词检索。
+原生安装包自带应用运行环境、Python 和文档解析依赖。可选的本地语义检索首次使用需联网下载模型，下载不可用时使用关键词检索。旧版浏览器兼容包的 Python 实践仍需要额外安装 Python。
 
 **教材导入需要多久？可以关掉页面吗？**
 
@@ -272,11 +274,11 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 **关掉网页就退出了吗？刷新会不会退出？**
 
-从桌面图标启动时，关闭最后一个 EduPilot 页面后约 15 秒自动停服；保留任一工作台、练习或报告页面即可继续使用，刷新会重新连接。已接受的处理任务会有一小段保存时间。下次双击桌面图标即可重新打开；需要立即停止时，也可以使用安装目录里的 stop.bat 或 stop.command。
+原生版关闭窗口会隐藏到托盘，后台继续运行；点击托盘图标或再次打开应用即可返回。完全退出请从菜单选择“退出 EduPilot”。旧版浏览器兼容包关闭最后一个页面约 15 秒后停服。刷新不会主动中断后台。
 
 **升级会保留之前的学习吗？**
 
-用新版安装包更新同一用户的安装目录，会保留模型配置、课程和学习数据。升级前关闭 EduPilot 页面，让旧服务退出后再安装。
+原生版更新程序时保留同一系统用户的配置、课程和学习记录。先从菜单完全退出再安装新版。旧版脚本包数据不会自动迁入原生版，请保留原目录备份，详见桌面说明。
 
 ## 我们的初心
 

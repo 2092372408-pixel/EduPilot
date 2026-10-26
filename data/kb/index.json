@@ -1,7 +1,7 @@
 {
   "courseId": "python-intro",
-  "builtAt": "2026-09-02T07:20:14.358Z",
-  "chunkCount": 31,
+  "builtAt": "2026-10-26T08:13:36.553Z",
+  "chunkCount": 22,
   "books": [
     {
       "docId": "01-变量与数据类型",
@@ -10,27 +10,25 @@
         {
           "title": "1.1 变量与赋值",
           "kpId": "kp1",
+          "sections": [],
           "chunks": [
             "chunk-1",
             "chunk-2",
             "chunk-3",
             "chunk-4",
-            "chunk-5",
-            "chunk-6",
-            "chunk-7"
+            "chunk-5"
           ]
         },
         {
           "title": "1.2 常见数据类型",
           "kpId": "kp2",
+          "sections": [],
           "chunks": [
+            "chunk-6",
+            "chunk-7",
             "chunk-8",
             "chunk-9",
-            "chunk-10",
-            "chunk-11",
-            "chunk-12",
-            "chunk-13",
-            "chunk-14"
+            "chunk-10"
           ]
         }
       ]
@@ -42,30 +40,27 @@
         {
           "title": "2.1 条件判断 if / elif / else",
           "kpId": "kp3",
+          "sections": [],
           "chunks": [
-            "chunk-15",
-            "chunk-16",
-            "chunk-17",
-            "chunk-18",
-            "chunk-19",
-            "chunk-20",
-            "chunk-21"
+            "chunk-11",
+            "chunk-12",
+            "chunk-13",
+            "chunk-14",
+            "chunk-15"
           ]
         },
         {
           "title": "2.2 循环 for / while",
           "kpId": "kp4",
+          "sections": [],
           "chunks": [
-            "chunk-22",
-            "chunk-23",
-            "chunk-24",
-            "chunk-25",
-            "chunk-26",
-            "chunk-27",
-            "chunk-28",
-            "chunk-29",
-            "chunk-30",
-            "chunk-31"
+            "chunk-16",
+            "chunk-17",
+            "chunk-18",
+            "chunk-19",
+            "chunk-20",
+            "chunk-21",
+            "chunk-22"
           ]
         }
       ]

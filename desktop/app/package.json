@@ -1,0 +1,9 @@
+{
+  "name": "edupilot-desktop",
+  "productName": "EduPilot",
+  "version": "1.1.5",
+  "description": "EduPilot AI 学习向导",
+  "author": "EduPilot",
+  "license": "SEE LICENSE IN LICENSE",
+  "main": "main.cjs"
+}

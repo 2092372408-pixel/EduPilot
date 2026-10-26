@@ -4,6 +4,8 @@ Original EduPilot application code, documentation, and assets are provided under
 
 Desktop installer packages bundle Node.js 22. Its license and included third-party notices are shipped in `runtime/Node-LICENSE.txt`. Dependency license files remain in the bundled `node_modules` directory.
 
+Native desktop builds bundle Electron 45 (MIT), Chromium and Node.js. Their license files and Chromium third-party notices accompany the executable. A relocatable CPython 3.13.13 distribution from python-build-standalone includes its own license notices in `resources/python`; Python dependency licenses remain in their installed package metadata. Native builds use the same FastEmbed and MarkItDown versions listed below. Build tooling (electron-builder and uv) is not part of the installed application.
+
 The runtime dependencies used by the Node image are distributed under permissive licenses recorded in `package-lock.json`, including:
 
 - LangChain Core, LangGraph and LangChain OpenAI: MIT

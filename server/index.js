@@ -279,31 +279,43 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
 
       // 连接中断检测：前端断连（network error）在此留痕——排查"请求失败"的关键
       let streamDone = false;
-      res.on('close', () => {
+      const controller = new AbortController();
+      const onClose = () => {
         if (!streamDone) {
+          controller.abort();
           logger.warn('sse_close', `[${sessionId}] SSE 连接在完成前中断（前端断开/超时）`, { sessionId, message: message.slice(0, 60) });
         }
-      });
+      };
+      res.on('close', onClose);
+      if (res.destroyed) onClose();
+      const sendEvent = (event, data) => {
+        if (!res.destroyed && !res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      };
 
       try {
         const result = await agent.runStream(sessionId, message, {
-          onTool: (tc) => res.write(`event: tool\ndata: ${JSON.stringify(tc)}\n\n`),
-          onDelta: (text) => res.write(`event: delta\ndata: ${JSON.stringify({ text })}\n\n`),
+          signal: controller.signal,
+          onTool: (tc) => sendEvent('tool', tc),
+          onDelta: (text) => sendEvent('delta', { text }),
           context: body.context, // 做题悬浮窗上下文（P3）
           webMode: body.webMode, // 首页"是否联网"选择：off / on / auto
           attachments,
         });
         streamDone = true;
         // 方案A：学习讲解完成后推送"练习卡片"（选择题 + 编程挑战），学生不离开对话即可做题
-        if (result.card) res.write(`event: card\ndata: ${JSON.stringify(locale.display(result.card))}\n\n`);
-        res.write(`event: done\ndata: ${JSON.stringify(locale.display({ sessionId, ...result }))}\n\n`);
+        if (result.card) sendEvent('card', locale.display(result.card));
+        sendEvent('done', locale.display({ sessionId, ...result }));
       } catch (e) {
+        if (controller.signal.aborted) return;
         // 错误也通过 SSE 事件下发，前端可明确提示，而不是断连后让前端卡在等待
         console.error('[stream error]', e.message);
         logger.error('sse_error', `[${sessionId}] 流式处理异常: ${e.message}`, { sessionId, message: message.slice(0, 60) });
-        res.write(`event: error\ndata: ${JSON.stringify({ message: locale.translate(String(e.message || '内部错误').slice(0, 300)) })}\n\n`);
+        sendEvent('error', { message: locale.translate(String(e.message || '内部错误').slice(0, 300)) });
+      } finally {
+        streamDone = true;
+        res.removeListener('close', onClose);
+        if (!res.destroyed) res.end();
       }
-      res.end();
       return;
     }
 
@@ -794,9 +806,12 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
   }
 }));
 
+let stoppingDesktop = false;
 function stopDesktop() {
-  console.log('[desktop] All application pages closed; stopping the local service.');
-  desktop.close();
+  if (stoppingDesktop) return;
+  stoppingDesktop = true;
+  console.log('[desktop] Stopping the local service.');
+  desktop?.close();
   server.close();
   server.closeIdleConnections();
   // Let already accepted work save its result, with a bounded shutdown period.
@@ -815,6 +830,12 @@ function stopDesktop() {
   }
   const deadline = setTimeout(finish, 30000);
   const draining = setInterval(() => { if (!activeRequests) finish(); }, 100);
+}
+
+// The native app owns service lifetime; browser navigation never shuts it down.
+if (process.send) {
+  process.on('message', message => { if (message?.type === 'edupilot:shutdown') stopDesktop(); });
+  process.on('disconnect', stopDesktop);
 }
 
 server.listen(PORT, HOST, () => {

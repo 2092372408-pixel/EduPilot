@@ -5,6 +5,9 @@ data/logs/
 scripts/test-render.js
 .venv-upload/
 .runtime/
+.desktop-build/
+dist/
+desktop/app/logo.png
 
 # 动态课程运行时产物（上传素材建课，不入库）
 data/courses/
@@ -97,3 +100,4 @@ docs/screenshots/home-mobile.png
 !/docs/demos/learning-journey-en.gif
 /docs/releases/*
 !/docs/releases/v1.1.4.md
+!/docs/releases/v1.1.5.md

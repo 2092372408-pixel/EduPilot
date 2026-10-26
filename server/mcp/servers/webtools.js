@@ -174,13 +174,14 @@ function htmlToText(html) {
 /* ----------------------------------- 抓取 ----------------------------------- */
 
 /** 手动跟随重定向（逐跳做 SSRF 校验），并限制响应体大小 */
-async function fetchPage(rawUrl) {
+async function fetchPage(rawUrl, signal) {
   let url = await assertUrlSafe(rawUrl);
   for (let hop = 0; hop <= MAX_HOPS; hop++) {
+    signal?.throwIfAborted();
     const res = await fetch(url, {
       redirect: 'manual',
       headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5' },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]) : AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if ([301, 302, 303, 307, 308].includes(res.status)) {
       const loc = res.headers.get('location');
@@ -247,10 +248,10 @@ server.registerTool(
       maxChars: z.number().int().min(200).max(20000).optional().describe('正文最多返回多少字符，默认 4000'),
     },
   },
-  async ({ url, maxChars }) => {
+  async ({ url, maxChars }, extra) => {
     const limit = maxChars || DEFAULT_CHARS;
     try {
-      const { res, url: finalUrl, body, truncatedBody, bytes } = await fetchPage(url);
+      const { res, url: finalUrl, body, truncatedBody, bytes } = await fetchPage(url, extra.signal);
       const contentType = res.headers.get('content-type') || '';
       const title = extractTitle(body);
       const text = /html|xml/i.test(contentType) || /<html|<!doctype/i.test(body.slice(0, 500))
@@ -268,6 +269,7 @@ server.registerTool(
       };
       return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
     } catch (e) {
+      extra.signal.throwIfAborted();
       const msg = e && e.name === 'TimeoutError'
         ? `请求超时（>${FETCH_TIMEOUT_MS / 1000}s）`
         : (e && e.message) || String(e);

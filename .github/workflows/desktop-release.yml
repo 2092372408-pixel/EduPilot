@@ -15,154 +15,67 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            name: EduPilot-Windows-Installer.zip
+            platform: win
             arch: x64
+            executable: dist/win-unpacked/EduPilot.exe
           - os: macos-15-intel
-            name: EduPilot-macOS-Intel-Installer.tar.gz
+            platform: mac
             arch: x64
+            executable: dist/mac/EduPilot.app/Contents/MacOS/EduPilot
           - os: macos-15
-            name: EduPilot-macOS-AppleSilicon-Installer.tar.gz
+            platform: mac
             arch: arm64
+            executable: dist/mac-arm64/EduPilot.app/Contents/MacOS/EduPilot
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
-      - name: Install dependencies for release verification
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install build tools
         run: |
           npm ci --ignore-scripts
-          node -e "new (require('better-sqlite3'))(':memory:').close()"
-      - name: Check publication boundary
-        run: npm run check:publication
-      - name: Assemble self-contained application
-        shell: bash
+          node node_modules/electron/install.js
+          python -m pip install uv==0.11.15
+      - name: Check source publication boundary and release identity
+        run: |
+          npm run check:publication
+          node -e "if(process.arch!=='${{ matrix.arch }}')throw Error('Wrong runner architecture');if(process.env.GITHUB_REF_TYPE==='tag'&&process.env.GITHUB_REF_NAME!=='v'+require('./package.json').version)throw Error('Tag/version mismatch')"
+      - name: Assemble clean backend and portable Python
+        run: |
+          npm run desktop:prepare
+          npm run desktop:python
+      - name: Build native installer
         env:
-          PACKAGE_ARCH: ${{ matrix.arch }}
+          ELECTRON_BUILDER_COMPRESSION_LEVEL: 5
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx electron-builder --config desktop/builder.cjs --${{ matrix.platform }} --${{ matrix.arch }} --publish never
+      - name: Verify packaged native window, recovery and data persistence
+        run: node tools/check-desktop-package.js --native "${{ matrix.executable }}"
+      - name: Check packaged product sources
+        shell: bash
         run: |
-          mkdir -p dist/EduPilot/runtime
-          git archive HEAD .eduowl-bundle .env.example package.json package-lock.json install.bat install.ps1 start.bat start-background.bat start.ps1 stop.bat stop.ps1 install.command start.command stop.command server public data/kb/books/python-intro data/kb/chunks/python-intro data/kb/index.json data/kb/questions.json mcp.servers.json README.md README_en.md LICENSE THIRD_PARTY_NOTICES.md docs/banner.png docs/learning-flow.jpg docs/screenshots docs/demos/learning-journey-zh.gif docs/demos/learning-journey-en.gif docs/学生端说明书.md docs/桌面启动与退出说明.md docs/releases | tar -x -C dist/EduPilot
-          node .github/check-publication.cjs --directory=dist/EduPilot
-          cd dist/EduPilot
-          node <<'NODE'
-          const fs = require('node:fs');
-          const { version } = require('./package.json');
-          if (process.arch !== process.env.PACKAGE_ARCH) throw new Error('Package architecture mismatch');
-          if (process.env.GITHUB_REF_TYPE === 'tag' && process.env.GITHUB_REF_NAME !== `v${version}`) {
-            throw new Error('Release tag and package version do not match');
-          }
-          for (const file of ['public/onboarding.js', 'public/vendor/driver-1.9.0/driver.js',
-            'public/vendor/driver-1.9.0/driver.css', 'public/vendor/driver-1.9.0/LICENSE',
-            'server/kb/lesson-gen.js', 'server/kb/snapshots.js', 'server/coding/judge.py',
-            'server/desktop-lifecycle.js', 'public/desktop-session.js']) {
-            if (!fs.existsSync(file)) throw new Error(`Package is missing ${file}`);
-          }
-          for (const readme of ['README.md', 'README_en.md']) {
-            for (const match of fs.readFileSync(readme, 'utf8').matchAll(/(?:\]\(|src=")(docs\/[^)"#]+)(?:#[^)"]*)?[)"]/g)) {
-              if (!fs.existsSync(match[1])) throw new Error(`Package documentation is missing ${match[1]}`);
-            }
-          }
-          fs.writeFileSync('release-manifest.json', JSON.stringify({
-            version, commit: process.env.GITHUB_SHA, platform: process.platform,
-            arch: process.arch, node: process.version,
-          }, null, 2) + '\n');
-          NODE
-          npm ci --ignore-scripts
-          node -e "const db=require('better-sqlite3'); new db(':memory:').close()"
-          node -e "if (require('@firecrawl/anydoc').formatFromExtension('docx') !== 'docx') process.exit(1)"
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            cp "$(command -v node)" runtime/node.exe
-            cp "$(dirname "$(command -v node)")/LICENSE" runtime/Node-LICENSE.txt
+            node .github/check-publication.cjs --directory=dist/win-unpacked/resources/backend
           else
-            cp "$(command -v node)" runtime/node
-            cp "$(dirname "$(command -v node)")/../LICENSE" runtime/Node-LICENSE.txt
-            chmod +x runtime/node
+            APP="$(dirname "$(dirname "${{ matrix.executable }}")")"
+            node .github/check-publication.cjs "--directory=$APP/Resources/backend"
           fi
-      - name: Check assembled package publication boundary
-        run: node .github/check-publication.cjs --directory=dist/EduPilot
-      - name: Create Windows icon and ZIP
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          ./build-shortcut-icon.ps1 -Source public/logo-mark.png -Destination dist/EduPilot/public/EduPilot.ico
-          Compress-Archive -Path dist/EduPilot -DestinationPath ${{ matrix.name }}
-      - name: Smoke-test Windows installer
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $env:PORT = '18787'
-          $install = Join-Path $env:RUNNER_TEMP 'EduPilot'
-          try {
-            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./dist/EduPilot/install.ps1 -InstallDir $install -NoBrowser
-            if ($LASTEXITCODE -ne 0) { throw 'Installer failed' }
-            if (-not (Test-Path (Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'EduPilot.lnk'))) { throw 'Desktop shortcut is missing' }
-            $health = Invoke-RestMethod -Uri 'http://127.0.0.1:18787/api/health'
-            if ($health.installationId -ne (Get-Content (Join-Path $install '.edupilot-instance') -Raw).Trim()) { throw 'Wrong service instance' }
-            $manifest = Get-Content (Join-Path $install 'release-manifest.json') -Raw | ConvertFrom-Json
-            if ($manifest.version -ne (Get-Content ./package.json -Raw | ConvertFrom-Json).version -or $manifest.commit -ne $env:GITHUB_SHA) { throw 'Installed release version mismatch' }
-            if (-not (Test-Path (Join-Path $install 'docs/学生端说明书.md'))) { throw 'User documentation is missing' }
-            $envPath = Join-Path $install '.env'
-            $coursePath = Join-Path $install 'data/courses/user-test.json'
-            New-Item -ItemType Directory -Path (Split-Path $coursePath) -Force | Out-Null
-            Set-Content -LiteralPath $envPath -Value 'LLM_MODE=mock' -NoNewline
-            Set-Content -LiteralPath $coursePath -Value 'saved-course' -NoNewline
-            $before = @(Get-FileHash $envPath, $coursePath | Select-Object -ExpandProperty Hash)
-            Invoke-RestMethod -Uri 'http://127.0.0.1:18787/api/webmode' -Method Post -ContentType 'application/json' -Body '{"sessionId":"installer-upgrade-check","webMode":"off"}' | Out-Null
-            $savedSession = Invoke-RestMethod -Uri 'http://127.0.0.1:18787/api/session/installer-upgrade-check' | ConvertTo-Json -Depth 30 -Compress
-            Set-Content -LiteralPath ./dist/EduPilot/.env -Value 'overwrite-config' -NoNewline
-            Set-Content -LiteralPath ./dist/EduPilot/data/app.db -Value 'overwrite-db' -NoNewline
-            New-Item -ItemType Directory -Path ./dist/EduPilot/data/courses -Force | Out-Null
-            Set-Content -LiteralPath ./dist/EduPilot/data/courses/user-test.json -Value 'overwrite-course' -NoNewline
-            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./dist/EduPilot/install.ps1 -InstallDir $install -NoBrowser
-            if ($LASTEXITCODE -ne 0) { throw 'Upgrade failed' }
-            $after = @(Get-FileHash $envPath, $coursePath | Select-Object -ExpandProperty Hash)
-            if (Compare-Object $before $after) { throw 'Upgrade changed user settings or learning data' }
-            $restoredSession = Invoke-RestMethod -Uri 'http://127.0.0.1:18787/api/session/installer-upgrade-check' | ConvertTo-Json -Depth 30 -Compress
-            if ($savedSession -cne $restoredSession) { throw 'Upgrade lost persisted session data' }
-            node tools/check-desktop-package.js http://127.0.0.1:18787 (Get-Content ./package.json -Raw | ConvertFrom-Json).version
-            if ($LASTEXITCODE -ne 0) { throw 'Installed desktop lifecycle check failed' }
-          } finally {
-            if (Test-Path (Join-Path $install 'stop.ps1')) { & (Join-Path $install 'stop.ps1') }
-          }
-      - name: Create macOS archive
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          bash -n dist/EduPilot/install.command dist/EduPilot/start.command dist/EduPilot/stop.command
-          tar -czf "${{ matrix.name }}" -C dist EduPilot
-      - name: Smoke-test macOS installer
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          export EDUOWL_INSTALL_DIR="$RUNNER_TEMP/EduPilot"
-          export PORT=18787
-          trap 'bash "$EDUOWL_INSTALL_DIR/stop.command" || true' EXIT
-          bash dist/EduPilot/install.command --no-browser
-          test -x "$HOME/Applications/EduPilot.app/Contents/MacOS/EduPilot"
-          test -L "$HOME/Desktop/EduPilot.app"
-          curl -fsS http://127.0.0.1:18787/api/health | "$EDUOWL_INSTALL_DIR/runtime/node" -e 'let s="";process.stdin.on("data",x=>s+=x).on("end",()=>{if(!JSON.parse(s).installationId)process.exit(1)})'
-          "$EDUOWL_INSTALL_DIR/runtime/node" -e 'const m=require(process.env.EDUOWL_INSTALL_DIR+"/release-manifest.json");if(m.version!==require("./package.json").version||m.commit!==process.env.GITHUB_SHA)process.exit(1)'
-          test -f "$EDUOWL_INSTALL_DIR/docs/学生端说明书.md"
-          mkdir -p "$EDUOWL_INSTALL_DIR/data/courses" dist/EduPilot/data/courses
-          printf 'LLM_MODE=mock' > "$EDUOWL_INSTALL_DIR/.env"
-          printf 'saved-course' > "$EDUOWL_INSTALL_DIR/data/courses/user-test.json"
-          shasum "$EDUOWL_INSTALL_DIR/.env" "$EDUOWL_INSTALL_DIR/data/courses/user-test.json" | awk '{print $1}' > "$RUNNER_TEMP/before"
-          curl -fsS http://127.0.0.1:18787/api/webmode -H 'Content-Type: application/json' -d '{"sessionId":"installer-upgrade-check","webMode":"off"}'
-          curl -fsS http://127.0.0.1:18787/api/session/installer-upgrade-check > "$RUNNER_TEMP/session-before.json"
-          printf 'overwrite-config' > dist/EduPilot/.env
-          printf 'overwrite-db' > dist/EduPilot/data/app.db
-          printf 'overwrite-course' > dist/EduPilot/data/courses/user-test.json
-          bash dist/EduPilot/install.command --no-browser
-          shasum "$EDUOWL_INSTALL_DIR/.env" "$EDUOWL_INSTALL_DIR/data/courses/user-test.json" | awk '{print $1}' > "$RUNNER_TEMP/after"
-          diff "$RUNNER_TEMP/before" "$RUNNER_TEMP/after"
-          curl -fsS http://127.0.0.1:18787/api/session/installer-upgrade-check > "$RUNNER_TEMP/session-after.json"
-          cmp "$RUNNER_TEMP/session-before.json" "$RUNNER_TEMP/session-after.json"
-          node tools/check-desktop-package.js http://127.0.0.1:18787 "$(node -p 'require("./package.json").version')"
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
+          name: EduPilot-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            dist/*-Setup.exe
+            dist/*.dmg
+            dist/*-macOS-*.zip
           if-no-files-found: error
 
   release:
@@ -175,10 +88,10 @@ jobs:
         with:
           path: packages
           merge-multiple: true
-          pattern: '*Installer*'
-      - name: Generate package checksums
+          pattern: EduPilot-*
+      - name: Generate checksums
         working-directory: packages
-        run: sha256sum EduPilot-Windows-Installer.zip EduPilot-macOS-Intel-Installer.tar.gz EduPilot-macOS-AppleSilicon-Installer.tar.gz > SHA256SUMS.txt
+        run: sha256sum *.exe *.dmg *.zip > SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
           name: EduPilot ${{ github.ref_name }}

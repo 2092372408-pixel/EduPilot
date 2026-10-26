@@ -45,6 +45,27 @@ function prices() {
   return DEFAULT_PRICES;
 }
 
+function priceOf(model, promptTokens) {
+  const name = String(model || '').replace(/^.*\//, '');
+  let p = prices()[model] || prices()[name];
+  // 百炼中国内地在线零售价（2026-10-26）；海外端点/未知档位不套用该报价。
+  // https://help.aliyun.com/zh/model-studio/model-pricing
+  if (!p && name === 'qwen3.5-plus' && /^https:\/\/dashscope\.aliyuncs\.com\//i.test(process.env.LLM_BASE_URL || '')) {
+    const tier = promptTokens <= 128000 ? [0.8, 4.8] : promptTokens <= 256000 ? [2, 12] : promptTokens <= 1000000 ? [4, 24] : null;
+    if (tier) p = { in: tier[0], out: tier[1], currency: 'CNY' };
+  }
+  if (!p || !Number.isFinite(p.in) || !Number.isFinite(p.out) || p.in < 0 || p.out < 0
+    || (p.currency && !/^[A-Z]{3}$/.test(p.currency))) return null;
+  return { ...p, currency: p.currency || 'USD' };
+}
+
+function costs(u) {
+  const entries = Object.entries(u.costByCurrency);
+  return { cost: u.unknownPriceCalls || entries.length > 1 ? null : Number((entries[0]?.[1] || 0).toFixed(6)),
+    currency: entries.length > 1 ? null : entries[0]?.[0] || 'USD',
+    costByCurrency: Object.fromEntries(entries.map(([currency, amount]) => [currency, Number(amount.toFixed(6))])) };
+}
+
 /** 单会话预算（token）：超过只提示不阻断；0/未设 = 不限制 */
 const DEFAULT_BUDGET = Number(process.env.TOKEN_BUDGET_PER_SESSION) || 0;
 
@@ -63,14 +84,14 @@ const _usage = new Map();
 
 function bucket(sessionId) {
   const key = String(sessionId || 'default');
-  if (!_usage.has(key)) _usage.set(key, { prompt: 0, completion: 0, calls: 0, cost: 0, unknownPriceCalls: 0, estimatedCalls: 0, budgetWarned: false });
+  if (!_usage.has(key)) _usage.set(key, { prompt: 0, completion: 0, calls: 0, costByCurrency: {}, unknownPriceCalls: 0, estimatedCalls: 0, budgetWarned: false });
   return _usage.get(key);
 }
 
 /** 计算一次调用的费用（美元） */
 function costOf(model, promptTokens, completionTokens) {
-  const p = prices()[model] || prices()[String(model || '').replace(/^.*\//, '')] || null;
-  if (!p || !Number.isFinite(p.in) || !Number.isFinite(p.out) || p.in < 0 || p.out < 0) return null;
+  const p = priceOf(model, promptTokens);
+  if (!p) return null;
   return (promptTokens / 1e6) * p.in + (completionTokens / 1e6) * p.out;
 }
 
@@ -98,24 +119,28 @@ function record(sessionId, info = {}) {
   u.completion += completionTok;
   u.calls += 1;
   if (cost === null) u.unknownPriceCalls += 1;
-  else u.cost += cost;
+  else {
+    const currency = priceOf(model, promptTok).currency;
+    u.costByCurrency[currency] = (u.costByCurrency[currency] || 0) + cost;
+  }
 
   const total = u.prompt + u.completion;
   const overBudget = DEFAULT_BUDGET > 0 && total > DEFAULT_BUDGET;
   if (overBudget && !u.budgetWarned) {
     u.budgetWarned = true;
     try {
-      logger.warn('token_budget', `[${sessionId}] 会话 token 用量 ${total} 已超过预算 ${DEFAULT_BUDGET}（调用 ${u.calls} 次，${u.unknownPriceCalls ? '费用未知：单价未配置' : '估算花费 $' + u.cost.toFixed(4)}）`);
+      const amount = costs(u);
+      logger.warn('token_budget', `[${sessionId}] 会话 token 用量 ${total} 已超过预算 ${DEFAULT_BUDGET}（调用 ${u.calls} 次，${amount.cost === null ? '费用未合计：单价未知或币种不同' : '估算花费 ' + amount.currency + ' ' + amount.cost}）`);
     } catch (_) { /* 日志失败不影响主流程 */ }
   }
-  return { prompt: promptTok, completion: completionTok, total, cost, overBudget };
+  return { prompt: promptTok, completion: completionTok, total, cost, currency: priceOf(model, promptTok)?.currency || null, overBudget };
 }
 
 /** 取某会话累计用量 */
 function get(sessionId) {
   const u = _usage.get(String(sessionId || 'default'));
   if (!u) return { prompt: 0, completion: 0, total: 0, calls: 0, cost: 0, currency: 'USD', unknownPriceCalls: 0, estimatedCalls: 0, budget: DEFAULT_BUDGET };
-  return { prompt: u.prompt, completion: u.completion, total: u.prompt + u.completion, calls: u.calls, cost: u.unknownPriceCalls ? null : Number(u.cost.toFixed(6)), currency: 'USD', unknownPriceCalls: u.unknownPriceCalls, estimatedCalls: u.estimatedCalls, budget: DEFAULT_BUDGET, overBudget: DEFAULT_BUDGET > 0 && (u.prompt + u.completion) > DEFAULT_BUDGET };
+  return { prompt: u.prompt, completion: u.completion, total: u.prompt + u.completion, calls: u.calls, ...costs(u), unknownPriceCalls: u.unknownPriceCalls, estimatedCalls: u.estimatedCalls, budget: DEFAULT_BUDGET, overBudget: DEFAULT_BUDGET > 0 && (u.prompt + u.completion) > DEFAULT_BUDGET };
 }
 
 /** 清理某会话用量（重置会话时） */
@@ -123,9 +148,13 @@ function clear(sessionId) { _usage.delete(String(sessionId || 'default')); }
 
 /** 全局汇总（后台/健康检查用） */
 function summary() {
-  let prompt = 0, completion = 0, calls = 0, cost = 0, unknownPriceCalls = 0, estimatedCalls = 0;
-  for (const u of _usage.values()) { prompt += u.prompt; completion += u.completion; calls += u.calls; cost += u.cost; unknownPriceCalls += u.unknownPriceCalls; estimatedCalls += u.estimatedCalls; }
-  return { sessions: _usage.size, prompt, completion, total: prompt + completion, calls, cost: unknownPriceCalls ? null : Number(cost.toFixed(6)), currency: 'USD', unknownPriceCalls, estimatedCalls, budgetPerSession: DEFAULT_BUDGET };
+  let prompt = 0, completion = 0, calls = 0, unknownPriceCalls = 0, estimatedCalls = 0;
+  const costByCurrency = {};
+  for (const u of _usage.values()) {
+    prompt += u.prompt; completion += u.completion; calls += u.calls; unknownPriceCalls += u.unknownPriceCalls; estimatedCalls += u.estimatedCalls;
+    for (const [currency, amount] of Object.entries(u.costByCurrency)) costByCurrency[currency] = (costByCurrency[currency] || 0) + amount;
+  }
+  return { sessions: _usage.size, prompt, completion, total: prompt + completion, calls, ...costs({ costByCurrency, unknownPriceCalls }), unknownPriceCalls, estimatedCalls, budgetPerSession: DEFAULT_BUDGET };
 }
 
 module.exports = { record, get, clear, summary, estimateTokens, costOf, runWithSession, currentSession, DEFAULT_BUDGET };

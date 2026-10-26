@@ -135,6 +135,7 @@ function routeIntent(intent, learning, userMessage = '') {
  * @param {object} [opts] { webMode } —— webMode='off' 时隐藏联网检索类 MCP 工具（学生选择本次不联网）
  */
 function toolsForAgent(agentId, dynamic = false, opts = {}) {
+  if (opts.attachmentQuestion) return {};
   const cfg = AGENTS[agentId];
   if (!cfg) return {};
   const whitelist = dynamic ? DYNAMIC_TOOLS[agentId] : cfg.tools();

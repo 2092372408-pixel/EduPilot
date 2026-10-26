@@ -1,0 +1,16 @@
+:root { color-scheme: light; font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; color: #242424; background: #f7f7f8; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
+main { width: min(480px, 90vw); text-align: left; padding: 36px; }
+img { border-radius: 16px; }
+h1 { font-size: 28px; font-weight: 600; line-height: 1.4; letter-spacing: -.6px; margin: 30px 0 10px; }
+p { color: #737373; font-size: 15px; line-height: 1.7; margin: 0; }
+#progress { width: 120px; height: 3px; margin: 28px 0; background: #e8e8e8; overflow: hidden; border-radius: 3px; }
+#progress::after { content: ""; display: block; width: 45px; height: 3px; background: #262626; animation: waiting 1.5s ease-in-out infinite alternate; }
+@keyframes waiting { to { transform: translateX(75px); } }
+button { font: inherit; cursor: pointer; border: 1px solid #262626; border-radius: 8px; padding: 10px 18px; background: #262626; color: white; margin: 24px 8px 24px 0; }
+button.secondary { background: transparent; color: #242424; border-color: #d5d5d5; }
+button:focus-visible { outline: 3px solid #3b82f6; outline-offset: 3px; }
+.note { font-size: 12px; padding-top: 22px; border-top: 1px solid #e8e8e8; }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) { #progress::after { animation: none; } }

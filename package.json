@@ -1,6 +1,6 @@
 {
   "name": "edupilot",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "EduPilot · AI 学习向导 —— 本地优先的中文教育智能体：预习 → 学习 → 复习闭环，教材 RAG，联网/站点检索统一走 MCP。",
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
@@ -18,9 +18,18 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node server/index.js",
-    "check:publication": "node .github/check-publication.cjs"
+    "check:publication": "node .github/check-publication.cjs",
+    "desktop:prepare": "node desktop/prepare.cjs",
+    "desktop:python": "node desktop/python.cjs",
+    "desktop:dev": "electron desktop/app",
+    "desktop:win": "electron-builder --config desktop/builder.cjs --win --x64 --publish never",
+    "desktop:mac": "electron-builder --config desktop/builder.cjs --mac --publish never"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.18.0"
   }
 }

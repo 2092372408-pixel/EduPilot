@@ -1,0 +1,13 @@
+[project]
+name = "edupilot-desktop-runtime"
+version = "1.0.0"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastembed==0.8.0",
+  "markitdown[pdf,docx,pptx]==0.1.7",
+  # This CPU runtime provides wheels for both Intel and Apple Silicon Macs.
+  "onnxruntime==1.23.2; sys_platform == 'darwin'",
+  "onnxruntime==1.31.0; sys_platform == 'win32'",
+  "cryptography==48.0.1; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+  "magika==0.6.2",
+]

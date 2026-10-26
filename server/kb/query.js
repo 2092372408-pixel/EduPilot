@@ -16,6 +16,7 @@
 // 延迟加载 llm：避免 tools → kb/query → agent/llm → agents → tools 的循环依赖
 // （在模块加载期 require 会让 agents.js 读到未完成的 tools 导出）
 function getLlm() { return require('../agent/llm'); }
+const execution = require('../agent/execution');
 
 const ENABLED = process.env.KB_QUERY_REWRITE !== 'off';
 const MAX_VARIANTS = 3; // 原句 + 最多 2 条改写
@@ -55,7 +56,8 @@ function fuseByChunk(resultLists, byId, topK) {
  * @returns {Promise<{origin:string, rewrites:string[], hyde:string|null, queries:string[]}>}
  */
 async function expandQuery(query, opts = {}) {
-  const origin = String(query || '').trim().slice(0, 200);
+  execution.throwIfAborted();
+  const origin = String(query || '').trim().slice(0, 2000);
   const out = { origin, rewrites: [], hyde: null, queries: origin ? [origin] : [] };
   const enabled = opts.enabled != null ? opts.enabled : ENABLED;
   const client = opts.llm || getLlm();
@@ -71,9 +73,10 @@ async function expandQuery(query, opts = {}) {
         '',
         '只输出 JSON（不要其他文字）：',
         '{"rewrites":["更贴近教材措辞的检索式1","检索式2"],"hyde":"用教材口吻写的两三句假想答案"}',
-        '要求：rewrites 最多 2 条，补全术语与同义词；hyde 用陈述句解释该概念，不要写"我不知道"。',
+        '要求：rewrites 最多 2 条，补全术语与同义词；跨语言提问时至少提供一条中文检索式。去掉回答格式指令，保留实际问题。',
+        'hyde 用陈述句描述要查找的概念，不得虚构教材专属数值、编号或规则；不要把假想答案当成事实。',
       ].join('\n'),
-    }]);
+    }], { temperature: 0, maxTokens: 400 });
     const m = String(text || '').match(/\{[\s\S]*\}/);
     if (!m) return out;
     const obj = JSON.parse(m[0]);
@@ -85,6 +88,7 @@ async function expandQuery(query, opts = {}) {
     out.hyde = hyde;
     out.queries = [...new Set([origin, ...rewrites])].slice(0, MAX_VARIANTS);
   } catch (e) {
+    execution.throwIfAborted();
     // 改写失败：静默回退原句（不打印为错误，避免噪音）
   }
   return out;

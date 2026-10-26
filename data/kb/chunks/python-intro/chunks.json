@@ -3,6 +3,7 @@
     "chunkId": "chunk-1",
     "docId": "01-变量与数据类型",
     "chapter": "1.1 变量与赋值",
+    "section": null,
     "kpId": "kp1",
     "content": "变量是给数据起名字的容器。在 Python 中，使用等号 `=` 进行赋值，把右边的值绑定到左边的变量名："
   },
@@ -10,209 +11,167 @@
     "chunkId": "chunk-2",
     "docId": "01-变量与数据类型",
     "chapter": "1.1 变量与赋值",
+    "section": null,
     "kpId": "kp1",
-    "content": "```python\nage = 18            # 整数\nname = \"小明\"       # 字符串\nscore = 95.5        # 浮点数"
+    "content": "```python\nage = 18            # 整数\nname = \"小明\"       # 字符串\nscore = 95.5        # 浮点数\n```"
   },
   {
     "chunkId": "chunk-3",
     "docId": "01-变量与数据类型",
     "chapter": "1.1 变量与赋值",
+    "section": null,
     "kpId": "kp1",
-    "content": "```"
+    "content": "**变量命名规则**：\n- 只能包含字母、数字、下划线，且不能以数字开头（如 `my_name` 合法，`1name` 非法）；\n- 不能使用 Python 关键字（如 `if`、`for`、`class`）；\n- 推荐使用小写字母加下划线（snake_case），如 `student_age`。\n\n**动态类型**：Python 是动态类型语言，变量不需要声明类型，可以随时指向不同类型的值："
   },
   {
     "chunkId": "chunk-4",
     "docId": "01-变量与数据类型",
     "chapter": "1.1 变量与赋值",
+    "section": null,
     "kpId": "kp1",
-    "content": "**变量命名规则**：\n- 只能包含字母、数字、下划线，且不能以数字开头（如 `my_name` 合法，`1name` 非法）；\n- 不能使用 Python 关键字（如 `if`、`for`、`class`）；\n- 推荐使用小写字母加下划线（snake_case），如 `student_age`。\n\n**动态类型**：Python 是动态类型语言，变量不需要声明类型，可以随时指向不同类型的值："
+    "content": "```python\nx = 10      # x 是整数\nx = \"hello\" # x 变成字符串（合法但不推荐）\n```"
   },
   {
     "chunkId": "chunk-5",
     "docId": "01-变量与数据类型",
     "chapter": "1.1 变量与赋值",
+    "section": null,
     "kpId": "kp1",
-    "content": "```python\nx = 10      # x 是整数\nx = \"hello\" # x 变成字符串（合法但不推荐）"
+    "content": "**常见误区**：`a = 5; b = a; a = 10` 之后，`b` 仍然是 `5`——赋值是\"绑定\"，不是\"引用传递\"，变量保存的是值。"
   },
   {
     "chunkId": "chunk-6",
     "docId": "01-变量与数据类型",
-    "chapter": "1.1 变量与赋值",
-    "kpId": "kp1",
-    "content": "```"
+    "chapter": "1.2 常见数据类型",
+    "section": null,
+    "kpId": "kp2",
+    "content": "Python 内置的常用数据类型：\n\n| 类型 | 名称 | 示例 | 说明 |\n|------|------|------|------|\n| `int` | 整数 | `42`, `-7` | 没有小数点的数字 |\n| `float` | 浮点数 | `3.14`, `-0.5` | 带小数点的数字 |\n| `str` | 字符串 | `\"hello\"`, `'你好'` | 文本，用引号包裹 |\n| `bool` | 布尔值 | `True`, `False` | 只有两个值，用于判断 |\n\n用 `type()` 函数可以查看值的类型："
   },
   {
     "chunkId": "chunk-7",
     "docId": "01-变量与数据类型",
-    "chapter": "1.1 变量与赋值",
-    "kpId": "kp1",
-    "content": "**常见误区**：`a = 5; b = a; a = 10` 之后，`b` 仍然是 `5`——赋值是\"绑定\"，不是\"引用传递\"，变量保存的是值。"
+    "chapter": "1.2 常见数据类型",
+    "section": null,
+    "kpId": "kp2",
+    "content": "```python\nprint(type(42))      # <class 'int'>\nprint(type(3.14))    # <class 'float'>\nprint(type(\"hi\"))    # <class 'str'>\nprint(type(True))    # <class 'bool'>\n```"
   },
   {
     "chunkId": "chunk-8",
     "docId": "01-变量与数据类型",
     "chapter": "1.2 常见数据类型",
+    "section": null,
     "kpId": "kp2",
-    "content": "Python 内置的常用数据类型：\n\n| 类型 | 名称 | 示例 | 说明 |\n|------|------|------|------|\n| `int` | 整数 | `42`, `-7` | 没有小数点的数字 |\n| `float` | 浮点数 | `3.14`, `-0.5` | 带小数点的数字 |\n| `str` | 字符串 | `\"hello\"`, `'你好'` | 文本，用引号包裹 |\n| `bool` | 布尔值 | `True`, `False` | 只有两个值，用于判断 |\n\n用 `type()` 函数可以查看值的类型："
+    "content": "**字符串的细节**：\n- 单引号和双引号都可以表示字符串：`'hi'` 与 `\"hi\"` 等价；\n- 字符串可以用 `+` 拼接：`\"学\" + \"习\"` 得到 `\"学习\"`；\n- **注意**：字符串与数字不能直接相加（`\"3\" + 5` 会报错），需要先转换：`int(\"3\") + 5`。\n\n**类型转换**：`int()`、`float()`、`str()`、`bool()` 用于类型转换："
   },
   {
     "chunkId": "chunk-9",
     "docId": "01-变量与数据类型",
     "chapter": "1.2 常见数据类型",
+    "section": null,
     "kpId": "kp2",
-    "content": "```python\nprint(type(42))      # <class 'int'>\nprint(type(3.14))    # <class 'float'>\nprint(type(\"hi\"))    # <class 'str'>\nprint(type(True))    # <class 'bool'>"
+    "content": "```python\nint(\"10\")     # 10\nfloat(\"3.5\")  # 3.5\nstr(100)      # \"100\"\n```"
   },
   {
     "chunkId": "chunk-10",
     "docId": "01-变量与数据类型",
     "chapter": "1.2 常见数据类型",
+    "section": null,
     "kpId": "kp2",
-    "content": "```"
+    "content": "**常见误区**：\n- `\"3\" + 5` 报 `TypeError`——字符串和数字不能混加；\n- `type(3.14)` 的结果是 `float` 不是 `int`——看有没有小数点。"
   },
   {
     "chunkId": "chunk-11",
-    "docId": "01-变量与数据类型",
-    "chapter": "1.2 常见数据类型",
-    "kpId": "kp2",
-    "content": "**字符串的细节**：\n- 单引号和双引号都可以表示字符串：`'hi'` 与 `\"hi\"` 等价；\n- 字符串可以用 `+` 拼接：`\"学\" + \"习\"` 得到 `\"学习\"`；\n- **注意**：字符串与数字不能直接相加（`\"3\" + 5` 会报错），需要先转换：`int(\"3\") + 5`。\n\n**类型转换**：`int()`、`float()`、`str()`、`bool()` 用于类型转换："
+    "docId": "02-流程控制",
+    "chapter": "2.1 条件判断 if / elif / else",
+    "section": null,
+    "kpId": "kp3",
+    "content": "条件判断让程序根据条件执行不同的分支："
   },
   {
     "chunkId": "chunk-12",
-    "docId": "01-变量与数据类型",
-    "chapter": "1.2 常见数据类型",
-    "kpId": "kp2",
-    "content": "```python\nint(\"10\")     # 10\nfloat(\"3.5\")  # 3.5\nstr(100)      # \"100\""
+    "docId": "02-流程控制",
+    "chapter": "2.1 条件判断 if / elif / else",
+    "section": null,
+    "kpId": "kp3",
+    "content": "```python\nscore = 85\nif score >= 90:\n    print(\"优秀\")\nelif score >= 60:\n    print(\"及格\")\nelse:\n    print(\"不及格\")\n```"
   },
   {
     "chunkId": "chunk-13",
-    "docId": "01-变量与数据类型",
-    "chapter": "1.2 常见数据类型",
-    "kpId": "kp2",
-    "content": "```"
+    "docId": "02-流程控制",
+    "chapter": "2.1 条件判断 if / elif / else",
+    "section": null,
+    "kpId": "kp3",
+    "content": "**语法要点**：\n- `if`、`elif`、`else` 后面都要加冒号 `:`；\n- 分支体必须缩进（统一用 4 个空格）；\n- `elif` 可以有多个，`else` 最多一个且放最后；\n- 条件表达式的结果是布尔值：`True` 或 `False`。\n\n**比较运算符**：`==`（等于）、`!=`（不等于）、`>`、`<`、`>=`、`<=`。\n**逻辑运算符**：`and`（且）、`or`（或）、`not`（非）。"
   },
   {
     "chunkId": "chunk-14",
-    "docId": "01-变量与数据类型",
-    "chapter": "1.2 常见数据类型",
-    "kpId": "kp2",
-    "content": "**常见误区**：\n- `\"3\" + 5` 报 `TypeError`——字符串和数字不能混加；\n- `type(3.14)` 的结果是 `float` 不是 `int`——看有没有小数点。"
+    "docId": "02-流程控制",
+    "chapter": "2.1 条件判断 if / elif / else",
+    "section": null,
+    "kpId": "kp3",
+    "content": "```python\nage = 20\nif age >= 18 and age < 60:\n    print(\"成年且未退休\")\n```"
   },
   {
     "chunkId": "chunk-15",
     "docId": "02-流程控制",
     "chapter": "2.1 条件判断 if / elif / else",
+    "section": null,
     "kpId": "kp3",
-    "content": "条件判断让程序根据条件执行不同的分支："
+    "content": "**常见误区**：\n- 用 `=` 比较相等是错误（`=` 是赋值，`==` 才是比较）；\n- 忘记冒号或缩进不一致会直接报错。"
   },
   {
     "chunkId": "chunk-16",
     "docId": "02-流程控制",
-    "chapter": "2.1 条件判断 if / elif / else",
-    "kpId": "kp3",
-    "content": "```python\nscore = 85\nif score >= 90:\n    print(\"优秀\")\nelif score >= 60:\n    print(\"及格\")\nelse:\n    print(\"不及格\")"
+    "chapter": "2.2 循环 for / while",
+    "section": null,
+    "kpId": "kp4",
+    "content": "**for 循环**：遍历序列（列表、字符串、`range()` 等）："
   },
   {
     "chunkId": "chunk-17",
     "docId": "02-流程控制",
-    "chapter": "2.1 条件判断 if / elif / else",
-    "kpId": "kp3",
-    "content": "```"
+    "chapter": "2.2 循环 for / while",
+    "section": null,
+    "kpId": "kp4",
+    "content": "```python\nfor i in range(5):\n    print(i)      # 输出 0 1 2 3 4\n\nfor ch in \"abc\":\n    print(ch)     # 输出 a b c\n```"
   },
   {
     "chunkId": "chunk-18",
     "docId": "02-流程控制",
-    "chapter": "2.1 条件判断 if / elif / else",
-    "kpId": "kp3",
-    "content": "**语法要点**：\n- `if`、`elif`、`else` 后面都要加冒号 `:`；\n- 分支体必须缩进（统一用 4 个空格）；\n- `elif` 可以有多个，`else` 最多一个且放最后；\n- 条件表达式的结果是布尔值：`True` 或 `False`。\n\n**比较运算符**：`==`（等于）、`!=`（不等于）、`>`、`<`、`>=`、`<=`。\n**逻辑运算符**：`and`（且）、`or`（或）、`not`（非）。"
+    "chapter": "2.2 循环 for / while",
+    "section": null,
+    "kpId": "kp4",
+    "content": "- `range(5)` 生成 0~4（不包含 5）；`range(1, 5)` 生成 1~4；`range(1, 10, 2)` 生成 1,3,5,7,9（步长 2）。\n\n**while 循环**：条件为真时一直执行："
   },
   {
     "chunkId": "chunk-19",
     "docId": "02-流程控制",
-    "chapter": "2.1 条件判断 if / elif / else",
-    "kpId": "kp3",
-    "content": "```python\nage = 20\nif age >= 18 and age < 60:\n    print(\"成年且未退休\")"
+    "chapter": "2.2 循环 for / while",
+    "section": null,
+    "kpId": "kp4",
+    "content": "```python\nn = 3\nwhile n > 0:\n    print(n)\n    n -= 1        # 输出 3 2 1\n```"
   },
   {
     "chunkId": "chunk-20",
     "docId": "02-流程控制",
-    "chapter": "2.1 条件判断 if / elif / else",
-    "kpId": "kp3",
-    "content": "```"
+    "chapter": "2.2 循环 for / while",
+    "section": null,
+    "kpId": "kp4",
+    "content": "**循环控制**：\n- `break`：立即结束整个循环；\n- `continue`：跳过本次循环，继续下一次；\n- 配合 `for`/`while` 的 `else`：循环正常结束（未 break）时执行。"
   },
   {
     "chunkId": "chunk-21",
     "docId": "02-流程控制",
-    "chapter": "2.1 条件判断 if / elif / else",
-    "kpId": "kp3",
-    "content": "**常见误区**：\n- 用 `=` 比较相等是错误（`=` 是赋值，`==` 才是比较）；\n- 忘记冒号或缩进不一致会直接报错。"
+    "chapter": "2.2 循环 for / while",
+    "section": null,
+    "kpId": "kp4",
+    "content": "```python\nfor i in range(10):\n    if i == 3:\n        break\n    print(i)      # 只输出 0 1 2\n```"
   },
   {
     "chunkId": "chunk-22",
     "docId": "02-流程控制",
     "chapter": "2.2 循环 for / while",
-    "kpId": "kp4",
-    "content": "**for 循环**：遍历序列（列表、字符串、`range()` 等）："
-  },
-  {
-    "chunkId": "chunk-23",
-    "docId": "02-流程控制",
-    "chapter": "2.2 循环 for / while",
-    "kpId": "kp4",
-    "content": "```python\nfor i in range(5):\n    print(i)      # 输出 0 1 2 3 4\n\nfor ch in \"abc\":\n    print(ch)     # 输出 a b c"
-  },
-  {
-    "chunkId": "chunk-24",
-    "docId": "02-流程控制",
-    "chapter": "2.2 循环 for / while",
-    "kpId": "kp4",
-    "content": "```"
-  },
-  {
-    "chunkId": "chunk-25",
-    "docId": "02-流程控制",
-    "chapter": "2.2 循环 for / while",
-    "kpId": "kp4",
-    "content": "- `range(5)` 生成 0~4（不包含 5）；`range(1, 5)` 生成 1~4；`range(1, 10, 2)` 生成 1,3,5,7,9（步长 2）。\n\n**while 循环**：条件为真时一直执行："
-  },
-  {
-    "chunkId": "chunk-26",
-    "docId": "02-流程控制",
-    "chapter": "2.2 循环 for / while",
-    "kpId": "kp4",
-    "content": "```python\nn = 3\nwhile n > 0:\n    print(n)\n    n -= 1        # 输出 3 2 1"
-  },
-  {
-    "chunkId": "chunk-27",
-    "docId": "02-流程控制",
-    "chapter": "2.2 循环 for / while",
-    "kpId": "kp4",
-    "content": "```"
-  },
-  {
-    "chunkId": "chunk-28",
-    "docId": "02-流程控制",
-    "chapter": "2.2 循环 for / while",
-    "kpId": "kp4",
-    "content": "**循环控制**：\n- `break`：立即结束整个循环；\n- `continue`：跳过本次循环，继续下一次；\n- 配合 `for`/`while` 的 `else`：循环正常结束（未 break）时执行。"
-  },
-  {
-    "chunkId": "chunk-29",
-    "docId": "02-流程控制",
-    "chapter": "2.2 循环 for / while",
-    "kpId": "kp4",
-    "content": "```python\nfor i in range(10):\n    if i == 3:\n        break\n    print(i)      # 只输出 0 1 2"
-  },
-  {
-    "chunkId": "chunk-30",
-    "docId": "02-流程控制",
-    "chapter": "2.2 循环 for / while",
-    "kpId": "kp4",
-    "content": "```"
-  },
-  {
-    "chunkId": "chunk-31",
-    "docId": "02-流程控制",
-    "chapter": "2.2 循环 for / while",
+    "section": null,
     "kpId": "kp4",
     "content": "**常见误区**：\n- while 循环忘记更新条件变量 → 死循环（如漏写 `n -= 1`）；\n- `range(5)` 不含 5，想要 1~5 要用 `range(1, 6)`；\n- `break` 只跳出当前一层循环，嵌套循环需多层 break 或使用标志变量。"
   }

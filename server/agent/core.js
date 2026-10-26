@@ -24,6 +24,7 @@ const { AGENTS, routeIntent, toolsForAgent } = require('./agents');
 const mcpBridge = require('../mcp/bridge'); // MCP 工具来源（联网检索统一走 MCP）
 const groundingEngine = require('./grounding'); // 答案忠实度校验（只标注，不阻断）
 const usageEngine = require('./usage'); // token/成本核算（AsyncLocalStorage 按会话归集）
+const execution = require('./execution');
 const llm = require('./llm');
 const graphEngine = require('../graph/agent');
 const codingProblems = require('../coding/problems');
@@ -50,14 +51,22 @@ const MAX_HISTORY = 20; // 保留最近 N 条消息，防止上下文无限膨�
  * 会话只保存 refs，图片 base64 和文档正文都不进入 session JSON/长期记忆。
  */
 function prepareAttachments(sessionId, userMessage, attachmentIds) {
-  const ids = (Array.isArray(attachmentIds) ? attachmentIds : [])
+  let ids = (Array.isArray(attachmentIds) ? attachmentIds : [])
     .map((item) => typeof item === 'object' ? item && item.id : item)
     .map((id) => String(id || '').trim())
     .filter(Boolean);
+  const session = getSession(sessionId);
+  const explicit = ids.length > 0;
+  const courseAction = /^(?:开始\s*)?(?:预习|学习|复习|做题|出题|继续|下一题)|^(?:start\s+)?(?:learn|preview|review|quiz|continue|next)\b/i.test(userMessage.trim())
+    && !/附件|文件|\b(?:file|attachment)\b/i.test(userMessage);
+  if (!explicit && courseAction) session.documentAttachments = null;
+  if (!explicit && !courseAction && session.documentAttachments?.courseId === session.activeCourseId) {
+    ids = session.documentAttachments.ids;
+  }
   if (!ids.length) return { refs: [], userContent: null, attachmentContext: '' };
   if (ids.length > 8) throw new Error('单条消息最多附加 8 个文件');
   const rows = attachmentStore.getForSession(sessionId, ids);
-  if (rows.length !== new Set(ids).size) throw new Error('附件不存在或不属于当前会话，请重新上传');
+  if (explicit && rows.length !== new Set(ids).size) throw new Error('附件不存在或不属于当前会话，请重新上传');
   const images = rows.filter((row) => row.kind === 'image');
   if (images.length && (llm.detectMode() !== 'api' || !llm.supportsVision())) {
     const cap = llm.visionCapability();
@@ -72,17 +81,16 @@ function prepareAttachments(sessionId, userMessage, attachmentIds) {
   const imageParts = images.map((row) => attachmentStore.toContentPart(row));
   if (imageParts.some((part) => !part)) throw new Error('图片文件已丢失，请重新上传');
   const documents = rows.filter((row) => row.kind === 'document');
-  let documentBudget = 12000;
+  if (explicit) session.documentAttachments = { courseId: session.activeCourseId, ids: documents.map(row => row.id) };
+  const documentBudget = Math.floor(24000 / Math.max(1, documents.length));
   const documentBlocks = [];
   for (const row of documents) {
-    if (documentBudget <= 0) break;
     const block = wrapUntrusted(
       `用户上传文件：${row.original_name}`,
-      row.extracted_text || '',
+      selectAttachmentText(row.extracted_text || '', userMessage, documentBudget),
       { maxChars: documentBudget },
     ).block;
     documentBlocks.push(block);
-    documentBudget -= block.length;
   }
   const attachmentContext = documentBlocks.join('\n\n');
   const text = userMessage || (images.length ? '请分析我上传的图片，并结合图片内容回答。' : '请阅读我上传的文件并回答。');
@@ -90,6 +98,24 @@ function prepareAttachments(sessionId, userMessage, attachmentIds) {
     ? [{ type: 'text', text }, ...imageParts]
     : null;
   return { refs, userContent, attachmentContext };
+}
+
+// Search the entire saved document instead of silently losing its later pages.
+function selectAttachmentText(text, query, budget) {
+  if (text.length <= budget) return text;
+  const { tokenize } = require('../kb/search');
+  const tokens = tokenize(query);
+  const spans = [];
+  for (let start = 0; start < text.length; start += 1000) {
+    const content = text.slice(start, start + 1200);
+    spans.push({ start, content, tokens: new Set(tokenize(content)) });
+  }
+  const frequency = new Map(tokens.map(t => [t, spans.filter(s => s.tokens.has(t)).length]));
+  for (const span of spans) span.score = tokens.reduce((score, t) => score + (span.tokens.has(t)
+    ? Math.log(1 + spans.length / (frequency.get(t) || 1)) : 0), 0);
+  const selected = spans.sort((a, b) => b.score - a.score || a.start - b.start)
+    .slice(0, Math.max(1, Math.floor(budget / 1250))).sort((a, b) => a.start - b.start);
+  return '以下为按问题从完整附件选取的原文段落：\n' + selected.map(s => s.content).join('\n[…]\n');
 }
 /** 动态课节级阶段顺序（用于只升不降，与内置课 tools.PHASE_ORDER 同口径） */
 const DYNAMIC_PHASE_ORDER = { not_started: 0, preview: 1, learning: 2, reviewing: 3, mastered: 4 };
@@ -605,9 +631,18 @@ function matchKnowledgePoint(text) {
   return null;
 }
 
+/** 教材限定问答保持只读；明确要求生成练习时仍走测验。 */
+function isTextbookQuery(text) {
+  return /教材|课本|材料|\b(textbook|source material)\b/i.test(text)
+    && !/(?:出|生成|给我|来|做|练).{0,12}(?:题|测验|测试)|\b(?:give|generate|create|start|take)\b.{0,30}\b(?:quiz|test|practice|questions)\b/i.test(text);
+}
+
 /** 意图识别器（Rule-based router；真实产品可换成小模型分类器） */
 function recognizeIntent(text, learning, opts = {}) {
   const t = text.toLowerCase();
+  // Attachment facts are independent of the active course and its quiz gates.
+  if (opts.hasAttachments || /附件|上传的文件|\b(?:attached file|attachment)\b/i.test(text)) return 'chat';
+  if (/(?:不要|不用|别|无需)(?:再)?(?:出题|测验|测试|练习)|\b(?:no quiz|without (?:a )?quiz|do not (?:quiz|test))\b/i.test(text)) return 'chat';
   // “解释/是什么”不代表用户要推进当前课程；跨学科问答交给通用角色。
   const learningIntent = () => {
     if (isMetaQuestion(text)) return 'chat';
@@ -635,6 +670,9 @@ function recognizeIntent(text, learning, opts = {}) {
       || /(?:我\s*选|选\s*择?|答案\s*(?:是|为)?|answer\s*(?:is)?)\s*[:：]?\s*[abcd]\b/i.test(raw);
     if (isOption) return 'answer';
   }
+  // 直接改写成绩/绕过检测不是学习动作，交给无写入权限的通用角色。
+  if (/(?:伪造|跳过|绕过|\b(?:fake|forge|skip|bypass)\b)/i.test(text)
+    && /掌握|满分|成绩|考试|测验|\b(?:mastered|scores?|tests?|quiz)\b/i.test(text)) return 'chat';
   // 光说"继续/下一题"这类承接语 → 一律回到出题路径（而非 chat）。
   // 原因：落到 chat 时系统不会预置测验，模型便自行把题目写进正文，出现"正文一题、卡片一题"
   // 的错位。走 quiz 则先由代码按梯级建好试卷，模型拿到真题只做引导。
@@ -646,8 +684,12 @@ function recognizeIntent(text, learning, opts = {}) {
   if (/^(?:开始\s*)?(?:预习|预学)(?:\s|$)|^(?:start\s+)?preview\b/i.test(text.trim())) return 'preview';
   if (/^(?:开始\s*)?学习(?:\s|$)/.test(text.trim())) return 'learn';
   if (/^(?:开始\s*)?复习\s+/.test(text.trim()) && !/复习.*(题|测试|测验|练习|考)/.test(text)) return 'review';
+  if (courseRegistry.isDynamicCourseId(opts.courseId) && /^(?:请|帮我)?(?:出|生成|给我出|给我来|来).{0,30}(?:题|测验|测试)/.test(text.trim())) return /复习/.test(text) ? 'review_quiz' : 'quiz';
+  if (courseRegistry.isDynamicCourseId(opts.courseId) && /是什么|多少|哪(?:个|些|种|两)/.test(text)
+    && !/(?:出|生成|给我|来|做|练).{0,12}(?:题|测验|测试)/.test(text)) return 'chat';
   // Asking for a source fact is read-only, even when its wording resembles a lesson title.
-  if (courseRegistry.isDynamicCourseId(opts.courseId) && /根据|依据|教材中|材料中|\b(according to|what is|which|how (?:often|many|much))\b/i.test(text)) return 'chat';
+  if (isTextbookQuery(text) || /^\s*question\s*:\s*(?:what|when|where|which|why|how|can|does|do|is|are|will)\b/i.test(text)
+    || (courseRegistry.isDynamicCourseId(opts.courseId) && /根据|依据|教材中|材料中|\b(according to|what is|which|how (?:often|many|much))\b/i.test(text))) return 'chat';
   if (/\b(where (?:should i|to) start|learning plan|what should i learn)\b/.test(t)) return 'chat';
   if (/\b(outline|course overview|curriculum|what does .* cover)\b/.test(t)) return 'course_overview';
   if (/\b(progress|learning report|my status)\b/.test(t)) return 'progress';
@@ -697,6 +739,7 @@ function recognizeIntent(text, learning, opts = {}) {
  * 当"用户指定了新知识点"或"尚无当前知识点"时，代码代调 update_progress。
  */
 function toolContext(session) {
+  execution.throwIfAborted();
   return { learning: session.learning, courseId: session.activeCourseId || course.id, sessionId: session.id };
 }
 
@@ -793,6 +836,7 @@ function practiceTargets(session, matched) {
  * 从而与 check_answer 文本路径共用同一套状态与梯级门禁。
  */
 async function buildOfficialQuizCard(session) {
+  execution.throwIfAborted();
   const learning = session.learning || {};
   const quiz = activeQuizOf(learning);
   if (!quiz || !Array.isArray(quiz.questions) || !quiz.questions.length) return null;
@@ -862,6 +906,7 @@ async function buildReplayCard(session, ctx) {
  * 「讲讲这题」（mode=card）不再堆新卡片，否则越问越乱。
  */
 async function buildPracticePayload(session, intent, opts = {}) {
+  execution.throwIfAborted();
   const ctx = opts.context || null;
   if (ctx && ctx.mode === 'card') return null; // 解释题目的追问：只回答，不再出题
   // ① 错题重练：必须先于意图过滤。"重练这道错题：…"这类措辞可能被判成 chat，
@@ -1018,6 +1063,7 @@ function resolveWebMode(requested, userMessage) {
  * @returns {object|null} 已解析的检索结果（供注入 LLM 上下文）
  */
 async function ensureWebSearch(turn) {
+  execution.throwIfAborted();
   if (turn.webMode === 'off') return null; // 学生选择本次不联网
   const msg = String(turn.userMessage || '');
   // 元问题（在问"你/系统"本身）不触发检索：字面含"联网/搜"也不该真去搜（否则返回噪音）。
@@ -1076,7 +1122,7 @@ function appendWebSources(reply, webResult) {
  * @returns {object|null} { name, output }
  */
 async function ensureReadonlyQuery(learning, turn, intent, ctx) {
-  if (intent === 'course_overview') {
+  if (intent === 'course_overview' || (intent === 'chat' && turn.agent?.id === 'coordinator')) {
     const out = tools.get_course_overview.run({}, ctx);
     turn.toolCalls.push({ name: 'get_course_overview', input: {}, output: out });
     return { name: 'get_course_overview', output: out };
@@ -1093,6 +1139,13 @@ async function ensureReadonlyQuery(learning, turn, intent, ctx) {
  *  目的：让讲解内容来自教材（get_knowledge_point），而不是模型自述；
  *  与 webResult/readonlyResult 同一套"系统代取 + 注入上下文"范式。 */
 async function ensureKnowledgePrefetch(learning, turn, intent, matched, ctx) {
+  if (turn.hasAttachments) return null;
+  if (intent === 'chat' && isTextbookQuery(turn.userMessage) && turn.agent?.id === 'general') {
+    const input = { query: turn.userMessage, topK: 3 };
+    const out = await tools.search_knowledge_base.run(input, ctx);
+    turn.toolCalls.push({ name: 'search_knowledge_base', input, output: out });
+    return out;
+  }
   if (courseRegistry.isDynamicCourseId(turn.courseId)) {
     if (!['chat', 'preview', 'learn', 'review'].includes(intent) || /^(你好|谢谢|hi|hello|thanks)[!！。\s]*$/i.test(turn.userMessage.trim())) return null;
     const kpId = matched?.kp.id || fallbackKpId(learning);
@@ -1285,7 +1338,44 @@ function annotateGroundingAsync(session, turn, reply) {
  */
 async function run(sessionId, userMessage, opts = {}) {
   // 会话级串行锁 + 用量上下文（AsyncLocalStorage）：深层 LLM 调用把 token 记到本会话
-  return withSessionLock(sessionId, () => usageEngine.runWithSession(sessionId, () => runInner(sessionId, userMessage, opts)));
+  return runTurn(sessionId, userMessage, opts, runInner);
+}
+
+function runTurn(sessionId, userMessage, opts, inner) {
+  return withSessionLock(sessionId, () => execution.runWithSignal(opts.signal, () => usageEngine.runWithSession(sessionId, async () => {
+    // A request cancelled while queued must not start a new turn.
+    execution.throwIfAborted();
+    const state = {};
+    try {
+      const result = await inner(sessionId, userMessage, opts, state);
+      execution.throwIfAborted();
+      return result;
+    } catch (error) {
+      if (!opts.signal?.aborted) throw error;
+      const session = getSession(sessionId);
+      const turn = state.turn;
+      if (turn) {
+        // Keep completed grading/tool effects, but never leave an unanswered user message.
+        if (session.messages.at(-1)?.role === 'user') {
+          const message = { role: 'assistant', status: 'cancelled', content: locale.english()
+            ? 'This reply was interrupted. Completed actions have been saved.'
+            : '本次回复已中断，已完成的操作已保留。' };
+          session.messages.push(message);
+          memoryEngine.recordMessage(session, message, session.turnCount);
+          session.messages = session.messages.slice(-MAX_HISTORY);
+        }
+        const log = state.log;
+        if (log) log.status = 'cancelled';
+        else session.turnLog.push({ at: turn.at, durationMs: Date.now() - Date.parse(turn.at),
+          status: 'cancelled', intent: turn.intent, agent: turn.agent,
+          toolCalls: turn.toolCalls.concat(session._graphCalls || []), phaseChanged: turn.phaseChanged, replyLen: 0 });
+        session.turnLog = session.turnLog.slice(-50);
+        sessionStore.save(session);
+        logger.info('turn_cancelled', `[${sessionId}] 请求已取消`, { sessionId, intent: turn.intent });
+      }
+      opts.signal.throwIfAborted();
+    }
+  })));
 }
 
 function quizIntroduction(intent, card, context, attachments, webAllowed) {
@@ -1296,7 +1386,7 @@ function quizIntroduction(intent, card, context, attachments, webAllowed) {
     : '请点选下方题卡作答，答错也没关系。完成后我们一起看反馈，再决定下一步。';
 }
 
-async function runInner(sessionId, userMessage, { onTool, webMode, context, attachments } = {}) {
+async function runInner(sessionId, userMessage, { onTool, webMode, context, attachments } = {}, state = {}) {
   const session = getSession(sessionId);
   const preparedAttachments = prepareAttachments(sessionId, userMessage, attachments);
   const learning = session.learning;
@@ -1312,8 +1402,10 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
   };
 
   // 记录用户消息（记忆写入）
+  state.turn = turn;
+  session._graphCalls = [];
   session.turnCount = (session.turnCount || 0) + 1; // 单调轮次（不能用 turnLog.length：它被封顶在 50）
-  session.messages.push({ role: 'user', content: userMessage, attachments: preparedAttachments.refs.map((ref) => ({ id: ref.id, name: ref.name, kind: ref.kind })) });
+  session.messages.push({ role: 'user', content: userMessage, turn: session.turnCount, attachments: preparedAttachments.refs.map((ref) => ({ id: ref.id, name: ref.name, kind: ref.kind })) });
   const memoryUserText = userMessage || '（仅发送了附件）';
   const attachmentNote = preparedAttachments.refs.length
     ? `\n[附件：${preparedAttachments.refs.map((ref) => ref.name).join('、')}]`
@@ -1321,12 +1413,13 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
   memoryEngine.recordMessage(session, { role: 'user', content: memoryUserText + attachmentNote }, session.turnCount); // ② recall：原文落库
 
   // ---- 1. 意图识别 ----
-  const intent = recognizeIntent(userMessage, learning, { courseId });
+  turn.hasAttachments = !!preparedAttachments.refs.length;
+  const intent = recognizeIntent(userMessage, learning, { courseId, hasAttachments: turn.hasAttachments });
   turn.intent = intent;
 
   // ---- 1.5 联网模式（先算，路由需要它） ----
   // off=不联网 / on=一定联网 / auto=由 Agent 自行判断（未随请求带则用会话偏好）
-  turn.webMode = webConfig.getConfig().enabled
+  turn.webMode = !turn.hasAttachments && webConfig.getConfig().enabled
     ? resolveWebMode(webMode || session.webMode, userMessage)
     : 'off';
   turn.webExplicit = (webMode === 'on' || webMode === 'off'); // 学生用开关显式指定的，需被尊重
@@ -1341,7 +1434,7 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
   session._offTopicSubject = turn.offTopicSubject;
 
   // 通用问答与专用课程角色分别路由；联网仍受本轮开关与课程边界约束。
-  const agentId = routeIntent(intent, learning, userMessage);
+  const agentId = turn.hasAttachments ? 'general' : routeIntent(intent, learning, userMessage);
   const agent = AGENTS[agentId];
   turn.agent = { id: agentId, name: agent.name, emoji: agent.emoji };
   // 交接链：与上一轮不同 → 记录一次 Agent 交接
@@ -1410,6 +1503,7 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
   // 从而对模型自作主张调用检索工具做硬拦截（提示词只是软约束）。
   let gen;
   gen = await scopeEngine.runWithWebScope(webAllowed, async () => {
+    execution.throwIfAborted();
     const introduction = quizIntroduction(intent, card, context, attachments, webAllowed);
     if (introduction) return { reply: introduction, toolCalls: [] };
     if (isMock) {
@@ -1421,6 +1515,7 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
     }
     return llm.generate({ intent, kp, chapter, toolResult: knowledge || toolResult, ctx: session, userMessage, userContent: preparedAttachments.userContent, attachmentContext: preparedAttachments.attachmentContext, toolCalls: turn.toolCalls, agent, quizPrepared, checkResult, webResult, readonlyResult, gate: turn.gate, cardWillRender: !!card, webMode: turn.webMode, webScope: turn.webScope, offTopicSubject: turn.offTopicSubject });
   });
+  execution.throwIfAborted();
   const reply = appendWebSources(gen.reply, webResult);
   annotateGroundingAsync(session, turn, reply); // 异步标注，不阻塞回答
   if (gen.toolCalls !== turn.toolCalls) turn.toolCalls = turn.toolCalls.concat(gen.toolCalls || []);
@@ -1469,6 +1564,7 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
     grounding: turn.grounding ? { verdict: turn.grounding.verdict, unsupported: turn.grounding.unsupported } : null,
   });
   if (session.turnLog.length > 50) session.turnLog = session.turnLog.slice(-50);
+  state.log = session.turnLog.at(-1);
   sessionStore.save(session); // 持久化：轨迹入库后再写回 SQLite（含本轮轨迹）
 
   // 运行日志留存：本轮关键信息（含工具错误/被拒），前端断开也可追溯
@@ -1480,12 +1576,14 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
 
   // 记忆维护（真实模式）：三层记忆统一入口——卡点→core 进度块、
   // 摘要（recall 压缩产物）、事实提取→archival。失败不影响主流程。
+  execution.throwIfAborted();
   if (!isMock) await memoryEngine.upkeep(session, turn, userMessage, null);
+  execution.throwIfAborted();
   // upkeep 可能更新 summary；再落一次盘，避免本轮摘要要等到下一轮才持久化。
   sessionStore.save(session);
 
   // 结构性保障：正文里若出现题目却没有卡片（模型未按协议出题），补一张可交互、可判分的卡
-  const finalCard = card || (agentId !== 'general' && intent !== 'answer' ? await ensureQuizCardForReply(session, reply, card) : null);
+  const finalCard = card || (['preview', 'learn', 'review'].includes(agentId) && intent !== 'answer' ? await ensureQuizCardForReply(session, reply, card) : null);
   if (finalCard && !card) {
     logger.warn('card_fallback', `[${session.id}] 模型未走互动卡片而出题，已由代码兜底补卡（intent=${intent}）`);
     sessionStore.save(session);
@@ -1514,10 +1612,10 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
  */
 async function runStream(sessionId, userMessage, opts = {}) {
   // 与 run 共用同一把会话锁 + 用量上下文：同一会话的并发请求（含流式）按到达顺序串行
-  return withSessionLock(sessionId, () => usageEngine.runWithSession(sessionId, () => runStreamInner(sessionId, userMessage, opts)));
+  return runTurn(sessionId, userMessage, opts, runStreamInner);
 }
 
-async function runStreamInner(sessionId, userMessage, { onTool, onDelta, context, webMode, attachments } = {}) {
+async function runStreamInner(sessionId, userMessage, { onTool, onDelta, context, webMode, attachments } = {}, state = {}) {
   const session = getSession(sessionId);
   const preparedAttachments = prepareAttachments(sessionId, userMessage, attachments);
   const learning = session.learning;
@@ -1532,8 +1630,10 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, context
     at: new Date().toISOString(),
   };
 
+  state.turn = turn;
+  session._graphCalls = [];
   session.turnCount = (session.turnCount || 0) + 1; // 单调轮次（不能用 turnLog.length：它被封顶在 50）
-  session.messages.push({ role: 'user', content: userMessage, attachments: preparedAttachments.refs.map((ref) => ({ id: ref.id, name: ref.name, kind: ref.kind })) });
+  session.messages.push({ role: 'user', content: userMessage, turn: session.turnCount, attachments: preparedAttachments.refs.map((ref) => ({ id: ref.id, name: ref.name, kind: ref.kind })) });
   const memoryUserText = userMessage || '（仅发送了附件）';
   const attachmentNote = preparedAttachments.refs.length
     ? `\n[附件：${preparedAttachments.refs.map((ref) => ref.name).join('、')}]`
@@ -1541,12 +1641,13 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, context
   memoryEngine.recordMessage(session, { role: 'user', content: memoryUserText + attachmentNote }, session.turnCount); // ② recall：原文落库
 
   // ---- 1. 意图识别 ----
-  const intent = recognizeIntent(userMessage, learning, { courseId });
+  turn.hasAttachments = !!preparedAttachments.refs.length;
+  const intent = recognizeIntent(userMessage, learning, { courseId, hasAttachments: turn.hasAttachments });
   turn.intent = intent;
 
   // ---- 1.5 联网模式（先算，路由需要它） ----
   // off=不联网 / on=一定联网 / auto=由 Agent 自行判断（未随请求带则用会话偏好）
-  turn.webMode = webConfig.getConfig().enabled
+  turn.webMode = !turn.hasAttachments && webConfig.getConfig().enabled
     ? resolveWebMode(webMode || session.webMode, userMessage)
     : 'off';
   turn.webExplicit = (webMode === 'on' || webMode === 'off'); // 学生用开关显式指定的，需被尊重
@@ -1561,7 +1662,7 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, context
   session._offTopicSubject = turn.offTopicSubject;
 
   // 通用问答与专用课程角色分别路由；联网仍受本轮开关与课程边界约束。
-  const agentId = routeIntent(intent, learning, userMessage);
+  const agentId = turn.hasAttachments ? 'general' : routeIntent(intent, learning, userMessage);
   const agent = AGENTS[agentId];
   turn.agent = { id: agentId, name: agent.name, emoji: agent.emoji };
   const handoff = [];
@@ -1621,6 +1722,7 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, context
   // ---- 3. 流式 LLM 生成（引擎分流：LangGraph 图 / legacy ReAct） ----
   // ALS：本轮是否允许联网（MCP 工具层据此硬拦截，见 mcp/bridge.js）
   const gen = await scopeEngine.runWithWebScope(webAllowed, async () => {
+    execution.throwIfAborted();
     const introduction = quizIntroduction(intent, card, context, attachments, webAllowed);
     if (introduction) {
       if (onDelta) onDelta(introduction);
@@ -1639,6 +1741,7 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, context
       { onTool, onDelta }
     );
   });
+  execution.throwIfAborted();
   const reply = appendWebSources(gen.reply, webResult);
   if (reply !== gen.reply && onDelta) onDelta(reply.slice(gen.reply.length));
   annotateGroundingAsync(session, turn, reply); // 异步标注，不阻塞回答
@@ -1684,6 +1787,7 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, context
     grounding: turn.grounding ? { verdict: turn.grounding.verdict, unsupported: turn.grounding.unsupported } : null,
   });
   if (session.turnLog.length > 50) session.turnLog = session.turnLog.slice(-50);
+  state.log = session.turnLog.at(-1);
   sessionStore.save(session); // 持久化：轨迹入库后再写回 SQLite（含本轮轨迹）
 
   // 运行日志留存：本轮关键信息（含工具错误/被拒），前端断开也可追溯
@@ -1695,12 +1799,14 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, context
 
   // 记忆维护（真实模式）：三层记忆统一入口——卡点→core 进度块、
   // 摘要（recall 压缩产物）、事实提取→archival。失败不影响主流程。
+  execution.throwIfAborted();
   if (!isMock) await memoryEngine.upkeep(session, turn, userMessage, context);
+  execution.throwIfAborted();
   // upkeep 可能更新 summary；再落一次盘，避免本轮摘要要等到下一轮才持久化。
   sessionStore.save(session);
 
   // 结构性保障：正文里若出现题目却没有卡片（模型未按协议出题），补一张可交互、可判分的卡
-  const finalCard = card || (agentId !== 'general' && intent !== 'answer' ? await ensureQuizCardForReply(session, reply, card) : null);
+  const finalCard = card || (['preview', 'learn', 'review'].includes(agentId) && intent !== 'answer' ? await ensureQuizCardForReply(session, reply, card) : null);
   if (finalCard && !card) {
     logger.warn('card_fallback', `[${session.id}] 模型未走互动卡片而出题，已由代码兜底补卡（intent=${intent}）`);
     sessionStore.save(session);
