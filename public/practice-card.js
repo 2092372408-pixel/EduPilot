@@ -61,11 +61,10 @@
       footEl.innerHTML = '';
       if (item.type === 'coding') renderCoding(item);
       else renderChoice(item);
-      api.scrollToBottom();
     }
 
     /** 答完当前题：还有下一题就给按钮，最后一题给收尾 */
-    function advance() {
+    function advance(quizProgress) {
       footEl.innerHTML = '';
       if (idx + 1 < items.length) {
         const btn = document.createElement('button');
@@ -76,12 +75,22 @@
       } else {
         const tip = document.createElement('div');
         tip.className = 'card-done';
-        tip.textContent = items.length > 1 ? ui("这一组练完了 👍 需要更多可以再来一组") : ui("练完了 👍");
+        const needsRetake = quizProgress?.finished && quizProgress.mode === 'learn' && quizProgress.allCorrect === false;
+        tip.textContent = needsRetake ? ui("这轮随堂练习还有错题，可以复习后再重练。")
+          : items.length > 1 ? ui("这一组练完了 👍 需要更多可以再来一组") : ui("练完了 👍");
         const more = document.createElement('button');
         more.className = 'card-more';
         more.textContent = ui("再来几题");
         more.addEventListener('click', () => api.sendMessage(ui("练习更多")));
-        footEl.append(tip, more);
+        footEl.appendChild(tip);
+        if (needsRetake) {
+          const retake = document.createElement('button');
+          retake.className = 'card-next';
+          retake.textContent = ui('重练随堂练习');
+          retake.addEventListener('click', () => api.sendMessage(ui('重练随堂练习')));
+          footEl.appendChild(retake);
+        }
+        footEl.appendChild(more);
       }
     }
 
@@ -106,29 +115,46 @@
       const explainBtn = block.querySelector('.card-explain');
       let answered = false;
       opts.forEach((btn) => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
           if (answered || !api.canInteract()) return;
           answered = true;
           opts.forEach((b) => (b.disabled = true));
           const letter = String.fromCharCode(65 + parseInt(btn.dataset.idx, 10));
-          const correct = letter === item.answer;
-          if (correct) btn.classList.add('right');
-          else {
-            btn.classList.add('wrong');
-            opts.forEach((b) => { if (b.textContent.startsWith(item.answer + '.')) b.classList.add('right'); });
+          const payload = { kind: 'choice', kpId, question: item.q, userAnswer: letter,
+            correct: letter === item.answer, explanation: item.explanation, replay: !!data.replay, requestId: crypto.randomUUID() };
+          async function saveAnswer() {
+            fb.classList.remove('hidden');
+            fb.textContent = ui("正在保存作答…");
+            footEl.innerHTML = '';
+            const result = await api.recordAnswer(kpId, payload, fb);
+            if (!result?.ok) {
+              const retry = document.createElement('button');
+              retry.type = 'button';
+              retry.className = 'card-next';
+              retry.textContent = ui("重试保存");
+              retry.addEventListener('click', saveAnswer);
+              footEl.appendChild(retry);
+              return;
+            }
+            const correct = result.correct;
+            if (correct) btn.classList.add('right');
+            else {
+              btn.classList.add('wrong');
+              opts.forEach((b) => { if (b.textContent.startsWith(item.answer + '.')) b.classList.add('right'); });
+            }
+            fb.classList.remove('hidden');
+            fb.innerHTML = (correct ? ui("✅ 回答正确！") : ui("❌ 正确答案是 ") + item.answer + ui("。"))
+              + (item.explanation ? '<br/>💡 ' + esc(item.explanation) : '');
+            explainBtn.classList.remove('hidden');
+            ctx.userAnswer = letter;
+            ctx.submitted = true;
+            // 明确记录对错：LLM 答疑要据此说清"你哪里想错了"，
+            // 只传"已作答"会让模型把答错的题说成"答对了"（自相矛盾）。
+            ctx.correct = correct;
+            ctx.userAnswerText = (item.options || [])[parseInt(btn.dataset.idx, 10)] || '';
+            advance(result.quizProgress);
           }
-          fb.classList.remove('hidden');
-          fb.innerHTML = (correct ? ui("✅ 回答正确！") : ui("❌ 正确答案是 ") + item.answer + ui("。"))
-            + (item.explanation ? '<br/>💡 ' + esc(item.explanation) : '');
-          explainBtn.classList.remove('hidden');
-          ctx.userAnswer = letter;
-          ctx.submitted = true;
-          // 明确记录对错：LLM 答疑要据此说清"你哪里想错了"，
-          // 只传"已作答"会让模型把答错的题说成"答对了"（自相矛盾）。
-          ctx.correct = correct;
-          ctx.userAnswerText = (item.options || [])[parseInt(btn.dataset.idx, 10)] || '';
-          api.recordAnswer(kpId, { kind: 'choice', kpId, question: item.q, userAnswer: letter, correct, explanation: item.explanation, replay: !!data.replay }, fb);
-          advance();
+          await saveAnswer();
         });
       });
       explainBtn.addEventListener('click', () => api.askExplain(ctx));
@@ -136,7 +162,8 @@
 
     function renderCoding(item) {
       const kpId = item.kpId || data.kpId || '';
-      const ctx = { kpId, kpTitle: item.kpTitle || data.kpTitle, problemTitle: item.title };
+      const ctx = { kpId, kpTitle: item.kpTitle || data.kpTitle, problemTitle: item.title,
+        problemId: item.problemId || item.id, problemDescription: item.description, submitted: false };
       const block = document.createElement('div');
       block.className = 'card-block';
       block.innerHTML =
@@ -150,43 +177,65 @@
       const codeEl = block.querySelector('.card-code');
       const outEl = block.querySelector('.card-output');
       const gradeEl = block.querySelector('.card-grade');
+      let attempt = null;
+      codeEl.addEventListener('input', () => {
+        ctx.submitted = false;
+        ctx.gradeFeedback = null;
+        attempt = null;
+        footEl.innerHTML = '';
+      });
 
-      block.querySelector('.card-run').addEventListener('click', async () => {
+      block.querySelector('.card-run').addEventListener('click', async (e) => {
+        if (!api.canInteract()) return;
+        const button = e.currentTarget;
+        const runCode = codeEl.value;
+        button.disabled = true;
         outEl.classList.remove('hidden');
         gradeEl.classList.add('hidden');
         outEl.textContent = ui("⏳ 运行中…");
         try {
-          const r = await (await eduFetch('/api/run/python', {
+          const response = await eduFetch('/api/run/python', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: codeEl.value }),
-          })).json();
-          if (r.rejected) outEl.textContent = '🚫 ' + (r.error || ui("被拦截"));
+            body: JSON.stringify({ code: runCode }),
+          });
+          const r = await response.json();
+          if (!response.ok || r.error) outEl.textContent = '⚠️ ' + (r.error || `HTTP ${response.status}`);
+          else if (r.rejected) outEl.textContent = '🚫 ' + (r.error || ui("被拦截"));
           else if (r.timeout) outEl.textContent = '⏱️ ' + (r.error || ui("运行超时"));
-          else if (r.stderr.trim()) outEl.textContent = r.stderr;
+          else if ((r.stderr || '').trim()) outEl.textContent = r.stderr;
           else outEl.textContent = r.stdout || ui("（无输出）");
-          ctx.code = codeEl.value;
+          ctx.code = runCode;
           ctx.lastRun = { stdout: r.stdout || '', stderr: r.stderr || '', exitCode: r.exitCode };
         } catch (e) { outEl.textContent = ui("⚠️ 请求失败"); }
+        finally { button.disabled = false; }
       });
 
       block.querySelector('.card-submit').addEventListener('click', async (e) => {
         if (!api.canInteract()) return;
         const button = e.currentTarget;
+        const submittedCode = codeEl.value;
+        if (!attempt || attempt.code !== submittedCode) attempt = { code: submittedCode, requestId: crypto.randomUUID() };
         button.disabled = true;
         gradeEl.classList.remove('hidden');
         gradeEl.innerHTML = ui("<div class=\"card-grade-loading\">⏳ 判分中…</div>");
         try {
-          const r = await (await eduFetch('/api/coding/submit', {
+          const response = await eduFetch('/api/coding/submit', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId: api.sessionId, kpId, problemId: item.problemId || item.id, code: codeEl.value }),
-          })).json();
-          if (r.error) { gradeEl.innerHTML = '⚠️ ' + esc(r.error); return; }
-          const allPass = r.passed === r.total;
+            body: JSON.stringify({ sessionId: api.sessionId, kpId, problemId: item.problemId || item.id, code: submittedCode, requestId: attempt.requestId }),
+          });
+          const r = await response.json();
+          if (codeEl.value !== submittedCode) {
+            gradeEl.textContent = ui("代码已修改，请重新提交判分");
+            return;
+          }
+          if (!response.ok || r.error || !r.record?.ok) { gradeEl.textContent = '⚠️ ' + (r.error || r.record?.error || ui("作答保存失败，请重试")); return; }
+          const allPass = r.total > 0 && r.passed === r.total;
           const cases = r.results.map((c) => '<div>' + (c.pass ? '<span style="color:#3b6d11">✓</span>' : '<span style="color:#a32d2d">✗</span>') + ' ' + esc(c.desc) + '</div>').join('');
           gradeEl.innerHTML = ui("<div class=\"card-grade-title\">提交结果：") + r.passed + ' / ' + r.total + ui(" 用例通过") + (allPass ? ' 🎉' : '') + '</div>'
             + '<div class="card-grade-cases">' + cases + '</div>'
             + (r.review && r.review.comment ? '<div class="card-grade-comment">' + esc(r.review.comment) + '</div>' : '');
           ctx.submitted = allPass;
+          ctx.gradeFeedback = { passed: r.passed, total: r.total, results: r.results, review: r.review };
           ctx.code = codeEl.value;
           if (api.onGraded) await api.onGraded();
           advance();

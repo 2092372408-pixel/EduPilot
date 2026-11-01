@@ -1,5 +1,5 @@
 /* 学习旅程 / 进阶门禁 / 复习到期 的统一口径：服务端、首页、报告共用，不修改传入的记录。
- * 严格梯级：预习自测 → 学习 → 随堂练习全对 → 复习 → 复习测验全对 → 已掌握。
+ * 学习旅程：预习介绍（自测可选）→ 学习 → 随堂练习全对 → 复习 → 复习测验全对 → 已掌握。
  * 每个知识点独立走这条链，任何一步都要拿出上一步的"检测凭据"（rec.checks）。 */
 (function (root, factory) {
   if (typeof module !== 'undefined' && module.exports) module.exports = factory();
@@ -7,7 +7,9 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   const ui = typeof window !== 'undefined' ? window.ui : (text => text);
   var PHASE = { NOT_STARTED: 'not_started', PREVIEW: 'preview', LEARNING: 'learning', REVIEWING: 'reviewing', MASTERED: 'mastered' };
-  var CHECK_LABEL = { preview: ui("预习自测"), learn: ui("随堂练习"), review: ui("复习测验") };
+  var CHECK_LABEL = {
+    get preview() { return ui('预习自测'); }, get learn() { return ui('随堂练习'); }, get review() { return ui('复习测验'); },
+  };
 
   /** 掌握 = 复习测验全对（严格梯级下唯一的证据通道） */
   function isMastered(rec) {
@@ -19,10 +21,7 @@
     if (!rec) return null;
     var c = rec.checks || {};
     if (target === PHASE.PREVIEW) return null;
-    if (target === PHASE.LEARNING) {
-      if (c.preview || rec.legacyProgress || (!rec.checks && [PHASE.LEARNING, PHASE.REVIEWING, PHASE.MASTERED].indexOf(rec.phase) >= 0)) return null;
-      return { need: 'preview', label: CHECK_LABEL.preview, hint: ui("先做完预习自测（答完即可，不要求全对），才能进入正式学习") };
-    }
+    if (target === PHASE.LEARNING) return null;
     if (target === PHASE.REVIEWING) {
       if (c.learn || rec.legacyProgress || (!rec.checks && [PHASE.REVIEWING, PHASE.MASTERED].indexOf(rec.phase) >= 0)) return null;
       return { need: 'learn', label: CHECK_LABEL.learn, hint: ui("随堂练习全对之后才进入复习巩固，先把练习题做对") };
@@ -34,14 +33,10 @@
     return null;
   }
 
-  /** 该知识点"现在缺哪一步检测"：未过预习→preview，未过随堂→learn，未掌握→review，已掌握→null */
+  /** 该知识点"现在缺哪一步检测"：未过随堂→learn，未掌握→review，已掌握→null */
   function nextGate(rec) {
     if (!rec || isMastered(rec)) return null;
     var c = rec.checks || {};
-    if (rec.checks && !c.preview && !rec.legacyProgress) return { need: 'preview', label: CHECK_LABEL.preview };
-    if (rec.phase === PHASE.NOT_STARTED || rec.phase === PHASE.PREVIEW) {
-      return c.preview ? { need: 'learn', label: CHECK_LABEL.learn } : { need: 'preview', label: CHECK_LABEL.preview };
-    }
     if (!c.learn) return { need: 'learn', label: CHECK_LABEL.learn };
     return { need: 'review', label: CHECK_LABEL.review };
   }

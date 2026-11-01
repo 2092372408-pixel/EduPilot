@@ -15,8 +15,6 @@
 
 require('../env'); // 先加载 .env，保证 ${ENV} 引用能取到值
 
-const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
-const { StdioClientTransport, getDefaultEnvironment } = require('@modelcontextprotocol/sdk/client/stdio.js');
 const config = require('./config');
 const logger = require('../store/logger');
 const execution = require('../agent/execution');
@@ -57,6 +55,8 @@ function filterTools(server, tools) {
 }
 
 async function connect(conn) {
+  const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+  const { StdioClientTransport, getDefaultEnvironment } = require('@modelcontextprotocol/sdk/client/stdio.js');
   const cfg = conn.cfg;
   conn.status = 'connecting';
   conn.error = null;

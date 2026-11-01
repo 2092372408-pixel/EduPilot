@@ -6,13 +6,13 @@
 
 <p align="center"><strong>Turn your materials into an AI course—with lessons, practice and a companion to learn alongside you.</strong></p>
 
-<p align="center">Import Chinese or English materials and move naturally between explanations, practice and review.<br />Native desktop app for Windows / macOS · English and Chinese · Try the built-in demo without a key</p>
+<p align="center">Import Chinese or English materials and move naturally between explanations, practice and review.<br />Native desktop app for Windows / macOS · English and Chinese · Connect your own model API key</p>
 
 <p align="center">
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.6"><img src="https://img.shields.io/badge/Release-v1.1.6-2563eb" alt="Desktop release v1.1.6" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="Download the native Windows installer" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="Download the native Apple Silicon installer" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="Download the native Intel Mac installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.2.0"><img src="https://img.shields.io/badge/Release-v1.2.0-2563eb" alt="Desktop release v1.2.0" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.0/EduPilot-1.2.0-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="Download the native Windows installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.0/EduPilot-1.2.0-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="Download the native Apple Silicon installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.0/EduPilot-1.2.0-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="Download the native Intel Mac installer" /></a>
 </p>
 
 <p align="center"><a href="#features">Highlights</a> · <a href="#workspace">See the workspace</a> · <a href="#download">Download</a> · <a href="#demo">Learning demo</a> · <a href="#api-keys">Connect a model</a> · <a href="#faq">FAQ</a></p>
@@ -31,7 +31,7 @@ Preview questions help you build a map of the topic. Analogies, examples and fol
 
 <img src="docs/screenshots/study-ready-en.jpg" alt="The actual workspace: an imported chapter-based course with a preview question card in the conversation" width="100%" />
 
-Choose a course and topic on the left, then ask, learn and practise with your companion on the right. The screenshot shows a course created from imported materials; the built-in Python demo is another way to explore the full learning flow.
+Choose a course and topic on the left, then ask, learn and practise with your companion on the right. After connecting a model, study the built-in Python course or import your own materials. Create and revisit conversations below the course outline. Chat context stays separate by course and conversation; progress and grades belong to each course. Long-term memory is retrieved across all courses for the same learner, with its sources retained. Practice, reports, imports and exams open within the application and preserve their state when you return.
 
 <details>
 <summary>See the built-in course and focused conversation layout</summary>
@@ -52,17 +52,17 @@ Download the native desktop app and start learning from its icon, with no server
 
 | Your computer | Download |
 | --- | --- |
-| Windows x64 | [Download Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-Windows-x64-Setup.exe) |
-| Mac · Apple Silicon (M-series chips) | [Download Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-arm64.dmg) |
-| Mac · Intel | [Download Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-x64.dmg) |
+| Windows x64 | [Download Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.0/EduPilot-1.2.0-Windows-x64-Setup.exe) |
+| Mac · Apple Silicon (M-series chips) | [Download Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.0/EduPilot-1.2.0-macOS-arm64.dmg) |
+| Mac · Intel | [Download Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.0/EduPilot-1.2.0-macOS-x64.dmg) |
 
 1. **Download** the installer for your computer. Choose Apple Silicon for an M-series Mac.
 2. **Double-click to install**: run `Setup.exe` on Windows and follow the prompts. On macOS, open the `.dmg` and drag EduPilot into Applications.
-3. **Try the demo, then bring your materials**: explore the built-in Python course without a key. Connect a model in Settings when you are ready to turn your own materials into a course.
+3. **Connect a model and start learning**: choose your provider and model in Settings, enter your own API key, test the connection and save. Then study the built-in Python course or import your own materials.
 
 Next time, open **EduPilot** from the Windows desktop or Mac Launchpad. Closing the window hides it to the tray (the menu bar on Mac) while the backend keeps running. Select **Quit EduPilot** from the menu to exit completely. Your study records stay on your computer for your next session.
 
-A tour points to real controls on your first visit, introducing courses, uploads, questions, mistakes and reports. Skip whenever you like, or select **Guide** at the top to replay it. Current installers are unsigned, and Mac packages are not notarized; your OS may warn or block opening them. Check the attachments and SHA-256 checksums on the [Release page](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.6). Older browser-based packages remain available in [v1.1.4](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.4).
+A tour points to real controls on your first visit, introducing courses, uploads, questions, mistakes and reports. Skip whenever you like, or select **Guide** at the top to replay it. Current installers are unsigned, and Mac packages are not notarized; your OS may warn or block opening them. Check the attachments and SHA-256 checksums on the [Release page](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.2.0). Older browser-based packages remain available in [v1.1.4](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.4).
 
 <details>
 <summary>A guide for your first visit</summary>
@@ -94,14 +94,14 @@ Import materials → Create a course → Preview check → Learn and practise �
 
 ### 1. Turn a textbook into a course you can work through
 
-Import Chinese or English PDF, Word (.docx), PowerPoint (.pptx), Markdown, TXT or JSON files. EduPilot organises the chapters and generates topic lessons, examples, common pitfalls and multiple-choice practice. Once ready, your course follows the same learning flow as the built-in demo.
+Import Chinese or English PDF, Word (.docx), PowerPoint (.pptx), Markdown, TXT or JSON files. EduPilot organises chapters and text locally so you can start learning. Explanations and multiple-choice practice are generated by your selected model when needed.
 
 Follow the process from your materials to a ready-to-study course:
 
 - **Keep the chapter structure**: existing headings come first, with support for headings such as “第一章”, “Chapter 1” and “1.1”. Retrieval passages respect detected chapter and section boundaries and retain their sources.
-- **See processing progress**: follow parsing, chapter splitting, retrieval indexing, lesson and question generation, and saving. Parsing shows elapsed time; embedding and course generation show actual completion counts.
-- **Generate from your source**: lessons and questions use the materials as evidence, followed by a separate check against the source before the course becomes available.
-- **Grow your course over time**: add materials and reuse unchanged content, embeddings and lessons. A failed update preserves the previous usable course.
+- **See processing progress**: follow parsing, chapter splitting and saving, with elapsed time.
+- **Generate from your source**: learning and practice use the relevant section as context; questions are generated on demand and saved. Check model output against your materials.
+- **Grow your course over time**: add or replace materials. A failed update preserves the previous usable course.
 
 <details>
 <summary>See material import and processing progress</summary>
@@ -114,7 +114,7 @@ Select **Upload** in the sidebar, create a course or add to an existing one, the
 
 ### 2. Preview → Learn → Review, with a next step throughout
 
-Use a preview check to discover what is unfamiliar. Build understanding through explanations, get feedback through practice, then revisit the topic to consolidate it. Ask for another example or explain where you got stuck without leaving the learning flow.
+First explore the chapter, then use a preview check to discover what is unfamiliar. Build understanding through explanations, practise, and revisit the topic. Ask for another example or explain where you got stuck without leaving the learning flow.
 
 <img src="docs/learning-flow.jpg" alt="Learning journey illustration: understand and plan, learn and build, review and transfer" width="100%" />
 
@@ -174,7 +174,7 @@ Open **Report** at the top to see study coverage, verified mastery, next steps a
 Dedicated companion roles support planning, preview, learning and review. A general education companion helps with questions beyond the course, offering explanations, examples and study advice. Follow the chapters or pause to explore a question that interests you.
 
 - **Ask with your materials**: attach an image or document to discuss it alongside your question. Choose an image-capable model for pictures.
-- **Research when needed**: use the web search toggle beside the input box to find additional learning material. Search needs a separate Tavily key.
+- **Research when needed**: use the toggle beside the input box for provider-native search with your existing model key. Availability depends on the model and region; expand the source button to inspect references.
 - **Practise Python**: write, run and submit code for feedback. The practice assistant can use the current task and execution results to offer hints.
 
 <details>
@@ -215,7 +215,7 @@ Documents are parsed locally. When you use an online model or web search, releva
 
 Open **Settings → LLM model → Configure provider and key**. Choose a provider, enter your API key, select a model and save. Open-ended answers and generating lessons and questions from your materials use this model and are billed by its provider.
 
-Connect DeepSeek, Qwen, OpenAI, GLM, Kimi or another compatible service. For web research, add a [Tavily key](https://app.tavily.com/home) in **Settings → Web search · Tavily**, then turn search on when needed.
+Connect DeepSeek, Qwen, OpenAI, GLM, Kimi or another compatible service. Settings show native search availability; control it with the toggle beside the input box, without a separate search key. Model support and search charges depend on the provider. Unsupported configurations never pretend to have searched.
 
 Use **Test connection** before saving. If the model you need is missing from the list, enter its provider-supplied custom Model ID. Before sending pictures, select a model that supports image input and test its image capability.
 
@@ -250,7 +250,7 @@ Choose a provider, check model capability labels and enter your key in the inter
 
 **Can I try it without an API key?**
 
-Yes. The built-in Python demo needs no key. Real open-ended answers and turning your own materials into courses require a model connection. Web search uses a separate Tavily key.
+You can browse courses, saved conversations and existing learning records without a key. AI conversations and generated practice require a configured provider, model and API key. Failed requests display an error instead of switching to demo answers. Supported native search uses the same provider key.
 
 **Does it support Chinese and English materials?**
 
@@ -270,7 +270,7 @@ The native installer includes the application runtime, Python and document conve
 
 **How long does importing take? Can I close the page?**
 
-Time depends on the material, number of topics, your computer and the model's response speed. Document parsing is local; generating and checking lessons and questions uses your selected model. The page shows the current stage and actual completion counts. Wait until the course is ready before closing it. Follow the retry prompt if processing fails; a failed update preserves the previous usable course.
+Import time depends on the materials and your computer. Parsing and indexing run locally; explanations and questions use the selected model when needed. The page shows the current stage. A failed update preserves the previous usable course. Scanned documents and complex graphics may need OCR or manual review.
 
 **Does closing the page quit the app? What about refreshing?**
 

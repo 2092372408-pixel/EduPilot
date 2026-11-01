@@ -7,10 +7,9 @@
  *
  * 暴露工具：
  *   list_dev_sites  站点目录（零外网依赖，供模型/自检了解可用站点，也是连通性探测）
- *   search_dev      在指定权威站点内检索（Tavily API + include_domains 限定域名）
  *   github_search   GitHub 仓库 / 代码 / issue 检索（走 GitHub 官方 REST API，独立配额）
  *
- * 凭证：TAVILY_API_KEY（复用 .env）；GITHUB_TOKEN 可选（提高 GitHub 搜索配额）。
+ * 凭证：GITHUB_TOKEN 可选（提高 GitHub 搜索配额）。
  * 注意：stdio 传输下 **stdout 是协议通道**，本进程任何日志只能走 stderr。
  */
 
@@ -20,14 +19,13 @@ const { z } = require('zod');
 
 const NAME = 'eduowl-devsites';
 const VERSION = '1.0.0';
-const TAVILY_KEY = process.env.TAVILY_API_KEY || '';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
 const TIMEOUT_MS = 20000;
 const UA = 'EduPilotBot/1.0 (+local teaching agent)';
 
 /**
  * 权威站点目录：id → { label, domains, category }
- * 只放"编程 / 人工智能"方向可信来源；域名为 Tavily include_domains 的实际取值。
+ * 只放"编程 / 人工智能"方向可信来源；列出可信来源域名。
  */
 const SITES = {
   csdn:            { label: 'CSDN（中文技术社区）',      domains: ['csdn.net'],            category: '中文社区' },
@@ -49,35 +47,6 @@ const SITES = {
   realpython:      { label: 'Real Python',               domains: ['realpython.com'],      category: '教程' },
   geeksforgeeks:   { label: 'GeeksforGeeks',             domains: ['geeksforgeeks.org'],   category: '教程' },
 };
-
-const cat = (s) => String(s || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
-
-/** 解析 site 参数 → 域名数组（已知 id 用目录；否则按字面域名兜底） */
-function resolveDomains(site) {
-  if (!site) return null; // 不限定 = 全站检索由 Tavily 决定
-  const key = String(site).trim().toLowerCase();
-  if (SITES[key]) return SITES[key].domains;
-  const d = cat(site);
-  return d && d.includes('.') ? [d] : null;
-}
-
-async function tavilySearch(query, domains, maxResults, signal) {
-  if (!TAVILY_KEY) throw new Error('未配置 TAVILY_API_KEY');
-  const body = {
-    query,
-    max_results: Math.min(Math.max(Number(maxResults) || 5, 1), 8),
-    search_depth: 'basic',
-  };
-  if (domains && domains.length) body.include_domains = domains;
-  const res = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TAVILY_KEY}` },
-    body: JSON.stringify(body),
-    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]) : AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (!res.ok) throw new Error(`Tavily HTTP ${res.status}`);
-  return res.json();
-}
 
 async function githubApi(path, signal) {
   const headers = { Accept: 'application/vnd.github+json', 'User-Agent': UA, 'X-GitHub-Api-Version': '2022-11-28' };
@@ -107,49 +76,7 @@ server.registerTool(
     server: NAME,
     version: VERSION,
     sites: Object.entries(SITES).map(([id, s]) => ({ id, label: s.label, domains: s.domains, category: s.category })),
-    note: 'search_dev 的 site 参数可传上述 id；也可直接传任意域名（如 example.com）。',
   })
-);
-
-server.registerTool(
-  'search_dev',
-  {
-    title: '权威站点检索',
-    description:
-      '在编程 / 人工智能权威站点内检索（可用 site 限定单个站点，如 csdn、github、mdn、pytorch；不传则在这些权威站点范围内综合检索）。'
-      + '返回标题、链接与摘要。适合查"某技术的中文教程/官方文档/最新论文"。查完可再用读网页工具取正文。',
-    inputSchema: {
-      query: z.string().describe('检索关键词，尽量具体（如 "Python 3.13 JIT 编译"）'),
-      site: z.string().optional().describe('限定的站点 id 或域名（csdn / github / mdn / pytorch …）；不传则在全部权威站点内检索'),
-      maxResults: z.number().int().min(1).max(8).optional().describe('返回条数，默认 5'),
-    },
-  },
-  async ({ query, site, maxResults }, extra) => {
-    const q = String(query || '').trim();
-    if (!q) return errResult('query 不能为空');
-    const domains = resolveDomains(site);
-    if (site && !domains) return errResult(`无法识别的站点：${site}（可先用 list_dev_sites 查看，或传完整域名）`);
-    try {
-      const data = await tavilySearch(q, domains, maxResults, extra.signal);
-      const results = (data.results || []).map((r) => ({
-        title: r.title,
-        url: r.url,
-        content: (r.content || '').slice(0, 500),
-      }));
-      return textResult({
-        query: q,
-        site: site || '（权威站点综合）',
-        domains: domains || null,
-        count: results.length,
-        results,
-        note: results.length ? undefined : '该站点内未检索到相关内容，可换个关键词或去掉 site 限定。',
-      });
-    } catch (e) {
-      extra.signal.throwIfAborted();
-      console.error(`[${NAME}] search_dev 失败: ${e.message} | ${q}`);
-      return errResult(`检索失败：${e.message}`);
-    }
-  }
 );
 
 server.registerTool(
@@ -213,7 +140,7 @@ server.registerTool(
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`[${NAME}] v${VERSION} 已就绪（pid=${process.pid}，tavily=${TAVILY_KEY ? 'on' : 'off'}，githubToken=${GITHUB_TOKEN ? 'on' : 'off'}，站点=${Object.keys(SITES).length}）`);
+  console.error(`[${NAME}] v${VERSION} 已就绪（pid=${process.pid}，githubToken=${GITHUB_TOKEN ? 'on' : 'off'}，站点=${Object.keys(SITES).length}）`);
 }
 
 main().catch((e) => {

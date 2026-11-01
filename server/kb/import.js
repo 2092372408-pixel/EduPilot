@@ -87,10 +87,19 @@ function buildCourse(courseId, opts = {}) {
     let curLines = [];
 
     const flushChapter = () => {
-      if (curChapter === null || !curLines.length) return;
+      if (!curLines.length) return;
       const text = curLines.join('\n').trim();
+      curLines = [];
       if (!text) return;
+      // Preserve introductory prose in uploaded material before its first heading.
+      if (curChapter === null) {
+        if (mapKp) return;
+        curChapter = docTitle;
+      }
       for (const block of splitIntoBlocks(text)) {
+        const images = mapKp ? [] : Array.from(
+          block.matchAll(/!\[([^\]]*)\]\(material-images\/([a-f0-9]{24})\.(?:png|jpg|jpeg|webp|gif)\)/g),
+          ([, alt, imageId]) => ({ imageId, alt, docId, chapter: curChapter, section: curSection }));
         chunks.push({
           chunkId: `chunk-${chunks.length + 1}`,
           docId,
@@ -98,6 +107,7 @@ function buildCourse(courseId, opts = {}) {
           section: curSection, // 节标题（###）；无节时为 null
           kpId: mapKp ? curKp : learningKey(docId, curChapter, curSection || ''),
           content: block,
+          ...(images.length ? { images } : {}),
         });
       }
       curLines = [];
@@ -111,6 +121,7 @@ function buildCourse(courseId, opts = {}) {
       } else if (line.startsWith('### ')) {
         // 节标题：仅动态课（mapKp=false）启用两级；内置课无 ### 不受影响
         flushChapter();
+        if (curChapter === null && !mapKp) curChapter = docTitle;
         curSection = line.slice(4).trim();
       } else if (line.startsWith('## ')) {
         flushChapter();
@@ -129,17 +140,24 @@ function buildCourse(courseId, opts = {}) {
   }
 
   // 章节索引（按 docId + chapter 聚合，章下挂节）
+  const chapterIndexes = new Map();
+  const sectionIndexes = new WeakMap();
   for (const c of chunks) {
     const book = bookMap.get(c.docId);
     if (!book) continue;
-    let ch = book.chapters.find((x) => x.title === c.chapter);
+    if (!chapterIndexes.has(c.docId)) chapterIndexes.set(c.docId, new Map());
+    const chapterIndex = chapterIndexes.get(c.docId);
+    let ch = chapterIndex.get(c.chapter);
     if (!ch) {
       ch = { title: c.chapter, kpId: c.kpId, sections: [], chunks: [] };
       book.chapters.push(ch);
+      chapterIndex.set(c.chapter, ch);
     }
     if (c.section) {
-      let sec = ch.sections.find((x) => x.title === c.section);
-      if (!sec) { sec = { title: c.section, chunks: [] }; ch.sections.push(sec); }
+      if (!sectionIndexes.has(ch)) sectionIndexes.set(ch, new Map());
+      const sectionIndex = sectionIndexes.get(ch);
+      let sec = sectionIndex.get(c.section);
+      if (!sec) { sec = { title: c.section, chunks: [] }; ch.sections.push(sec); sectionIndex.set(c.section, sec); }
       sec.chunks.push(c.chunkId);
     } else {
       ch.chunks.push(c.chunkId); // 无节的章内容直接挂在章下（向后兼容存量）

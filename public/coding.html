@@ -4,10 +4,11 @@
   <script src="ui-en.js"></script>
   <script src="i18n.js"></script>
   <script src="settings.js"></script>
+  <script src="/app-navigation.js?v=2" defer></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title data-ui="EduPilot · 单元做题区">EduPilot · 单元做题区</title>
-<link rel="stylesheet" href="/style.css?v=43" />
+<link rel="stylesheet" href="/style.css?v=49" />
 <style>
 /* 做题区专用样式（coding.html） */
 .coding-main { height: calc(100vh - 60px); }
@@ -16,26 +17,26 @@
 .coding-body { flex: 1; overflow-y: auto; padding: 24px clamp(18px, 4vw, 56px); display: flex; flex-direction: column; gap: 12px; }
 .problem-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
 .problem-card h3 { margin: 0 0 8px; font-size: 15px; }
-.problem-card p { margin: 0; color: var(--text-2); line-height: 1.7; font-size: 13px; }
+.problem-card p { margin: 0; color: var(--text-2); line-height: 1.65; font-size: var(--ui-font-size); }
 .problem-example {
   background: #fafafa; border: 1px solid var(--border); border-radius: 8px;
   padding: 10px 12px; margin-top: 10px; font-size: 13px; white-space: pre-wrap;
 }
 .code-editor {
   width: 100%; min-height: 220px; resize: vertical;
-  font-family: Consolas, 'Courier New', monospace; font-size: 13.5px; line-height: 1.6;
+  font-family: Consolas, 'Courier New', monospace; font-size: 15px; line-height: 1.6;
   padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px;
   background: #fafafa; color: var(--text-1); tab-size: 2;
 }
 .code-editor:focus { outline: none; border-color: var(--primary); }
 .coding-actions { display: flex; align-items: center; gap: 10px; }
 .coding-actions .btn-primary { min-height: 36px; padding: 8px 18px; border-radius: 8px; }
-.run-status { font-size: 12px; color: var(--text-2); }
+.run-status { font-size: var(--note-font-size); color: var(--text-2); }
 .run-output { background: #202020; border-radius: 10px; padding: 12px 14px; }
-.run-label { font-size: 11px; color: #858585; margin-bottom: 6px; }
+.run-label { font-size: var(--note-font-size); color: #c3cbd5; margin-bottom: 6px; }
 .stdout { color: #e6e6e6; font-size: 13px; white-space: pre-wrap; margin: 0; }
 .stderr { color: #fca5a5; font-size: 13px; white-space: pre-wrap; margin: 0; }
-.run-meta { font-size: 11px; color: #707070; margin-top: 6px; }
+.run-meta { font-size: var(--note-font-size); color: #c3cbd5; margin-top: 6px; }
 /* 判分结果 */
 .grade-result {
   background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
@@ -81,7 +82,7 @@
 .float-msgs { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .float-msg {
   max-width: 88%; padding: 8px 12px; border-radius: 10px;
-  font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word;
+  font-size: var(--chat-font-size); line-height: 1.65; word-break: break-word;
 }
 .float-msg.user { align-self: flex-end; background: #f1f1f1; color: var(--text); border-radius: 12px; }
 .float-msg.bot { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); border-radius: 10px 10px 10px 4px; }
@@ -93,7 +94,7 @@
 }
 .float-input-bar input:focus { border-color: var(--primary); }
 .float-input-bar button {
-  background: var(--primary); color: #fff; border: none; border-radius: 8px;
+  background: #262626; color: #fff; border: none; border-radius: 8px;
   padding: 8px 14px; cursor: pointer; font-size: 13px;
 }
 .float-input-bar button:disabled { opacity: .5; cursor: not-allowed; }
@@ -110,7 +111,7 @@
       </div>
     </div>
     <div class="top-right">
-      <a href="/" target="_blank" class="btn-ghost" rel="noopener" data-ui="↩ 返回对话">↩ 返回对话</a>
+      <a href="/" class="btn-ghost" data-ui="↩ 返回对话">↩ 返回对话</a>
     </div>
   </header>
 
@@ -133,7 +134,7 @@
           <span class="dot"></span>
           <span id="unitLabel" data-ui="选择一个单元开始练习">选择一个单元开始练习</span>
         </div>
-        <a href="/choice.html" target="_blank" class="btn-ghost" rel="noopener" data-ui="🎯 去选择题">🎯 去选择题</a>
+        <a href="/choice.html" class="btn-ghost" data-ui="🎯 去选择题">🎯 去选择题</a>
       </div>
 
       <div class="coding-body">
@@ -194,6 +195,8 @@ const SESSION_ID = _uid + '@' + _practiceCourse;
 let courseData = null;
 let currentKp = null;
 let currentProblem = null;
+let practiceRevision = 0;
+let gradingRequest = 0;
 
 const $ = (id) => document.getElementById(id);
 
@@ -249,6 +252,7 @@ async function loadCourse() {
 }
 
 async function selectUnit(kp) {
+  practiceRevision++;
   currentKp = kp;
   document.querySelectorAll('.kp-item').forEach((el) => el.classList.toggle('active', el.dataset.kpId === kp.id));
   $('unitLabel').textContent = ui("当前单元：") + kp.title;
@@ -333,15 +337,21 @@ async function submitCode() {
   if (!currentProblem) { $('runStatus').textContent = ui("⚠️ 当前单元没有可提交的题目"); return; }
   const code = $('codeEditor').value;
   if (!code.trim()) { $('runStatus').textContent = ui("⚠️ 代码不能为空"); return; }
+  const kpId = currentKp.id, problemId = currentProblem.id;
+  const revision = practiceRevision, request = ++gradingRequest;
+  const sameProblem = () => request === gradingRequest && revision === practiceRevision &&
+    currentKp?.id === kpId && currentProblem?.id === problemId;
+  const sameCode = () => sameProblem() && $('codeEditor').value === code;
   $('runStatus').textContent = ui("⏳ 判分中…");
   $('submitBtn').disabled = true;
   try {
     const res = await eduFetch('/api/coding/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: SESSION_ID, kpId: currentKp.id, problemId: currentProblem.id, code }),
+      body: JSON.stringify({ sessionId: SESSION_ID, kpId, problemId, code }),
     });
     const r = await res.json();
+    if (!sameCode()) return;
     renderGrade(r);
     // 全部用例通过 → 标记已提交（悬浮窗答疑从"只提示"切换为"可给答案"）
     if (!r.error && r.passed === r.total) {
@@ -351,9 +361,12 @@ async function submitCode() {
     // 判分与成绩记录由服务端提交接口一起完成。
     $('runStatus').textContent = '';
   } catch (e) {
-    $('runStatus').textContent = ui("⚠️ 判分请求失败");
+    if (sameCode()) $('runStatus').textContent = ui("⚠️ 判分请求失败");
   } finally {
-    $('submitBtn').disabled = false;
+    if (sameProblem()) {
+      $('submitBtn').disabled = false;
+      if (!sameCode()) $('runStatus').textContent = ui("代码已修改，请重新提交判分");
+    }
   }
 }
 
@@ -390,7 +403,7 @@ $('runBtn').addEventListener('click', runCode);
 $('submitBtn').addEventListener('click', submitCode);
 
 /* ============ 做题助手悬浮窗（P3） ============ */
-const FLOAT_SESSION = 'float-' + Date.now();
+const FLOAT_SESSION = SESSION_ID + '~' + crypto.randomUUID();
 let floatBusy = false;
 let problemSubmitted = false; // 当前题目是否已提交通过（提交前智能体只提示不给答案）
 
@@ -400,8 +413,12 @@ function floatCodingContext() {
     mode: 'coding',
     kpId: currentKp ? currentKp.id : '',
     problemTitle: currentProblem ? currentProblem.title : (currentKp ? currentKp.title : ''),
+    problemId: currentProblem ? currentProblem.id : '',
+    problemDescription: currentProblem ? currentProblem.description : $('problemDesc').textContent,
+    testRequirements: currentProblem ? currentProblem.testCases.map((t) => t.desc) : [],
     submitted: problemSubmitted,
     code: $('codeEditor').value,
+    gradeFeedback: $('gradeResult').classList.contains('hidden') ? '' : $('gradeResult').textContent,
     lastRun: {
       stdout: out.classList.contains('hidden') ? '' : out.textContent,
       stderr: err.classList.contains('hidden') ? '' : err.textContent,
@@ -439,44 +456,57 @@ async function floatSend() {
   floatAddMsg('user', msg);
   const botEl = floatAddMsg('bot', '', true);
   let reply = '';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 180000);
+  let reader;
   try {
     const res = await eduFetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId: FLOAT_SESSION, message: msg, context: floatCodingContext() }),
+      signal: controller.signal,
     });
     if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
-    const reader = res.body.getReader();
+    reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    while (true) {
+    let completed = false;
+    while (!completed) {
       const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const blocks = buffer.split('\n\n');
+      buffer += done ? decoder.decode() + '\n\n' : decoder.decode(value, { stream: true });
+      const blocks = buffer.split(/\r?\n\r?\n/);
       buffer = blocks.pop();
       for (const block of blocks) {
         let type = '', dataStr = '';
-        for (const line of block.split('\n')) {
+        for (const line of block.split(/\r?\n/)) {
           if (line.startsWith('event:')) type = line.slice(6).trim();
           else if (line.startsWith('data:')) dataStr += line.slice(5).trim();
         }
         if (type === 'delta') {
-          try { reply += JSON.parse(dataStr).text || ''; } catch (_) {}
+          reply += JSON.parse(dataStr).text || '';
           botEl.classList.remove('typing');
           botEl.innerHTML = floatSimpleMarkdown(reply);
           $('floatMsgs').scrollTop = $('floatMsgs').scrollHeight;
         } else if (type === 'error') {
-          try { reply = '⚠️ ' + (JSON.parse(dataStr).message || ui("出错了")); } catch (_) {}
+          throw new Error(JSON.parse(dataStr).message || ui("出错了"));
+        } else if (type === 'done') {
+          const result = JSON.parse(dataStr);
+          if (typeof result.reply === 'string') reply = result.reply;
+          completed = true;
+          break;
         }
       }
+      if (done && !completed) throw new Error(ui("连接已中断，请重试"));
     }
     botEl.classList.remove('typing');
-    if (!reply) botEl.innerHTML = ui("（没有收到回复，请重试）");
+    botEl.innerHTML = reply ? floatSimpleMarkdown(reply) : ui("（没有收到回复，请重试）");
   } catch (e) {
     botEl.classList.remove('typing');
-    botEl.innerHTML = ui("⚠️ 请求失败：") + escapeHtml(e.message || e);
+    botEl.innerHTML = (reply ? floatSimpleMarkdown(reply) + '<br><br>' : '') +
+      ui("⚠️ 请求失败：") + escapeHtml(e.name === 'AbortError' ? ui("请求超时，请重试") : (e.message || e));
   } finally {
+    clearTimeout(timeout);
+    if (reader) reader.cancel().catch(() => {});
     floatBusy = false;
     $('floatSendBtn').disabled = false;
     $('floatInput').focus();
@@ -486,7 +516,7 @@ async function floatSend() {
 $('floatFab').addEventListener('click', () => $('floatWindow').classList.toggle('hidden'));
 $('floatClose').addEventListener('click', () => $('floatWindow').classList.add('hidden'));
 $('floatSendBtn').addEventListener('click', floatSend);
-$('floatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') floatSend(); });
+$('floatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) floatSend(); });
 $('codeEditor').addEventListener('keydown', (e) => {
   if (e.key === 'Tab') {
     e.preventDefault();
@@ -496,7 +526,12 @@ $('codeEditor').addEventListener('keydown', (e) => {
     t.selectionStart = t.selectionEnd = s + 2;
   }
 });
-loadCourse();
+const courseLoaded = loadCourse();
+window.addEventListener('edu:select-topic', async event => {
+  await courseLoaded;
+  const kp = courseData?.chapters?.flatMap(ch => ch.knowledgePoints).find(kp => kp.id === event.detail.kpId);
+  if (kp) selectUnit(kp);
+});
 </script>
 </body>
 </html>

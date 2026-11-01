@@ -11,8 +11,30 @@
   'use strict';
   const ui = typeof window !== 'undefined' ? window.ui : (text => text);
 
-  const PHASE_CN = { not_started: ui("未开始"), preview: ui("预习中"), learning: ui("学习中"), reviewing: ui("复习中"), mastered: ui("已掌握") };
-  const MEMORY_TYPE_CN = { preference: ui("偏好与风格"), pain: ui("卡点与易错"), fact: ui("背景与进度") };
+  const PHASE_CN = {
+    get not_started() { return ui('未开始'); }, get preview() { return ui('预习中'); },
+    get learning() { return ui('学习中'); }, get reviewing() { return ui('复习中'); }, get mastered() { return ui('已掌握'); },
+  };
+  const MEMORY_TYPE_CN = {
+    get preference() { return ui('偏好与风格'); }, get pain() { return ui('卡点与易错'); }, get fact() { return ui('背景与进度'); },
+  };
+
+  /** One notebook entry per question; retain each independent answer in quizHistory. */
+  function mistakeGroups(history) {
+    const groups = new Map();
+    for (const h of history || []) {
+      if (!h) continue;
+      const key = JSON.stringify([h.source || 'choice', String(h.question || '').trim()]);
+      const prior = groups.get(key);
+      const latestAttempt = !prior || String(h.at || '') >= String(prior.latestAttempt.at || '') ? h : prior.latestAttempt;
+      const wrong = h.correct === false;
+      const latestWrong = wrong && (!prior?.mistake || String(h.at || '') >= String(prior.mistake.at || '')) ? h : prior?.mistake;
+      groups.set(key, { mistake: latestWrong, latestAttempt, attempts: (prior?.attempts || 0) + Number(wrong),
+        ids: [...(prior?.ids || []), ...(wrong && h.id ? [h.id] : [])] });
+    }
+    return [...groups.values()].filter(g => g.mistake).map(g => ({ ...g.mistake,
+      attempts: g.attempts, ids: g.ids, resolved: g.latestAttempt.correct === true }));
+  }
 
   /** 距今天数（lastActivity ISO/ms → 整天数；无记录 → Infinity） */
   function daysSince(atIso, nowMs) {
@@ -44,10 +66,10 @@
       quizCorrect += rec.quizCorrect || 0;
       quizTotal += rec.quizTotal || 0;
       if (rec.quizHistory) {
-        for (const h of rec.quizHistory) {
+        for (const h of mistakeGroups(rec.quizHistory)) {
           if (h && h.correct === false) mistakes.push({
             courseId: course.id, courseTitle: course.title, kpId: id, kpTitle: titleOf(id),
-            question: h.question, userAnswer: h.userAnswer, explanation: h.explanation, at: h.at,
+            question: h.question, userAnswer: h.userAnswer, explanation: h.explanation, at: h.at, attempts: h.attempts, resolved: h.resolved,
           });
         }
       }
@@ -96,7 +118,7 @@
       quizCorrect,
       quizTotal,
       quizRate: quizTotal ? Math.round((quizCorrect / quizTotal) * 100) : null,
-      activityTurns: (info && info.turnLog ? info.turnLog.length : 0),
+      activityTurns: Number.isFinite(info?.activityTurns) ? info.activityTurns : (info && info.turnLog ? info.turnLog.length : 0),
       lastActivity,
       lastDays: daysSince(lastActivity, nowMs),
       hasSession: !!info,
@@ -168,5 +190,5 @@
     return courseReport(course, info, nowMs || Date.now());
   }
 
-  return { aggregate, courseReport, quickReport, daysSince, PHASE_CN, MEMORY_TYPE_CN };
+  return { aggregate, courseReport, quickReport, daysSince, mistakeGroups, PHASE_CN, MEMORY_TYPE_CN };
 });

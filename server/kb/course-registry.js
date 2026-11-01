@@ -35,6 +35,7 @@ function dynamicCourseView(dyn) {
     title: dyn.title,
     description: dyn.description || '',
     learningReady: !!dyn.learningReady,
+    lessonMode: dyn.lessonMode || 'prepared',
     chapters: (dyn.chapters || []).map((c) => {
       const sects = c.sections || [];
       const points = sects.length

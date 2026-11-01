@@ -6,8 +6,7 @@
  *   ② 规范化 Markdown：convert.js 已规整标题层级 / 空块 / 超长行
  *   ③ 写入 data/kb/books/{courseId}/（courseId = user-<时间戳>）
  *   ④ 复用构建管线：import.buildCourse（分章切块）→ chunks.json + index.json（课程隔离）
- *      → buildVectors（向量化，无 Key 自动跳过 → BM25 兜底）
- *   ⑤ 逐节生成教学讲义和题目、原文审核 → 全部就绪后原子注册课程
+ *   ⑤ 完整正文与章节索引就绪后原子注册课程；讲义和题目在学习时按需生成
  *   → 返回 { courseId, title, chapterCount, chunkCount, elapsedMs, warnings }
  *
  * 批量追加模式：传 opts.courseId（已有动态课）→ 追加为新的一篇，重建索引与注册表，
@@ -25,8 +24,6 @@ const { courseFiles } = require('./snapshots');
 const { withCourseLock } = require('./course-lock');
 const { convertToMarkdown } = require('./convert');
 const { buildCourse } = require('./import');
-const { buildVectors } = require('./build-vectors');
-const { EMBED_PROVIDER } = require('./embed');
 const { registerCourse, unregisterCourse, getDynamicCourse, removeOrTrash } = require('./course-registry');
 
 const KB_ROOT = path.join(__dirname, '..', '..', 'data', 'kb');
@@ -35,8 +32,7 @@ const COURSES_DIR = path.join(__dirname, '..', '..', 'data', 'courses');
 
 const ALLOWED_EXT = ['.md', '.markdown', '.txt', '.json', '.docx', '.pdf', '.pptx'];
 // 单文件大小上限（默认 10MB）：教材/讲义单册通常远小于此；
-// 上限主要受「解析 + 切块 + 向量化」耗时约束（实测 1MB≈46s、5MB≈228s），
-// 10MB 是「够用」与「不至于让上传等待过久」的折中，可用 UPLOAD_MAX_MB 覆盖。
+// 限制本地解析和切块的资源占用，可用 UPLOAD_MAX_MB 覆盖。
 const MAX_MB = Number(process.env.UPLOAD_MAX_MB) > 0 ? Number(process.env.UPLOAD_MAX_MB) : 10;
 const MAX_BYTES = MAX_MB * 1024 * 1024;
 /**
@@ -129,7 +125,7 @@ async function processUpload(upload, opts = {}) {
 
     // ① ② 转换 + 规范化（AnyDoc 本地子进程，必要时回退 Python MarkItDown）
     // fallbackTitle=真实文件名：文档无一级标题时课程名/章名用文件名，而非临时文件名里的 courseId 噪音
-    const { markdown, docTitle, warnings: convWarnings } = await convertToMarkdown(tmpFile, { fallbackTitle: docId, onProgress: progress });
+    const { markdown, docTitle, warnings: convWarnings } = await convertToMarkdown(tmpFile, { fallbackTitle: docId, imageDir: path.join(bookDir, 'material-images'), onProgress: progress });
     if (convWarnings.length) warnings.push(...convWarnings);
     if (markdown.length > MAX_MD_CHARS) {
       throw new Error(`解析内容过大（约 ${Math.round(markdown.length / 10000)} 万字，超过 ${Math.round(MAX_MD_CHARS / 10000)} 万上限）。请拆分文件后重新上传`);
@@ -137,7 +133,7 @@ async function processUpload(upload, opts = {}) {
 
     // ③ 教材落盘（docId = 消毒后文件名；同课内同名文件会被覆盖——按"重传更新"处理）
     const mdPath = path.join(bookDir, `${docId}.md`);
-    fs.writeFileSync(mdPath, markdown, 'utf8');
+    fs.writeFileSync(mdPath, `# ${docTitle}\n\n${markdown}`, 'utf8');
 
     // ④ 构建知识库（动态课程：不写全局 index/questions——questions.json 属内置题库 python-intro；
     //    不映射内置知识点 kpId——动态课内容与 python-intro 无关）
@@ -149,18 +145,6 @@ async function processUpload(upload, opts = {}) {
       chunkCount: index.chunkCount,
     };
     progress({ stage: 'chunking', ...structure });
-
-    // 向量化（无 DASHSCOPE_API_KEY 内部自动跳过并打印，不抛错；失败降级 BM25，课程仍可用）
-    for (const name of ['vectors.json', 'vectors.meta.json']) {
-      const old = path.join(previousFiles.chunks, name);
-      if (prev && fs.existsSync(old)) fs.copyFileSync(old, path.join(chunksDir, name));
-    }
-    const vec = await buildVectors(courseId, { directory: chunksDir, onProgress: (p) => progress({ ...p, ...structure }) });
-    if (!vec?.ok) {
-      for (const name of ['vectors.json', 'vectors.meta.json']) fs.rmSync(path.join(chunksDir, name), { force: true });
-    }
-    if (vec && vec.ok === false && vec.error) warnings.push('向量化失败（' + vec.error + '），已降级为关键词检索');
-    if (EMBED_PROVIDER === 'auto') warnings.push('自动 provider 的向量来源无法固定，检索使用 BM25；启用混合检索请显式选择 local、dashscope 或 siliconflow 后重建');
 
     // ⑤ 注册动态课程（title：自定义标题 > 文档标题 > 文件名；追加时保留原课程名，除非显式传入 title）
     const kbIndex = JSON.parse(fs.readFileSync(path.join(chunksDir, 'index.json'), 'utf8'));
@@ -190,20 +174,27 @@ async function processUpload(upload, opts = {}) {
       chunkCount: index.chunkCount,
       chapters,
       indexVersion: randomUUID(),
-      retrievalMode: vec?.ok && EMBED_PROVIDER !== 'auto' ? 'hybrid' : 'bm25',
+      retrievalMode: 'bm25',
     };
-    const generated = await require('./lesson-gen').generateLessons(courseMeta,
-      JSON.parse(fs.readFileSync(path.join(chunksDir, 'chunks.json'), 'utf8')), prev,
-      (p) => progress({ ...p, ...structure }));
-    Object.assign(courseMeta, generated, { learningReady: true });
-    progress({ stage: 'saving', ...structure, ...generated.generation });
+    // Import retains the complete source locally. Generate teaching and quizzes
+    // only when the learner requests them; old lessons may refer to changed text.
+    if (!index.chunkCount) throw new Error('教材没有可学习的正文内容');
+    courseMeta.learningReady = true;
+    courseMeta.lessonMode = 'on-demand';
+    progress({ stage: 'saving', ...structure });
     const manifest = { version: 1, courseId, indexVersion: courseMeta.indexVersion, parser: 'convert-v1 (AnyDoc 0.2.4 / MarkItDown fallback / text)', splitter: 'chapter-section-v2', retrievalMode: courseMeta.retrievalMode,
       hashes: Object.fromEntries(fs.readdirSync(chunksDir).map(name => [name, createHash('sha256').update(fs.readFileSync(path.join(chunksDir, name))).digest('hex')])) };
     fs.writeFileSync(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
     fs.rmSync(tmpFile, { force: true });
     publishedDir = courseFiles(courseId, courseMeta).directory;
     fs.mkdirSync(path.dirname(publishedDir), { recursive: true });
-    fs.renameSync(tmpDir, publishedDir);
+    for (let attempt = 0; ; attempt++) {
+      try { fs.renameSync(tmpDir, publishedDir); break; }
+      catch (error) {
+        if (attempt >= 3 || !['EPERM', 'EBUSY'].includes(error.code)) throw error;
+        await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+      }
+    }
     registerCourse(courseMeta);
     activated = true;
 
@@ -225,7 +216,7 @@ async function processUpload(upload, opts = {}) {
       indexVersion: courseMeta.indexVersion,
       retrievalMode: courseMeta.retrievalMode,
       learningReady: true,
-      generation: courseMeta.generation,
+      lessonMode: courseMeta.lessonMode,
     };
   } catch (e) {
     if (publishedDir && !activated && fs.existsSync(publishedDir)) removeOrTrash(publishedDir);

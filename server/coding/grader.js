@@ -35,6 +35,10 @@ async function gradeSubmission(kpId, problemId, code) {
   const results = [];
   let passed = 0;
   const r = await runPython(String(code), { timeoutMs: problem.timeoutMs || 4000, checks: problem.testCases.map(tc => tc.check) });
+  if (r.error || r.unavailable || r.rejected || r.timeout) {
+    return { error: r.error || (r.timeout ? '运行超时，请检查代码后重试' : '代码未执行，请重试'), problemId,
+      unavailable: !!r.unavailable, rejected: !!r.rejected, timeout: !!r.timeout };
+  }
   const protocol = /^EDUPILOT_CHECKS:([01]+)\r?\n/.exec(r.stdout || '');
   const valid = !r.error && !r.rejected && !r.timeout && r.exitCode === 0 && protocol && protocol[1].length === problem.testCases.length;
   for (const [index, tc] of problem.testCases.entries()) {

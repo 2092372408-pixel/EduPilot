@@ -1,15 +1,17 @@
 /* ============ EduPilot · 前端逻辑 ============ */
 /* 会话体系（课程独立）：
    - uid：本机用户标识（localStorage 持久），所有课程共享；
-   - 每门课一个独立会话：sessionId = `${uid}@${courseId}`
-     → 对话框历史 / 学习进度 / 记忆 按课程天然隔离（服务端 session 维度）；
+   - 每门课支持独立对话：`${uid}@${courseId}~${conversationId}`；
+     对话历史与摘要隔离，学习进度与长期记忆由该用户的课程统一保存；
    - 当前课程记忆在 localStorage（eduowl_course），支持 ?course=xxx 直达。
 */
 const UID = localStorage.getItem('eduowl_uid') || ('demo-' + Date.now());
 localStorage.setItem('eduowl_uid', UID);
 
 function sessionIdFor(courseId) {
-  return `${UID}@${courseId}`;
+  const scope = `${UID}@${courseId}`;
+  const selected = localStorage.getItem(`eduowl_conversation:${scope}`);
+  return selected === scope || selected?.startsWith(scope + '~') ? selected : scope;
 }
 function currentCourseId() {
   const fromUrl = new URLSearchParams(location.search).get('course');
@@ -31,7 +33,7 @@ let isDynamicCourse = false; // 用户上传素材课程
 // 联网开关（输入框左下角单键）：关=off（不联网）/ 开=on（本轮必联网）。
 // 服务端另支持 'auto'（由 Agent 判断），此处不暴露给用户，保持"一键开关"的简单心智。
 let webOn = false;
-let webConfigState = { enabled: false, hasKey: false, keyMasked: '', ready: false };
+let webConfigState = { enabled: false, hasKey: false, supported: false, ready: false };
 let pendingFiles = [];
 
 const $ = (id) => document.getElementById(id);
@@ -65,20 +67,20 @@ function webModeKey() { return 'eduowl_webmode:' + currentCourseId(); }
 function renderWebToggle() {
   const btn = $('webToggle');
   if (!btn) return;
-  const available = webConfigState.ready && webConfigState.enabled && webConfigState.hasKey;
+  const available = webConfigState.ready && webConfigState.enabled && webConfigState.hasKey && webConfigState.supported;
   btn.disabled = !available;
   btn.classList.toggle('is-on', webOn);
   btn.setAttribute('aria-pressed', webOn ? 'true' : 'false');
   const txt = btn.querySelector('.web-txt');
   if (txt) txt.textContent = webOn ? ui("联网中") : ui("联网");
   btn.title = !available
-    ? ui("联网搜索未启用：请先在设置中打开并配置 Tavily API Key")
+    ? ui(webConfigState.reason || '请先配置支持原生联网的模型')
     : webOn
     ? ui("联网搜索已开启：回答会先检索教材外的最新资料（点击关闭）")
-    : ui("点击开启联网搜索：教材外的实时信息将走 MCP 检索");
+    : ui('点击开启当前模型的原生联网搜索');
 }
 function setWebOn(on, { persist = true } = {}) {
-  const available = webConfigState.ready && webConfigState.enabled && webConfigState.hasKey;
+  const available = webConfigState.ready && webConfigState.enabled && webConfigState.hasKey && webConfigState.supported;
   webOn = !!on && available;
   renderWebToggle();
   if (!persist) return;
@@ -98,24 +100,12 @@ function initWebToggle() {
 
 function renderWebSettings(config) {
   webConfigState = { ...(config || {}), ready: true };
-  const enabled = $('webEnabled');
-  const key = $('webApiKey');
-  const hint = $('webKeyHint');
-  if (enabled) enabled.checked = !!webConfigState.enabled;
-  if (key) {
-    key.value = '';
-    key.type = 'password';
-    $('webKeyToggle').textContent = ui('显示');
-    key.placeholder = webConfigState.hasKey
-      ? `${ui("已保存 ")}${webConfigState.keyMasked}${ui("（留空表示不修改）")}`
-      : ui("粘贴你的 Tavily API Key");
-  }
+  const hint = $('webNativeHint');
   if (hint) {
-    hint.textContent = webConfigState.hasKey
-      ? ui("已保存 Tavily API Key。留空可继续使用当前密钥。")
-      : ui("尚未保存 Tavily API Key，配置后才可开启联网。");
+    hint.textContent = !webConfigState.hasKey ? ui('请先配置支持原生联网的模型')
+      : [webConfigState.model, ui(webConfigState.reason || '')].filter(Boolean).join(' · ');
   }
-  webOn = webConfigState.enabled && webConfigState.hasKey && localStorage.getItem(webModeKey()) === 'on';
+  webOn = webConfigState.enabled && webConfigState.hasKey && webConfigState.supported && localStorage.getItem(webModeKey()) === 'on';
   renderWebToggle();
 }
 
@@ -143,45 +133,33 @@ async function loadWebConfig() {
   }
 }
 
-async function saveWebConfig() {
-  const enabled = !!$('webEnabled')?.checked;
-  const apiKey = $('webApiKey')?.value.trim() || undefined;
-  webSettingsStatus('busy', ui("正在保存联网设置…"));
-  try {
-    const data = await api('/api/web/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled, apiKey }),
-    });
-    renderWebSettings(data.config || {});
-    webSettingsStatus('ok', ui("联网设置已保存"));
-    return { ok: true, config: data.config || {} };
-  } catch (error) {
-    webSettingsStatus('err', ui("保存联网设置失败：") + error.message);
-    return { ok: false, error: error.message };
-  }
-}
-
 window.loadWebConfig = loadWebConfig;
-window.saveWebConfig = saveWebConfig;
 
 /* ============ 本地身份：昵称 + 头像（开始页引导，Agent 以此称呼） ============ */
 const AVATARS = ['edupilot'];
 let myProfile = null;      // { nickname, avatar }，null = 未设置
 let selectedAvatar = null;
+let profileLoaded = false;
+let profileFirst = false;
+let profileReturnToSettings = false;
+const profilePromptKey = `eduowl_profile_prompted:${UID}`;
 
 /** 拉取本机档案（uid 维度，非账号体系） */
 async function loadProfile() {
   try {
-    const d = await (await eduFetch(`/api/profile?uid=${encodeURIComponent(UID)}`)).json();
+    const res = await eduFetch(`/api/profile?uid=${encodeURIComponent(UID)}`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const d = await res.json();
     myProfile = (d && d.profile) || null;
-  } catch (_) { myProfile = null; }
+    profileLoaded = true;
+  } catch (_) { myProfile = null; profileLoaded = false; }
   renderUserChip();
   return myProfile;
 }
 
 /** 顶栏 chip：有昵称则展示头像+昵称，否则隐藏 */
 function renderUserChip() {
+  $('settingsProfileName').textContent = profileLoaded ? (myProfile?.nickname || ui('尚未设置昵称')) : ui('暂时无法读取昵称');
   const chip = $('userChip');
   if (myProfile && myProfile.nickname) {
     $('userAvatar').innerHTML = '<img src="/logo-mark.png" alt="EduPilot" />';
@@ -199,6 +177,8 @@ function greetName() {
 
 /** 打开欢迎/资料卡：first=true 为首次引导（含欢迎标题） */
 function openProfileCard(first) {
+  profileFirst = !!first;
+  if (first) localStorage.setItem(profilePromptKey, '1');
   const grid = $('avatarGrid');
   if (!grid.children.length) {
     AVATARS.forEach((a) => {
@@ -236,6 +216,12 @@ function closeProfileCard() {
   $('welcomeOverlay').classList.add('hidden');
   // 配置向导可能还开着（首启会先弹配置、再弹资料卡）：此时不能解除 inert
   if (!$('llmOverlay').classList.contains('hidden')) return;
+  if (profileReturnToSettings) {
+    profileReturnToSettings = false;
+    window.openEduSettings(false);
+    $('settingsProfileBtn').focus();
+    return;
+  }
   document.querySelector('.app').inert = false;
   (myProfile ? $('userChip') : $('input')).focus();
   window.EduOnboarding.resume();
@@ -308,6 +294,8 @@ const USER_SVG = '<svg viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg"><r
 
 /* ---------- 消息气泡 ---------- */
 function addMessage(role, content, { typing = false, attachments = [] } = {}) {
+  $('messages').querySelector('.conversation-welcome')?.remove();
+  $('messages').classList.remove('is-empty');
   const wrap = document.createElement('div');
   wrap.className = `msg ${role}` + (typing ? ' typing' : '');
   const avatar = document.createElement('div');
@@ -402,13 +390,15 @@ async function uploadChatAttachment(file, sessionId) {
 function addPracticeCard(data) {
   if (!window.EduPracticeCard) return;
   const sessionId = SESSION_ID;
+  const messages = $('messages');
+  const follow = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 100;
   window.EduPracticeCard.render(data, {
     sessionId,
     onGraded: async () => { await refreshSidebarProgress(sessionId); await refreshMistakeBadge(sessionId); },
     escapeHtml,
     brandAvatar: BRAND_AVATAR,
-    container: $('messages'),
-    scrollToBottom: function () { $('messages').scrollTop = $('messages').scrollHeight; },
+    container: messages,
+    scrollToBottom: function () { if (follow) messages.scrollTop = messages.scrollHeight; },
     canInteract: function () { return !sending && !switchingLock; },
     sendMessage,
     askExplain: cardAskExplain,
@@ -481,7 +471,7 @@ function mistakeRowHtml(m) {
       : letter === m.answer ? `${ui("<span class=\"mistake-row-right\">正确答案：")}${letter}. ${escapeHtml(o)}</span>` : '');
   }).filter(Boolean).join('<br/>');
   return `<div class="mistake-row" data-id="${escapeHtml(m.id)}">
-    <div class="mistake-row-q">❌ ${escapeHtml(m.question)}${ui("</div>\n    <div class=\"mistake-row-meta\">《")}${escapeHtml(m.courseTitle)}${ui("》 · ")}${escapeHtml(m.kpTitle)}${m.at ? ' · ' + escapeHtml(String(m.at).slice(0, 10)) : ''}</div>
+    <div class="mistake-row-q">❌ ${escapeHtml(m.question)}${ui("</div>\n    <div class=\"mistake-row-meta\">《")}${escapeHtml(m.courseTitle)}${ui("》 · ")}${escapeHtml(m.kpTitle)}${m.at ? ' · ' + escapeHtml(String(m.at).slice(0, 10)) : ''}${m.attempts > 1 ? ' · ' + ui('答错次数：') + m.attempts : ''}${m.resolved ? ' · ' + ui('最近已答对') : ''}</div>
     ${opts || `${ui("<div class=\"mistake-row-wrong\">你的答案：")}${escapeHtml(m.userAnswer || '')}</div>${m.answer ? `${ui("<div class=\"mistake-row-right\">正确答案：")}${escapeHtml(m.answer)}</div>` : ''}`}
     ${m.explanation ? `<div class="mistake-row-exp">💡 ${escapeHtml(m.explanation)}</div>` : ''}
     <div class="mistake-row-actions">
@@ -531,12 +521,12 @@ async function onMistakeListClick(e) {
     const m = _mistakeCache.find((x) => x.id === id);
     if (!m) return;
     // 内嵌浏览器会拦截原生 confirm，统一走页面内确认框
-    const ans = await showConfirm(ui("从错题本删除这条记录？\n") + m.question, { title: ui("删除错题"), okText: ui("删除") });
+    const ans = await showConfirm(ui("删除这道题的全部错题记录？\n") + m.question, { title: ui("删除错题"), okText: ui("删除") });
     if (!ans.ok) return;
     try {
       await api('/api/mistakes/delete', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: SESSION_ID, ids: [id] }),
+        body: JSON.stringify({ sessionId: SESSION_ID, ids: m.ids || [id] }),
       });
       await openMistakePanel(); // 重渲染列表
       refreshMistakeBadge(SESSION_ID);
@@ -557,7 +547,7 @@ $('mistakeClearBtn').addEventListener('click', async () => {
   try {
     await api('/api/mistakes/delete', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: SESSION_ID, ids: _mistakeCache.map((m) => m.id) }),
+      body: JSON.stringify({ sessionId: SESSION_ID, ids: _mistakeCache.flatMap((m) => m.ids || [m.id]) }),
     });
     await openMistakePanel();
     refreshMistakeBadge(SESSION_ID);
@@ -632,7 +622,9 @@ function renderSidebar() {
           <span class="kp-phase ${phaseClass(rec.phase)}">${phaseLabel(rec.phase)}</span>
           <span class="kp-name">${escapeHtml(kp.title)}${due ? ui("<span class=\"kp-due\">该复习了</span>") : ''}</span>
           <span class="kp-action">${actionLabel}</span>`;
-        item.addEventListener('click', () => sendMessage(actionMsg));
+        item.addEventListener('click', () => {
+          if (!window.EduNavigation?.selectTopic(kp.id)) sendMessage(actionMsg);
+        });
         sec.appendChild(item);
       });
     } else if (isDynamicCourse) {
@@ -687,11 +679,11 @@ function updatePracticeLinks() {
 /* ============ 学习旅程：预习/学习/复习 是"教师角色"，不是可量化的刻度 ============ */
 /** 阶段 → 老师此刻在做什么（与后端 state.js STAGE_TEACHING 一致） */
 const STAGE_TEACHING = {
-  preview: { emoji: '🔎', label: window.t('stagePreviewLabel'), teacher: window.t('stagePreviewTeacher') },
-  learning: { emoji: '📖', label: window.t('stageLearningLabel'), teacher: window.t('stageLearningTeacher') },
-  reviewing: { emoji: '🔁', label: window.t('stageReviewingLabel'), teacher: window.t('stageReviewingTeacher') },
-  mastered: { emoji: '🎉', label: window.t('stageMasteredLabel'), teacher: window.t('stageMasteredTeacher') },
-  not_started: { emoji: '🗺️', label: window.t('stageNotStartedLabel'), teacher: window.t('stageNotStartedTeacher') },
+  preview: { emoji: '🔎', label: 'stagePreviewLabel', teacher: 'stagePreviewTeacher' },
+  learning: { emoji: '📖', label: 'stageLearningLabel', teacher: 'stageLearningTeacher' },
+  reviewing: { emoji: '🔁', label: 'stageReviewingLabel', teacher: 'stageReviewingTeacher' },
+  mastered: { emoji: '🎉', label: 'stageMasteredLabel', teacher: 'stageMasteredTeacher' },
+  not_started: { emoji: '🗺️', label: 'stageNotStartedLabel', teacher: 'stageNotStartedTeacher' },
 };
 /** 知识点行右侧的"下一步动作"：由「所处阶段 + 还缺哪一步检测」共同决定
  *  严格梯级下，跳步的请求会被老师转成"先补这一步"，所以按钮文案也如实反映 */
@@ -699,9 +691,8 @@ function kpAction(rec, title) {
   const phase = (rec && rec.phase) || 'not_started';
   if (phase === 'not_started') return { label: window.t('actionStartPreview'), msg: `${window.t('actionPreviewMsg')} ${title}` };
   if (phase === 'mastered') return { label: window.t('actionReviewAgain'), msg: `${window.t('actionReviewMsg')} ${title}` };
-  if (phase === 'preview' && rec.checks?.preview) return { label: ui('学习讲解'), msg: `${ui('学习 ')}${title}` };
+  if (phase === 'preview') return { label: ui('学习讲解'), msg: `${ui('学习 ')}${title}` };
   const gate = EduProgress.nextGate(rec);
-  if (gate && gate.need === 'preview') return { label: window.t('actionPreviewQuiz'), msg: `${window.t('actionQuizMsg')} ${title}` };
   if (gate && gate.need === 'learn') return { label: window.t('actionClassQuiz'), msg: `${window.t('actionQuizMsg')} ${title}` };
   if (gate && gate.need === 'review') return { label: window.t('actionReviewQuiz'), msg: `${window.t('actionReviewTestMsg')} ${title}` };
   return { label: window.t('actionContinueReview'), msg: `${window.t('actionReviewMsg')} ${title}` };
@@ -743,10 +734,10 @@ function renderOverallStats(p) {
     $('overallSub').textContent = window.t('overallUpdatedSub');
   } else if (cur.phase === 'not_started') {
     $('overallText').textContent = window.t('overallNotStarted') + cur.title;
-    $('overallSub').textContent = STAGE_TEACHING.not_started.teacher;
+    $('overallSub').textContent = window.t(STAGE_TEACHING.not_started.teacher);
   } else {
-    $('overallText').textContent = t.label + ': ' + cur.title;
-    $('overallSub').textContent = t.teacher;
+    $('overallText').textContent = window.t(t.label) + ': ' + cur.title;
+    $('overallSub').textContent = window.t(t.teacher);
   }
   $('overallCounts').textContent = `${window.t('overallStudied')} ${p.studied || 0}/${total} · ${window.t('overallMastered')} ${p.mastered || 0}/${total}`;
   refreshDueBar();
@@ -866,18 +857,21 @@ function findKp(kpId) {
 
 /* ---------- 发送消息（SSE 流式） ---------- */
 let sending = false;
+let modelReady = false;
 
 function updateBusyUI() {
   const busy = sending || switchingLock;
-  $('sendBtn').disabled = busy || !courseData;
-  $('sendLabel').textContent = sending ? ui("回复中…") : ui("发送");
+  $('sendBtn').disabled = busy || !courseData || !modelReady;
+  $('sendLabel').textContent = sending ? ui("回复中…") : ui(modelReady ? '发送' : '请先配置模型');
   $('sendBtn').title = $('sendLabel').textContent;
   $('courseSelect').disabled = busy;
   $('resetBtn').disabled = busy || !courseData;
+  document.querySelectorAll('#conversationList button').forEach(button => { button.disabled = busy || !courseData; });
+  $('newConversationBtn').disabled = busy || !courseData;
   $('renameCourseBtn').disabled = busy || !isDynamicCourse;
   $('deleteCourseBtn').disabled = busy || !isDynamicCourse;
   $('messages').setAttribute('aria-busy', String(sending));
-  document.querySelectorAll('.kp-item, #quickActions .chip, .card-explain').forEach((b) => { b.disabled = busy || !courseData; });
+  document.querySelectorAll('.kp-item, #quickActions .chip, .card-explain').forEach((b) => { b.disabled = busy || !courseData || !modelReady; });
 }
 
 function resizeInput() {
@@ -910,6 +904,7 @@ function setSidebar(open, persist = true, moveFocus = false) {
   const drawerOpen = open && sidebarMedia.matches;
   $('sidebarBackdrop').hidden = !drawerOpen;
   document.querySelector('.chat-panel').inert = drawerOpen;
+  $('featureHost').inert = drawerOpen;
   document.querySelector('.top-right').inert = drawerOpen;
   if (persist) localStorage.setItem(sidebarPreferenceKey(), open ? 'open' : 'closed');
   if (moveFocus && drawerOpen) {
@@ -938,6 +933,129 @@ function parseSSEBlock(block) {
   return { type, data };
 }
 
+function createWorkSteps(bubble, turn = null) {
+  const content = document.createElement('div');
+  content.className = 'reply-content';
+  const details = document.createElement('details');
+  details.className = 'work-steps';
+  const summary = document.createElement('summary');
+  const list = document.createElement('ol');
+  details.append(summary, list);
+  bubble.before(content);
+  content.append(details, bubble);
+  const rows = new Map();
+  let active = null;
+  function update({ id, label, status = 'running' }) {
+    if (!id || !label) return;
+    if (active && active !== rows.get(id)) active.dataset.status = 'done';
+    let row = rows.get(id);
+    if (!row) {
+      row = document.createElement('li');
+      rows.set(id, row);
+      list.appendChild(row);
+    }
+    const labelKey = Object.keys(window.EduEnglish).find(key => key === label || window.EduEnglish[key] === label) || label;
+    row.dataset.ui = labelKey;
+    row.textContent = ui(labelKey);
+    row.dataset.status = status;
+    active = status === 'running' ? row : null;
+    summary.dataset.ui = labelKey;
+    summary.textContent = ui(labelKey);
+  }
+  function finish(failed = false) {
+    if (active) active.dataset.status = failed ? 'error' : 'done';
+    active = null;
+    summary.dataset.ui = failed ? '回复未完成 · 查看步骤' : '回复完成 · 查看步骤';
+    summary.textContent = ui(summary.dataset.ui);
+  }
+  if (turn) {
+    const interrupted = turn.status === 'cancelled' || turn.status === 'failed';
+    (turn.toolCalls || []).forEach((call, index) => update({ id: 'tool-' + index,
+      label: workToolLabel(call.name), status: call.output?.error ? 'error' : 'done' }));
+    update({ id: 'answer', label: ui(interrupted ? '回复已中断' : '已生成回答'),
+      status: interrupted ? 'error' : 'done' });
+    finish(interrupted);
+  } else update({ id: 'request', label: ui('正在发送消息') });
+  return { update, finish };
+}
+
+function renderReplySources(bubble, sources) {
+  const existing = bubble.parentNode.querySelector('.reply-sources');
+  if (existing) existing.remove();
+  const safeSources = [];
+  const seen = new Set();
+  for (const source of Array.isArray(sources) ? sources : []) {
+    if (!source) continue;
+    if (!source.url && source.kind === 'textbook' && typeof source.title === 'string' && source.title.trim()) {
+      const key = `textbook:${source.title}`;
+      if (!seen.has(key)) { seen.add(key); safeSources.push(source); }
+      continue;
+    }
+    if (typeof source.url !== 'string') continue;
+    let url;
+    try { url = new URL(source.url); } catch (_) { continue; }
+    if (!['http:', 'https:'].includes(url.protocol) || seen.has(url.href)) continue;
+    seen.add(url.href);
+    safeSources.push({ ...source, url: url.href });
+  }
+  if (!safeSources.length) return;
+  const details = document.createElement('details');
+  details.className = 'reply-sources';
+  const summary = document.createElement('summary');
+  summary.className = 'source-pill';
+  const label = document.createElement('span');
+  label.dataset.ui = '来源';
+  label.textContent = ui('来源');
+  summary.append(label, ` ${safeSources.length}`);
+  const list = document.createElement('ol');
+  list.className = 'source-list';
+  for (const source of safeSources) {
+    const row = document.createElement('li');
+    const link = document.createElement(source.url ? 'a' : 'span');
+    link.className = 'source-title';
+    if (source.url) {
+      link.href = source.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+    }
+    link.textContent = typeof source.title === 'string' && source.title.trim() ? source.title : new URL(source.url).hostname;
+    row.appendChild(link);
+    const meta = document.createElement('span');
+    meta.className = 'source-meta';
+    meta.textContent = source.url ? new URL(source.url).hostname : ui('课程教材');
+    if (!source.url) meta.dataset.ui = '课程教材';
+    row.appendChild(meta);
+    if (typeof source.snippet === 'string' && source.snippet.trim()) {
+      const snippet = document.createElement('p');
+      snippet.className = 'source-snippet';
+      snippet.textContent = source.snippet;
+      row.appendChild(snippet);
+    }
+    list.appendChild(row);
+  }
+  details.append(summary, list);
+  if (!bubble.parentNode.classList.contains('reply-content')) {
+    const content = document.createElement('div');
+    content.className = 'reply-content';
+    bubble.before(content);
+    content.appendChild(bubble);
+  }
+  bubble.parentNode.appendChild(details);
+}
+
+function workToolLabel(name) {
+  const labels = {
+    search_knowledge_base: '检索教材', get_knowledge_point: '读取课程讲义',
+    get_course_overview: '查看课程大纲', get_learning_progress: '查看学习进度',
+    recommend_next: '安排下一步学习', generate_quiz: '准备练习',
+    check_answer: '检查作答', update_progress: '更新学习进度',
+    conversation_search: '查找历史学习记录',
+    present_practice: '呈现互动练习',
+    native_web_search: '检索外部资料',
+  };
+  return ui(labels[name] || (/^mcp__/.test(name || '') ? '检索外部资料' : '处理学习资料'));
+}
+
 /** 短暂提示（用 #sendStatus 显示，几秒后恢复默认文案） */
 let _flashTimer = null;
 function flashStatus(msg, ms = 2600) {
@@ -953,8 +1071,10 @@ function flashStatus(msg, ms = 2600) {
 async function sendMessage(text, context) {
   text = (text || $('input').value).trim();
   if (sending || switchingLock || !courseData) return;
+  if (!modelReady) { openLlmCard(); return; }
   // 空消息：给明确反馈，而不是"点了没反应"（原实现直接 return）
   if (!text && !pendingFiles.length) { flashStatus(ui("请先输入内容或添加附件，再点发送")); return; }
+  if (window.EduNavigation) await window.EduNavigation.navigate('/');
   const filesToUpload = pendingFiles.slice();
   $('input').value = '';
   resizeInput();
@@ -966,6 +1086,8 @@ async function sendMessage(text, context) {
   let uploaded = [];
   let typingBubble;
   let msgWrap;
+  let workSteps;
+  let toolIndex = 0;
   let streamStarted = false;
   let fullReply = '';
   let reader;
@@ -983,6 +1105,7 @@ async function sendMessage(text, context) {
     addMessage('user', text, { attachments: uploaded });
     typingBubble = addMessage('bot', '', { typing: true });
     msgWrap = typingBubble.closest('.msg');
+    workSteps = createWorkSteps(typingBubble);
     const res = await eduFetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1001,16 +1124,23 @@ async function sendMessage(text, context) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+      buffer = (buffer + decoder.decode(value, { stream: true })).replace(/\r\n/g, '\n');
       const blocks = buffer.split('\n\n');
       buffer = blocks.pop(); // 最后一段可能不完整，留到下一轮
       for (const block of blocks) {
         const ev = parseSSEBlock(block);
-        if (ev.type === 'tool') {
+        if (ev.type === 'step') {
+          workSteps.update(ev.data);
+        } else if (ev.type === 'tool') {
           const out = ev.data.output || {};
+          workSteps.update({ id: 'tool-' + (++toolIndex), label: workToolLabel(ev.data.name), status: out.error ? 'error' : 'done' });
           reportDiagnostic(requestSessionId, ui("工具调用：") + ev.data.name, ev.data);
         } else if (ev.type === 'delta') {
-          if (!streamStarted) { streamStarted = true; reportDiagnostic(requestSessionId, ui("正在生成回答")); }
+          if (!streamStarted) {
+            streamStarted = true;
+            workSteps.update({ id: 'answer', label: ui('正在生成回答') });
+            reportDiagnostic(requestSessionId, ui("正在生成回答"));
+          }
           fullReply += ev.data.text || '';
           const box = $('messages');
           const follow = box.scrollHeight - box.scrollTop - box.clientHeight < 100;
@@ -1035,6 +1165,8 @@ async function sendMessage(text, context) {
     fullReply = finalData.reply || fullReply;
     msgWrap.classList.remove('typing');
     typingBubble.innerHTML = renderMarkdown(fullReply || ui("（没有收到回复，请重试）"));
+    workSteps.finish();
+    renderReplySources(typingBubble, finalData.sources);
 
     // 更新进度与当前知识点（内部 Agent 状态不再展示给用户，仅更新侧栏与调试）
     if (finalData) {
@@ -1043,9 +1175,11 @@ async function sendMessage(text, context) {
     }
     // 重拉当前课程学习状态，确保知识点行与本轮阶段推进一致。
     await refreshSidebarProgress(requestSessionId);
+    loadConversations().catch(() => {});
     reportDiagnostic(requestSessionId, ui("回复完成"));
     $('sendStatus').textContent = ui("回复完成 · 可以继续提问");
   } catch (e) {
+    workSteps?.finish(true);
     if (filesToUpload.length) {
       pendingFiles = filesToUpload;
       renderPendingFiles();
@@ -1070,7 +1204,7 @@ async function sendMessage(text, context) {
     if (reader) reader.releaseLock();
     sending = false;
     updateBusyUI();
-    $('input').focus();
+    if ([document.body, $('sendBtn')].includes(document.activeElement)) $('input').focus();
   }
 }
 
@@ -1090,12 +1224,10 @@ function renderQuickChips() {
         { msg: ui("讲讲 ") + ((courseData.chapters[0] || {}).title || ui("第一章节")), label: ui("问章节") },
       ]
     : [
-        { msg: window.t('chipOutline'), label: window.t('chipOutline') },
         { msg: window.t('actionPreviewMsg') + ' ' + firstTitle, label: ui("开始预习") },
         { msg: ui('学习 ') + firstTitle, label: ui("学习讲解") },
         { msg: ui("做题"), label: ui("随堂练习") },
         { msg: ui("复习"), label: ui("复习巩固") },
-        { msg: ui("我的进度"), label: ui("我的进度") },
       ];
   defs.forEach(({ msg, label }) => {
     const b = document.createElement('button');
@@ -1109,11 +1241,14 @@ function renderQuickChips() {
 
 /** 加载课程列表（内置 + 用户上传）填充下拉 */
 async function loadCourses(keepCourseId) {
+  const requestLanguage = eduLanguage();
+  const requestSessionId = SESSION_ID;
   let courses = [];
   try {
-    const data = await (await eduFetch('/api/courses?lang=' + eduLanguage())).json();
+    const data = await (await eduFetch('/api/courses?lang=' + requestLanguage)).json();
     courses = data.courses || [];
   } catch (_) {}
+  if (requestLanguage !== eduLanguage() || requestSessionId !== SESSION_ID) return courses;
   const sel = $('courseSelect');
   sel.innerHTML = '';
   courses.forEach((c) => {
@@ -1127,8 +1262,7 @@ async function loadCourses(keepCourseId) {
   return courses;
 }
 
-/** 切换课程 = 切换到该课程独立的会话（uid 不变，session = uid@courseId）
- *  消息历史 / 学习进度 / 记忆均按课程隔离 → 对话区整体刷新为新课会话 */
+/** 切换课程，恢复该课程上次选中的对话。 */
 let switchingLock = false;
 async function switchCourse(courseId) {
   if (courseId === (courseData && courseData.id)) return;
@@ -1144,6 +1278,7 @@ async function switchCourse(courseId) {
     $('input').value = '';
     resizeInput();
     await loadCourseIntoUI(courseId);
+    if (window.EduNavigation) await window.EduNavigation.navigate('/?course=' + encodeURIComponent(courseId));
   } catch (e) {
     // 此时会话/课程可能已在服务端就绪但界面加载失败（历史 bug 曾把"成功"误报为"失败"）：
     // 提示真实原因并刷新页面自愈（刷新后按 localStorage 恢复一致状态）
@@ -1174,28 +1309,22 @@ async function loadCourseIntoUI(courseId) {
   renderSidebar();
   renderQuickChips();
   refreshMistakeBadge(SESSION_ID); // 错题本入口计数（切课/进入课程时同步）
+  await loadConversations();
   $('nowLabel').textContent = data.dynamic && !courseData.learningReady
     ? `${ui("正在学习：")}${courseData.title}${ui("（素材问答 · ")}${progressText() || ui("尚未开始")}${ui("）")}`
     : `${ui("正在学习：")}${courseData.title}`;
   // 会话历史（独立对话框）：新课先欢迎，回来过的课回显历史
   const hist = await loadSessionHistory();
   if (hist) { $('input').focus(); return; }
-  if (isDynamicCourse && courseData.learningReady) {
-    addMessage('bot', `${ui('📖 课程《')}${courseData.title}${ui('》的教学讲义和题目已准备好。\n\n点击左侧章节，从预习开始，依次完成学习和复习测验；也可以随时提问教材内容。')}`);
-  } else if (isDynamicCourse) {
-    addMessage('bot',
-      `${ui("👋 你好")}${greetName()}${ui("！我是 **EduPilot**（AI 学习向导）。\n\n")}` +
-      `${ui("当前课程是《**")}${courseData.title}${ui("**》（你上传的素材，自由问答模式）。\n\n")}` +
-      `${ui("- 想传更多素材或建新课？点上方 **＋ 上传** 进入上传页；\n")}` +
-      `${ui("- 直接问我素材里的内容，我会检索这份教材回答，并标注来源；\n")}` +
-      `${ui("- 点击课程目录中的小节深入学习，学习旅程会记录你当前的位置。\n\n")}` +
-      `${ui("试试问：「")}${(courseData.chapters[0] || {}).title || ui("这份素材讲了什么")}${ui("」")}`);
-  } else {
-    addMessage('bot',
-      `${ui("👋 你好")}${greetName()}${ui("！我是 **EduPilot**（AI 学习向导），你的专属学习智能体。\n\n")}` +
-      `${ui("我会带你走完 **预习 → 学习 → 复习** 的完整流程。现在开始学习《")}${window.tc(courseData.title)}${ui("》吧！\n\n")}` +
-      `${ui("试试点击左侧知识点，或直接输入「**学习 函数**」～")}`);
-  }
+  const welcome = document.createElement('section');
+  welcome.className = 'conversation-welcome';
+  const title = document.createElement('h2');
+  title.textContent = ui('今天想学什么？');
+  const description = document.createElement('p');
+  description.textContent = window.tc(courseData.title) + ui('：从左侧选择章节，或直接提问。');
+  welcome.append(title, description);
+  $('messages').appendChild(welcome);
+  $('messages').classList.add('is-empty');
   setTimeout(maybeRemindDue, 600); // 到期复习提醒（无历史新进入时）
   $('input').focus();
 }
@@ -1209,9 +1338,10 @@ function progressText() {
 
 /** 重拉当前课程的最新状态；过期响应不能覆盖已经切换的课程。 */
 async function refreshSidebarProgress(sessionId = SESSION_ID) {
+  const requestLanguage = eduLanguage();
   try {
     const data = await api(`/api/course?sessionId=${encodeURIComponent(sessionId)}${langParam()}`, { signal: AbortSignal.timeout(10000) });
-    if (sessionId !== SESSION_ID) return;
+    if (sessionId !== SESSION_ID || requestLanguage !== eduLanguage()) return;
     if (data && data.course) {
       learning = data.learning;
       courseData = data.course;
@@ -1222,17 +1352,147 @@ async function refreshSidebarProgress(sessionId = SESSION_ID) {
 }
 
 /** 回显本课程会话的历史消息（若存在）；返回 true 表示有历史 */
+let historyPage = null;
 async function loadSessionHistory() {
+  const sessionId = SESSION_ID;
+  historyPage = null;
   try {
-    const res = await eduFetch(`/api/session/${encodeURIComponent(SESSION_ID)}`);
+    const [res, page] = await Promise.all([
+      eduFetch(`/api/session/${encodeURIComponent(sessionId)}`),
+      api(`/api/session/${encodeURIComponent(sessionId)}/history`).catch(() => null),
+    ]);
     if (!res.ok) return false;
     const info = await res.json();
-    const msgs = (info.messages || []).filter((m) => m && m.content);
+    if (sessionId !== SESSION_ID) return false;
+    const msgs = (page?.messages?.length ? page.messages : info.messages || []).filter((m) => m && m.content);
     if (!msgs.length) return false;
-    msgs.slice(-12).forEach((m) => addMessage(m.role === 'user' ? 'user' : 'bot', m.content, { attachments: m.attachments || [] }));
-    addMessage('bot', `${ui("— 已回到《")}${window.tc(courseData.title)}${ui("》的对话历史（最近 ")}${Math.min(msgs.length, 12)}${ui(" 条）—")}`);
+    const turns = (info.turnLog || []).slice(-msgs.filter(m => m.role === 'assistant').length);
+    let assistantIndex = 0;
+    msgs.forEach((m, index) => {
+      const turn = m.role === 'assistant' ? turns[assistantIndex++] : null;
+      const bubble = addMessage(m.role === 'user' ? 'user' : 'bot', m.content, { attachments: m.attachments || [] });
+      if (turn) createWorkSteps(bubble, turn);
+      if (m.role === 'assistant') renderReplySources(bubble, m.sources || turn?.sources);
+    });
+    historyPage = { sessionId, nextBefore: page?.nextBefore || null, seen: new Set(msgs.map(m => m.id).filter(Boolean)) };
+    if (historyPage.nextBefore) {
+      const button = document.createElement('button');
+      button.id = 'loadOlderHistoryBtn';
+      button.className = 'btn-ghost small history-load-older';
+      button.type = 'button';
+      button.textContent = ui('加载更早对话');
+      button.addEventListener('click', () => loadOlderHistory(button));
+      $('messages').prepend(button);
+    }
     return true;
   } catch (_) { return false; }
+}
+
+async function loadOlderHistory(button) {
+  const state = historyPage;
+  if (!state?.nextBefore || state.sessionId !== SESSION_ID || button.disabled) return;
+  button.disabled = true;
+  try {
+    const page = await api(`/api/session/${encodeURIComponent(state.sessionId)}/history?before=${state.nextBefore}`);
+    if (historyPage !== state || state.sessionId !== SESSION_ID) return;
+    const box = $('messages');
+    const scrollTop = box.scrollTop;
+    const scrollHeight = box.scrollHeight;
+    const anchor = button.nextSibling;
+    for (const message of page.messages || []) {
+      if (state.seen.has(message.id)) continue;
+      state.seen.add(message.id);
+      const bubble = addMessage(message.role === 'user' ? 'user' : 'bot', message.content, { attachments: message.attachments || [] });
+      if (message.role === 'assistant') renderReplySources(bubble, message.sources);
+      box.insertBefore(bubble.closest('.msg'), anchor);
+    }
+    state.nextBefore = page.nextBefore;
+    if (!state.nextBefore) button.remove();
+    box.scrollTop = scrollTop + box.scrollHeight - scrollHeight;
+  } catch (error) {
+    if (state.sessionId === SESSION_ID) flashStatus(ui('加载历史对话失败：') + error.message);
+  } finally { button.disabled = false; }
+}
+
+async function loadConversations() {
+  const sessionId = SESSION_ID;
+  const data = await api(`/api/conversations?sessionId=${encodeURIComponent(sessionId)}`);
+  if (sessionId !== SESSION_ID) return;
+  const list = $('conversationList');
+  list.replaceChildren();
+  const conversations = data.conversations || [];
+  const createdOrder = [...conversations].sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || '') || a.id.localeCompare(b.id));
+  $('conversationCount').textContent = String(conversations.length);
+  for (const item of conversations) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'conversation-item';
+    button.dataset.conversationId = item.id;
+    button.disabled = sending || switchingLock || !courseData;
+    const title = document.createElement('span');
+    title.className = 'conversation-title';
+    title.textContent = item.title || `${ui('新对话')} ${createdOrder.findIndex(row => row.id === item.id) + 1}`;
+    const meta = document.createElement('span');
+    meta.className = 'conversation-meta';
+    const time = document.createElement('time');
+    time.dateTime = item.lastAt || item.createdAt;
+    time.textContent = new Date(time.dateTime).toLocaleString();
+    meta.appendChild(time);
+    if (item.id === sessionId) {
+      button.setAttribute('aria-current', 'true');
+      const current = document.createElement('span');
+      current.className = 'conversation-current';
+      current.textContent = ui('当前对话');
+      meta.appendChild(current);
+    }
+    button.appendChild(title);
+    button.appendChild(meta);
+    button.addEventListener('click', () => selectConversation(item.id));
+    list.appendChild(button);
+  }
+}
+
+async function selectConversation(sessionId) {
+  if (sending || switchingLock || sessionId === SESSION_ID) return;
+  switchingLock = true;
+  updateBusyUI();
+  try {
+    SESSION_ID = sessionId;
+    localStorage.setItem(`eduowl_conversation:${UID}@${courseData.id}`, sessionId);
+    pendingFiles = [];
+    renderPendingFiles();
+    $('messages').innerHTML = '';
+    $('input').value = '';
+    resizeInput();
+    await loadCourseIntoUI(courseData.id);
+  } catch (e) {
+    flashStatus(ui('切换对话失败：') + e.message);
+  } finally {
+    switchingLock = false;
+    updateBusyUI();
+  }
+}
+
+async function newConversation() {
+  if (sending || switchingLock || !courseData) return;
+  switchingLock = true;
+  updateBusyUI();
+  let created;
+  try {
+    created = await api('/api/conversations', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: SESSION_ID }),
+    });
+  } catch (e) {
+    flashStatus(ui('新建对话失败：') + e.message);
+  } finally {
+    switchingLock = false;
+    updateBusyUI();
+  }
+  if (created?.id) {
+    await selectConversation(created.id);
+    if (window.EduNavigation) await window.EduNavigation.navigate('/');
+  }
 }
 
 /** 改名（动态课） */
@@ -1289,6 +1549,11 @@ let llmReturnToSettings = false;
 
 /** 渲染顶部"模型"徽标：真实模式显示模型名，未配置则高亮提示 */
 function renderLlmChip(runtime) {
+  modelReady = !!(runtime && runtime.mode === 'api');
+  const modelLabel = $('composerModelLabel');
+  if (modelLabel) modelLabel.textContent = modelReady ? runtime.model || ui('已接入') : ui('选择模型');
+  $('modelSetupNotice')?.classList.toggle('hidden', modelReady);
+  updateBusyUI();
   const chip = $('llmChip');
   if (!chip) return;
   const txt = $('llmSettingsSummary');
@@ -1298,10 +1563,9 @@ function renderLlmChip(runtime) {
     txt.textContent = [provider ? ui(provider.name) : _llmConfig.provider, runtime.model || ui("已接入")].filter(Boolean).join(' · ');
     chip.title = `${ui("已接入真实模型：")}${runtime.model || ''}${ui("（点击可修改配置）")}`;
   } else {
-    const need = !!(runtime && runtime.needsSetup);
-    chip.classList.toggle('not-set', need);
-    txt.textContent = need ? ui("未接入") : ui("演示模式");
-    chip.title = need ? ui("尚未配置大模型 —— 点击接入真实模型") : ui("当前为离线演示模式（点击可接入真实模型）");
+    chip.classList.add('not-set');
+    txt.textContent = ui('请先配置模型');
+    chip.title = ui('请先配置模型供应商和 API Key 后开始使用');
   }
 }
 
@@ -1320,11 +1584,13 @@ window.loadLlmConfig = loadLlmConfig;
 function closeLlmCard() {
   $('llmOverlay').classList.add('hidden');
   if (!$('welcomeOverlay').classList.contains('hidden')) return; // 资料卡还开着，别解 inert
-  document.querySelector('.app').inert = false;
   if (llmReturnToSettings) {
-    $('settingsOverlay').classList.remove('hidden');
     llmReturnToSettings = false;
+    window.openEduSettings(false);
+    $('llmChip').focus();
+    return;
   }
+  document.querySelector('.app').inert = false;
   window.EduOnboarding.resume();
 }
 
@@ -1421,7 +1687,6 @@ async function openLlmCard() {
     $('llmApiKey').type = 'password';
     $('llmKeyToggle').textContent = ui('显示');
     renderLlmKeyHint();
-    $('llmSkipBtn').style.display = cfg.configured ? 'none' : '';
   } catch (e) {
     llmStatus('err', ui("加载配置失败：") + e.message);
   }
@@ -1541,19 +1806,12 @@ async function saveLlmConfig() {
     });
     _llmConfig = d.config;
     renderLlmChip(d.runtime);
+    await loadWebConfig();
     closeLlmCard();
-    addMessage('bot', `${ui("✅ 已接入真实大模型 **")}${d.config.model}${ui("**（")}${d.config.provider}${ui("）。\n\n现在可以正常对话、出题与判分了 —— 试着问我「学习 变量」吧！")}`);
+    $('sendStatus').textContent = ui('模型配置已保存，可以开始学习');
   } catch (e) {
     llmStatus('err', ui("保存失败：") + e.message);
   }
-}
-
-/** 选择"先用离线演示模式" */
-async function skipLlmSetup() {
-  try { await api('/api/llm/skip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (_) {}
-  renderLlmChip({ mode: 'mock', needsSetup: false });
-  closeLlmCard();
-  addMessage('bot', ui("👌 好的，先用**离线演示模式**。\n\n演示模式能完整体验对话、出题、错题本与学习进度，但讲解内容来自内置样例。想接入真实大模型时，点右上角「**未接入**」随时配置。"));
 }
 
 $('llmProvider').addEventListener('change', () => {
@@ -1595,20 +1853,10 @@ $('llmKeyToggle').addEventListener('click', () => {
   el.type = show ? 'text' : 'password';
   $('llmKeyToggle').textContent = show ? ui("隐藏") : ui("显示");
 });
-$('webKeyToggle').addEventListener('click', () => {
-  const el = $('webApiKey');
-  const show = el.type === 'password';
-  el.type = show ? 'text' : 'password';
-  $('webKeyToggle').textContent = show ? ui("隐藏") : ui("显示");
-});
-$('webSaveBtn').addEventListener('click', async () => {
-  $('webSaveBtn').disabled = true;
-  try { await saveWebConfig(); } finally { $('webSaveBtn').disabled = false; }
-});
 $('llmLoadModels').addEventListener('click', () => loadLlmModels(false));
 $('llmTestBtn').addEventListener('click', testLlmConnection);
 $('llmSaveBtn').addEventListener('click', saveLlmConfig);
-$('llmSkipBtn').addEventListener('click', skipLlmSetup);
+$('modelSetupBtn')?.addEventListener('click', openLlmCard);
 
 /* ---------- 初始化 ---------- */
 async function init() {
@@ -1616,13 +1864,12 @@ async function init() {
   // 本地身份：拉取档案；首次进入（未设置昵称）→ 弹出开始页引导
   await loadProfile();
   await loadWebConfig();
-  // 大模型配置：先查状态（未配置则先弹配置向导，再弹资料卡）
+  // 未配置时可浏览课程，通过配置提示接入模型后再开始对话。
   let runtime = null;
   try { runtime = (await api('/api/health')).runtime; } catch (_) { /* 健康检查失败不阻断 */ }
   if (runtime) renderLlmChip(runtime);
-  if (runtime && runtime.needsSetup) {
-    await openLlmCard();
-  } else if (!myProfile || !myProfile.nickname) openProfileCard(true);
+  if (profileLoaded && !myProfile?.nickname && localStorage.getItem(profilePromptKey) !== '1'
+    && localStorage.getItem(`eduowl_onboarding:v2:${UID}`) !== 'seen') openProfileCard(true);
 
   // 当前课程（URL ?course= 优先，其次上次记忆，默认内置）
   SESSION_ID = sessionIdFor(currentCourseId());
@@ -1638,6 +1885,14 @@ async function init() {
 
 /* ---------- 事件绑定 ---------- */
 initWebToggle();
+$('newConversationBtn').addEventListener('click', newConversation);
+const historyOpenKey = `eduowl_history_open:${UID}`;
+$('conversationHistory').open = localStorage.getItem(historyOpenKey) === 'open';
+$('conversationHistory').addEventListener('toggle', () => {
+  const open = $('conversationHistory').open;
+  localStorage.setItem(historyOpenKey, open ? 'open' : 'closed');
+  if (open) loadConversations().catch(() => {});
+});
 $('sendBtn').addEventListener('click', () => sendMessage());
 $('attachmentBtn').addEventListener('click', () => $('attachmentInput').click());
 $('attachmentInput').addEventListener('change', (e) => {
@@ -1674,7 +1929,7 @@ document.addEventListener('keydown', (e) => {
     if (!$('llmOverlay').classList.contains('hidden')) { closeLlmCard(); return; }
     if (!$('mistakeOverlay').classList.contains('hidden')) { closeMistakePanel(); return; }
     if (!$('welcomeOverlay').classList.contains('hidden')) { closeProfileCard(); return; }
-    if (!$('settingsOverlay').classList.contains('hidden')) { $('settingsOverlay').classList.add('hidden'); window.EduOnboarding.resume(); return; }
+    if (!$('settingsOverlay').classList.contains('hidden')) { window.closeEduSettings(); return; }
     closeSidebar();
   }
 });
@@ -1700,7 +1955,7 @@ $('courseSelect').addEventListener('change', (e) => {
 
 // 上传素材：跳独立上传页（可多选批量）
 $('addCourseBtn').addEventListener('click', () => {
-  location.href = eduUrl('/upload.html' + (courseData ? '?course=' + encodeURIComponent(courseData.id) : ''));
+  window.EduNavigation.navigate('/upload.html' + (courseData ? '?course=' + encodeURIComponent(courseData.id) : ''));
 });
 
 // 改名 / 删除（仅动态课可用）
@@ -1711,7 +1966,7 @@ $('deleteCourseBtn').addEventListener('click', deleteCourse);
 $('resetBtn').addEventListener('click', async () => {
     $('settingsOverlay').classList.add('hidden');
   if (sending || switchingLock) return;
-  const resetAns = await showConfirm(ui("确定清空当前课程《") + (courseData ? courseData.title : '') + ui("》的对话与进度？仅影响本课程。"), { title: window.t('titleReset'), okText: window.t('okClear') });
+  const resetAns = await showConfirm(ui("确定清空当前课程《") + (courseData ? courseData.title : '') + ui("》的所有对话、学习进度与课程记忆？仅影响本课程。"), { title: window.t('titleReset'), okText: window.t('okClear') });
   if (!resetAns.ok) return;
   switchingLock = true;
   updateBusyUI();
@@ -1725,6 +1980,8 @@ $('resetBtn').addEventListener('click', async () => {
     return;
   }
   $('messages').innerHTML = '';
+  localStorage.removeItem(`eduowl_conversation:${UID}@${courseData.id}`);
+  SESSION_ID = sessionIdFor(courseData.id);
   try {
     await loadCourseIntoUI(courseData && courseData.id);
   } catch (e) {
@@ -1738,6 +1995,47 @@ $('resetBtn').addEventListener('click', async () => {
 
 // 用户资料：顶栏 chip 点击 → 编辑；保存 / 跳过
 $('userChip').addEventListener('click', () => openProfileCard(false));
+$('composerModelBtn').addEventListener('click', openLlmCard);
+$('settingsProfileBtn').addEventListener('click', () => {
+  profileReturnToSettings = true;
+  $('settingsOverlay').classList.add('hidden');
+  openProfileCard(false);
+});
+
+window.addEventListener('edu-language-change', async () => {
+  renderUserChip();
+  renderLlmChip({ mode: modelReady ? 'api' : 'unconfigured', model: _llmConfig.model });
+  renderWebToggle();
+  renderPendingFiles();
+  renderWebSettings(webConfigState);
+  for (const [buttonId, inputId] of [['llmKeyToggle', 'llmApiKey']]) {
+    $(buttonId).textContent = ui($(inputId).type === 'password' ? '显示' : '隐藏');
+  }
+  if (!$('welcomeOverlay').classList.contains('hidden')) {
+    $('welcomeTitle').textContent = profileFirst ? ui('你好，我是 EduPilot 👋') : ui('编辑我的资料');
+    $('welcomeSub').textContent = profileFirst ? ui('先告诉我怎么称呼你，我会一直记得') : ui('头像与昵称改动后，EduPilot 会以新称呼与你交流');
+    $('saveProfileBtn').textContent = profileFirst ? ui('保存并') + window.t('startLearning') : ui('保存修改');
+  }
+  if (!$('llmOverlay').classList.contains('hidden')) {
+    for (const option of $('llmProvider').options) {
+      const preset = _llmProviders.find(provider => provider.id === option.value);
+      if (preset) option.textContent = ui(preset.name);
+    }
+    renderModelOptions(_llmModelOptions, selectedLlmModel());
+    renderLlmKeyHint();
+  }
+  if (courseData) {
+    renderSidebar();
+    renderQuickChips();
+    await refreshSidebarProgress();
+    await loadCourses(courseData.id);
+    renderQuickChips();
+    if (learning?.currentKpId) highlightKp(learning.currentKpId);
+    else $('nowLabel').textContent = ui('当前课程：') + window.tc(courseData.title);
+    loadConversations().catch(() => {});
+  }
+  updateBusyUI();
+});
 $('saveProfileBtn').addEventListener('click', saveProfile);
 $('skipProfileBtn').addEventListener('click', closeProfileCard);
 $('closeProfileBtn').addEventListener('click', closeProfileCard);
@@ -1748,7 +2046,7 @@ $('dueReviewBtn').addEventListener('click', startDueReview);
 $('quizResumeBtn').addEventListener('click', resumeQuiz);
 $('examBtn').addEventListener('click', () => {
   const cid = (courseData && courseData.id) || 'python-intro';
-  window.open(eduUrl(`/exam.html?course=${encodeURIComponent(cid)}`), '_blank', 'noopener');
+  window.EduNavigation.navigate(`/exam.html?course=${encodeURIComponent(cid)}`);
 });
 
 init();

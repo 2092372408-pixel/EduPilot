@@ -9,7 +9,7 @@
  * 阶段推进规则（严格梯级：必须按顺序，且每步先通过检测）：
  *   - 预习           → preview      （自由进入）
  *   - 预习自测答完   → 记为 checks.preview，解锁"学习"
- *   - 学习           → learning     （需 checks.preview）
+ *   - 学习           → learning     （预习自测可选，不阻挡讲解）
  *   - 随堂练习全对   → 记为 checks.learn，解锁"复习"
  *   - 复习           → reviewing    （需 checks.learn）
  *   - 复习测验全对   → 记为 assessment.passed，授予 mastered
@@ -120,6 +120,7 @@ function ensureRecordIds(learning) {
 function removeQuizHistory(learning, kpId, ids) {
   const rec = learning && learning.kps && learning.kps[kpId];
   if (!rec || !Array.isArray(rec.quizHistory)) return 0;
+  rec.answeredQuestions = [...new Set([...(rec.answeredQuestions || []), ...rec.quizHistory.map(h => h.question)])];
   const set = new Set(ids);
   const hit = rec.quizHistory.filter((h) => h && set.has(h.id));
   if (!hit.length) return 0;
@@ -134,6 +135,8 @@ function removeQuizHistory(learning, kpId, ids) {
 function registerQuizResult(learning, kpId, question, userAnswer, correct, explanation) {
   const rec = learning.kps[kpId];
   if (!rec) return 0;
+  // 独立于可裁剪/删除的答题历史保存已做题身份，刷新和切换会话也不循环旧题。
+  rec.answeredQuestions = [...new Set([...(rec.answeredQuestions || []), ...(rec.quizHistory || []).map(h => h.question), question])];
   rec.quizTotal += 1;
   if (correct) rec.quizCorrect += 1;
   rec.quizHistory.push({
@@ -154,6 +157,17 @@ function registerQuizResult(learning, kpId, question, userAnswer, correct, expla
     reviewStep(rec, false);
   }
   return computeMastery(rec);
+}
+
+/** 普通练习只选未做题；复习/错题重练由调用方明确选择重用。 */
+function unansweredQuestions(rec, questions) {
+  const answered = new Set([...(rec?.answeredQuestions || []), ...(rec?.quizHistory || []).map(h => h.question)]);
+  const seen = new Set();
+  return (questions || []).filter(q => {
+    if (!q || answered.has(q.q) || seen.has(q.q)) return false;
+    seen.add(q.q);
+    return true;
+  });
 }
 
 /**
@@ -338,6 +352,7 @@ module.exports = {
   advancePhase,
   setPhase,
   registerQuizResult,
+  unansweredQuestions,
   computeMastery,
   overallProgress,
   reviewStep,

@@ -54,6 +54,7 @@ function ensureLocalProc() {
     const proc = spawn(py, [LOCAL_SCRIPT], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+      windowsHide: true,
     });
     localProc = proc;
 
@@ -176,16 +177,18 @@ async function embedLocal(texts, onProgress) {
 
 /* ---------- 云端 provider（OpenAI 兼容 embeddings 端点） ---------- */
 
-async function embedApi(texts, cfg) {
+async function embedApi(texts, cfg, onProgress) {
   const { key, base, model } = cfg;
   if (!key) return null;
   const results = [];
+  try {
   for (let i = 0; i < texts.length; i += 10) {
     const batch = texts.slice(i, i + 10);
     const res = await fetch(`${base}/embeddings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({ model, input: batch }),
+      signal: AbortSignal.timeout(LOCAL_TIMEOUT_MS),
     });
     if (!res.ok) {
       console.error('[embed] API 失败:', res.status, (await res.text()).slice(0, 120));
@@ -203,8 +206,13 @@ async function embedApi(texts, cfg) {
     }
     const dimension = results[i].length;
     if (results.slice(i).some(vector => vector.length !== dimension)) return null;
+    if (onProgress) onProgress({ completed: results.length, total: texts.length });
   }
   return results;
+  } catch (e) {
+    console.warn('[embed] API 请求失败，回退关键词检索:', e.name === 'TimeoutError' ? `请求超时（${LOCAL_TIMEOUT_MS / 1000}s）` : e.message);
+    return null;
+  }
 }
 
 function apiConfigs() {
@@ -226,10 +234,10 @@ async function embedTexts(texts, opts = {}) {
     try { return await embedLocal(texts, opts.onProgress); } catch (e) { console.warn('[embed] local 失败:', e.message); return null; }
   }
   if (EMBED_PROVIDER === 'dashscope') {
-    return embedApi(texts, apiConfigs()[0]);
+    return embedApi(texts, apiConfigs()[0], opts.onProgress);
   }
   if (EMBED_PROVIDER === 'siliconflow') {
-    return embedApi(texts, apiConfigs()[1]);
+    return embedApi(texts, apiConfigs()[1], opts.onProgress);
   }
   // auto：本地优先，失败依次回退云端 API
   try {
@@ -239,7 +247,7 @@ async function embedTexts(texts, opts = {}) {
     console.warn('[embed] local 失败，尝试云端 API:', e.message);
   }
   for (const cfg of apiConfigs()) {
-    const v = await embedApi(texts, cfg);
+    const v = await embedApi(texts, cfg, opts.onProgress);
     if (v) return v;
   }
   return null;

@@ -4,10 +4,11 @@
   <script src="ui-en.js"></script>
   <script src="i18n.js"></script>
   <script src="settings.js"></script>
+  <script src="/app-navigation.js?v=2" defer></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title data-ui="EduPilot · 学习报告">EduPilot · 学习报告</title>
-<link rel="stylesheet" href="/style.css?v=43" />
+<link rel="stylesheet" href="/style.css?v=49" />
 <style>
 body { margin: 0; background: var(--bg, #f7f7f7); color: var(--text, #222); font: 14px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
 .report-head { display: flex; align-items: center; gap: 14px; padding: 14px 22px; background: #fff; border-bottom: 1px solid var(--border, #e5e5ea); position: sticky; top: 0; z-index: 5; }
@@ -102,19 +103,23 @@ const sessionIdFor = (courseId) => `${UID}@${courseId}`;
 
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+let reportRequest = 0;
 async function loadReport() {
+  const request = ++reportRequest;
+  const language = eduLanguage();
   let courses = [];
   try {
-    const d = await (await eduFetch('/api/courses')).json();
+    const d = await (await eduFetch('/api/courses?lang=' + language)).json();
     courses = (d.courses || []).map((c) => ({ id: c.id, title: c.title, dynamic: c.source === 'upload' }));
-  } catch (e) { return fail(e); }
+  } catch (e) { if (request === reportRequest) fail(e); return; }
+  if (request !== reportRequest) return;
 
   // 并行拉：课程大纲（kp 标题映射，动态课才有两级）+ 会话信息（learning/summary/memories）
   const infos = {};
   const courseObjs = await Promise.all(courses.map(async (c) => {
     const obj = { id: c.id, title: c.title, dynamic: c.dynamic, titleMap: {} };
     try {
-      const cd = await (await eduFetch('/api/course?sessionId=' + encodeURIComponent(sessionIdFor(c.id)))).json();
+      const cd = await (await eduFetch('/api/course?sessionId=' + encodeURIComponent(sessionIdFor(c.id)) + '&lang=' + language)).json();
       if (cd && cd.course) {
         obj.titleMap = {};
         (cd.course.chapters || []).forEach((ch) => (ch.knowledgePoints || []).forEach((k) => { obj.titleMap[k.id] = k.title; }));
@@ -129,6 +134,7 @@ async function loadReport() {
   }));
 
   const report = EduReport.aggregate(courseObjs, infos);
+  if (request !== reportRequest || language !== eduLanguage()) return;
   render(report);
 }
 
@@ -204,11 +210,13 @@ function render(r) {
 
   // 错题本
   $('mistakeZone').innerHTML = r.mistakes.length
-    ? r.mistakes.map((m) => `<div class="mistake-item"><div class="mistake-q">❌ ${esc(m.question)}${ui("</div><div class=\"mistake-a\">你的答案：")}${esc(m.userAnswer)}</div>${m.explanation ? `<div class="mistake-e">${esc(m.explanation)}</div>` : ''}${ui("<div class=\"rev-meta\">《")}${esc(m.courseTitle)}${ui("》 · ")}${esc(m.kpTitle)}</div></div>`).join('')
+    ? r.mistakes.map((m) => `<div class="mistake-item"><div class="mistake-q">❌ ${esc(m.question)}${ui("</div><div class=\"mistake-a\">你的答案：")}${esc(m.userAnswer)}</div>${m.explanation ? `<div class="mistake-e">${esc(m.explanation)}</div>` : ''}${ui("<div class=\"rev-meta\">《")}${esc(m.courseTitle)}${ui("》 · ")}${esc(m.kpTitle)}${m.attempts > 1 ? ' · ' + ui('答错次数：') + m.attempts : ''}${m.resolved ? ' · ' + ui('最近已答对') : ''}</div></div>`).join('')
     : ui("<div class=\"empty\">没有答错过题（或还没做过题）——继续保持！</div>");
 }
 
 loadReport();
+window.addEventListener('edu:activate', event => { if (event.detail.active && event.detail.refresh) loadReport(); });
+window.addEventListener('edu-language-change', loadReport);
 </script>
 </body>
 </html>

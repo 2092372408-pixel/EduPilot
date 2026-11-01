@@ -6,13 +6,13 @@
 
 <p align="center"><strong>把你的教材，变成能讲、能练、能陪你学下去的 AI 课程。</strong></p>
 
-<p align="center">导入中英文资料，按章节学习，在讲解、练习和复习之间自然衔接。<br />Windows / macOS 原生桌面 App · 中英文界面 · 内置演示课无需密钥</p>
+<p align="center">导入中英文资料，按章节学习，在讲解、练习和复习之间自然衔接。<br />Windows / macOS 原生桌面 App · 中英文界面 · 接入自己的模型 API Key</p>
 
 <p align="center">
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.6"><img src="https://img.shields.io/badge/Release-v1.1.6-2563eb" alt="桌面版 v1.1.6" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="下载 Windows 原生安装包" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="下载 Mac M 系列芯片原生安装包" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="下载 Mac Intel 原生安装包" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.2.0"><img src="https://img.shields.io/badge/Release-v1.2.0-2563eb" alt="桌面版 v1.2.0" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.0/EduPilot-1.2.0-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="下载 Windows 原生安装包" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.0/EduPilot-1.2.0-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="下载 Mac M 系列芯片原生安装包" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.0/EduPilot-1.2.0-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="下载 Mac Intel 原生安装包" /></a>
 </p>
 
 <p align="center"><a href="#features">核心亮点</a> · <a href="#workspace">看看界面</a> · <a href="#download">下载体验</a> · <a href="#demo">学习演示</a> · <a href="#api-keys">接入模型</a> · <a href="#faq">常见问题</a></p>
@@ -31,7 +31,7 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 <img src="docs/screenshots/study-ready-zh.jpg" alt="真实学习界面：导入教材生成章节课程，在对话中完成预习检测题卡" width="100%" />
 
-左侧选择课程与知识点，右侧跟随学伴提问、理解和练习。上图展示导入教材后的学习界面；也可以先用内置 Python 演示课熟悉整个流程。
+左侧选择课程与知识点，右侧跟随学伴提问、理解和练习。配置模型后，可以学习内置 Python 课程，也可以导入自己的教材。课程目录下方支持新建和切换历史对话；聊天上下文按课程和会话隔离，进度与成绩归属各自课程，同一用户的长期记忆在所有课程间统一检索并保留来源。编程实践、报告、导入和考试均在应用内切换，返回后保留原有工作状态。
 
 <details>
 <summary>看看内置课程与专注对话布局</summary>
@@ -52,17 +52,17 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 | 你的电脑 | 下载 |
 | --- | --- |
-| Windows x64 | [下载 Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-Windows-x64-Setup.exe) |
-| Mac · Apple Silicon（M 系列芯片） | [下载 Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-arm64.dmg) |
-| Mac · Intel 芯片 | [下载 Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.1.6/EduPilot-1.1.6-macOS-x64.dmg) |
+| Windows x64 | [下载 Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.0/EduPilot-1.2.0-Windows-x64-Setup.exe) |
+| Mac · Apple Silicon（M 系列芯片） | [下载 Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.0/EduPilot-1.2.0-macOS-arm64.dmg) |
+| Mac · Intel 芯片 | [下载 Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.0/EduPilot-1.2.0-macOS-x64.dmg) |
 
 1. **下载**适合自己电脑的安装包。Mac M 系列芯片请选择 Apple Silicon。
 2. **双击安装**：Windows 运行 `Setup.exe`，按提示安装；macOS 打开 `.dmg`，把 EduPilot 拖入 Applications。
-3. **先体验，再导入**：无需密钥体验内置 Python 演示课；在设置中接入模型后，上传自己的教材，开始新的课程。
+3. **接入模型，开始学习**：在设置中选择供应商、模型并配置自己的 API Key，测试连接后保存。随后可学习内置 Python 课程，或上传教材创建课程。
 
 以后从 Windows 桌面或 Mac 启动台打开 **EduPilot** 即可。关闭窗口会隐藏到托盘（Mac 菜单栏），后台继续运行；完全退出请从菜单选择 **退出 EduPilot**。学习记录保存在本机，下次打开接着学。
 
-首次打开有按钮指向式教程，带你认识选课、上传、提问、错题本和报告。可以跳过，也可以从顶部 **教程** 重新查看。当前安装包未签名，Mac 包也未公证，系统可能提示来源或阻止打开；请核对 [Release 页面](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.6) 的附件与 SHA-256。旧版浏览器启动包保留在 [v1.1.4](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.4)。
+首次打开有按钮指向式教程，带你认识选课、上传、提问、错题本和报告。可以跳过，也可以从顶部 **教程** 重新查看。当前安装包未签名，Mac 包也未公证，系统可能提示来源或阻止打开；请核对 [Release 页面](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.2.0) 的附件与 SHA-256。旧版浏览器启动包保留在 [v1.1.4](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.4)。
 
 <details>
 <summary>第一次用，也有人带你上手</summary>
@@ -94,14 +94,14 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 ### 1. 上传教材，自动组织成一门可以学的课
 
-导入中英文 PDF、Word（.docx）、PowerPoint（.pptx）、Markdown、TXT 或 JSON，EduPilot 按章节整理内容，并生成知识点讲义、示例、易错点和配套选择题。资料准备好后，就能像内置演示课一样，按知识点开始学习。
+导入中英文 PDF、Word（.docx）、PowerPoint（.pptx）、Markdown、TXT 或 JSON，EduPilot 在本地整理章节与正文，完成后即可开始学习；讲解和选择题在需要时由所选模型生成。
 
 从资料到课程，整个过程都可以看见：
 
 - **保留章节结构**：优先识别原有标题，也支持“第一章”“Chapter 1”“1.1”等中英文标题；检索内容按识别出的章、节切分，保留出处。
-- **看得见处理进度**：展示解析、分章切块、检索索引、讲义与题目生成、保存等阶段。解析时显示已用时间；向量化和课程生成显示实际完成数量。
-- **围绕教材生成**：讲义和题目以原文为依据，生成后再对照原文检查讲解与答案，全部就绪后才进入学习。
-- **逐步完善自己的课**：可以追加资料，复用未变化的内容、向量和讲义；更新失败时保留之前可用的课程。
+- **看得见处理进度**：展示解析、分章切块和保存等阶段，并显示已用时间。
+- **围绕教材生成**：学习和练习时读取对应章节原文；题目按需生成并保存，模型输出仍需用户结合教材核对。
+- **逐步完善自己的课**：可以追加或更新资料；更新失败时保留之前可用的课程。
 
 <details>
 <summary>看看教材导入与处理进度</summary>
@@ -114,7 +114,7 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 ### 2. 预习 → 学习 → 复习，每一步都有下一步
 
-先通过预习自测发现还不熟悉的地方，再跟随讲解建立理解，通过练习获得反馈，最后用复习巩固知识。遇到难点可以直接说“换个例子解释”或“我卡在这一步”，不用退出当前学习过程。
+先了解章节内容，再通过预习自测发现还不熟悉的地方，随后跟随讲解、练习和复习巩固知识。遇到难点可以直接说“换个例子解释”或“我卡在这一步”，不用退出当前学习过程。
 
 <img src="docs/learning-flow.jpg" alt="学习路径插画：理解与规划、学习与实践、复习与迁移" width="100%" />
 
@@ -174,7 +174,7 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 课程规划、预习、学习和复习各有专门的学伴角色配合；课程之外的问题，由通用教育学伴帮助解释、举例和提供学习建议。你可以沿着章节前进，也可以暂停下来探究一个感兴趣的问题。
 
 - **带着材料提问**：把图片或文档附在问题旁，结合内容一起讨论；图片提问请选择支持图片输入的模型。
-- **按需联网查资料**：通过输入框旁的联网开关，补充查找与学习相关的资料。联网搜索需单独配置 Tavily Key。
+- **按需联网查资料**：通过输入框旁的联网开关，调用当前供应商支持的原生搜索。使用现有模型密钥，支持情况取决于模型与服务区域，来源可点击展开。
 - **Python 动手实践**：在代码实践区写代码、运行、提交并查看反馈。做题助手能结合当前题目和运行结果提供提示。
 
 <details>
@@ -215,7 +215,7 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 打开 **设置 → LLM 模型 → 配置供应商与密钥**，选择供应商，填入 API Key，选择模型并保存。开放问答、自己的教材讲义与题目生成使用所选模型，费用由服务商收取。
 
-支持 DeepSeek、Qwen、OpenAI、GLM、Kimi 等服务及兼容接口。联网搜索可在 **设置 → 联网搜索 · Tavily** 中填写 [Tavily Key](https://app.tavily.com/home)，按需开启。
+支持 DeepSeek、Qwen、OpenAI、GLM、Kimi 等服务及兼容接口。原生联网支持情况会在设置中显示，通过输入框旁的开关控制，无需额外的搜索密钥。不同模型的搜索能力与费用以供应商为准，未确认支持时不会冒充联网回答。
 
 可以先 **测试连接**，再保存启用；列表没有需要的模型时，填写服务商提供的自定义 Model ID。发送图片前，选择支持图片输入的模型并测试图片能力。
 
@@ -250,7 +250,7 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 **没有 API Key，可以先用吗？**
 
-可以。内置 Python 演示课无需密钥，适合熟悉学习流程。真实开放问答和自己的教材成课需要接入模型，联网搜索使用单独的 Tavily Key。
+未配置时可以浏览课程、历史对话和已有学习记录。开始 AI 对话和生成课程前，需要配置模型供应商、模型和 API Key；请求失败会明确提示，不会切换到演示回答。支持原生联网的模型使用同一个供应商密钥。
 
 **中英文教材都支持吗？**
 
@@ -270,7 +270,7 @@ EduPilot 把资料、讲解、练习和学习记录放在同一个工作台。�
 
 **教材导入需要多久？可以关掉页面吗？**
 
-耗时取决于文件内容、章节数量、本机性能与所选模型的响应速度。文档解析在本机进行；讲义、题目生成和检查会调用所选模型。页面展示当前阶段与实际完成数量，请等课程就绪后再关闭。若失败，可按提示重试；更新已有课程失败时，之前可用的版本会保留。
+导入耗时取决于文件内容和本机性能。解析、分章和索引在本机进行；学习与出题时才调用所选模型。页面显示当前处理阶段，更新失败时保留之前可用的版本。扫描件和复杂图表可能需要先做 OCR 或核对原文。
 
 **关掉网页就退出了吗？刷新会不会退出？**
 

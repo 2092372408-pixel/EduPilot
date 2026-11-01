@@ -242,7 +242,7 @@ server.registerTool(
     description:
       '读取指定网页，返回标题与正文纯文本（HTML→文本）。适合需要"读一篇文档/新闻/教程原文"的场景（例如读官方文档某一页、看某篇最新文章）。'
       + '仅支持公开的 http/https 网页；内网与保留地址会被拒绝。只取正文，不做交互（点击/填表）。'
-      + '如果只是想快速拿"最新信息摘要"，用联网检索工具（tavily_search / search_dev）更省时。',
+      + '对话中的联网检索统一由当前模型供应商的原生搜索执行。',
     inputSchema: {
       url: z.string().describe('要读取的网页地址，必须以 http:// 或 https:// 开头'),
       maxChars: z.number().int().min(200).max(20000).optional().describe('正文最多返回多少字符，默认 4000'),

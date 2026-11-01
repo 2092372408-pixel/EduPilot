@@ -69,25 +69,21 @@ module.exports = {
 
   /** 预习引导：不直接给答案，用问题引发思考（预习 Agent 人格） */
   preview(ctx, kp, chapter, overview) {
-    const questions = kp.keyPoints
-      .slice(0, 2)
-      .map((kp) => kp.replace(/[。；;]$/, '？'))
-      .join('\n');
     const related = (overview && overview.find((o) => o.kpId === kp.id)?.next || []).join('、');
     return [
-      `🔎 **我是预习引导师**——先不急着给答案，我们把这个知识点"预演"一遍。`,
+      `🔎 先了解这一节的内容与知识框架。`,
       ``,
       `**预习环节：「${kp.title}」**`,
       ``,
-      `先试着回答这几个问题（答不上来也没关系）：`,
+      kp.summary,
       ``,
-      questions,
+      kp.example,
       ``,
       `**本知识点会讲到：**`,
       ...kp.keyPoints.map((k) => `- ${k}`),
       ``,
       `> 💡 预习阶段不要求掌握，先建立印象。`,
-      `准备好后回复「**学习 ${kp.title}**」开始正式讲解，或者回复「**做题**」先试试水。`,
+      `准备好后回复「**学习 ${kp.title}**」深入学习，也可以自愿选择「**预习自测 ${kp.title}**」。`,
     ].join('\n');
   },
 

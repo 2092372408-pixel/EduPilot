@@ -11,6 +11,7 @@ __pycache__
 data/*.db*
 data/logs
 data/courses
+data/attachments
 data/trash
 data/models
 data/sft
@@ -25,6 +26,20 @@ tools
 .private
 data/verification
 data/kb/versions
+# Only the bundled course belongs in the build context.
+data/*
+!data/kb/
+data/kb/*
+!data/kb/index.json
+!data/kb/questions.json
+!data/kb/books/
+data/kb/books/*
+!data/kb/books/python-intro/
+!data/kb/books/python-intro/**
+!data/kb/chunks/
+data/kb/chunks/*
+!data/kb/chunks/python-intro/
+!data/kb/chunks/python-intro/**
 *.bundle
 scripts
 docs

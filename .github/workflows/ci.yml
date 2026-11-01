@@ -52,6 +52,7 @@ jobs:
           node <<'NODE'
           const { spawn } = require('node:child_process');
           const path = require('node:path');
+          const assert = require('node:assert/strict');
           const Database = require('better-sqlite3');
           const db = new Database(':memory:');
           db.close();
@@ -59,6 +60,8 @@ jobs:
             stdio: 'inherit',
             env: { ...process.env, HOST: '127.0.0.1', PORT: '8787', LLM_MODE: 'mock',
               EDUOWL_DB: path.join(process.env.RUNNER_TEMP, 'desktop-smoke.db'),
+              EDUOWL_ENV_FILE: path.join(process.env.RUNNER_TEMP, 'desktop-smoke.env'),
+              LLM_PROVIDER: 'openai', LLM_BASE_URL: 'https://api.openai.com/v1', LLM_MODEL: 'gpt-4.1',
               LLM_API_KEY: '', TAVILY_API_KEY: '', EDUOWL_WEB_ENABLED: '0' },
           });
           (async () => {
@@ -72,17 +75,43 @@ jobs:
               }
               if (!ready) throw new Error('Desktop startup timed out');
               const html = await (await fetch('http://127.0.0.1:8787/')).text();
-              if (!html.includes('llmSettingsSummary') || !html.includes('webSaveBtn')) throw new Error('Separate settings are missing');
-              for (const [route, body] of [
-                ['/api/llm/save', { provider: 'openai', model: 'gpt-4o' }],
-                ['/api/web/config', { enabled: true }],
-              ]) {
-                const result = await fetch('http://127.0.0.1:8787' + route, {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-                });
-                if (result.status !== 400) throw new Error('Missing key was accepted: ' + route);
+              if (!html.includes('llmSettingsSummary') || !html.includes('webToggle')) throw new Error('Model settings or search switch is missing');
+              const getConfig = async route => {
+                const result = await fetch('http://127.0.0.1:8787' + route);
+                assert.equal(result.status, 200);
+                return (await result.json()).config;
+              };
+              const save = body => fetch('http://127.0.0.1:8787/api/llm/save', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+              });
+              assert.equal((await getConfig('/api/llm/config')).configured, false);
+              let web = await getConfig('/api/web/config');
+              assert.equal(web.supported, true);
+              assert.equal(web.enabled, false);
+              assert.equal(web.hasKey, false);
+              for (const apiKey of [undefined, '']) {
+                const result = await save({ provider: 'openai', model: 'gpt-4.1', apiKey });
+                assert.equal(result.status, 400, 'Missing model key was accepted');
               }
-              console.log('SQLite, startup, and separate key validation passed');
+              const testKey = 'ci-placeholder-key';
+              const saved = await save({ provider: 'openai', model: 'gpt-4.1', apiKey: testKey });
+              assert.equal(saved.status, 200);
+              assert.equal((await getConfig('/api/llm/config')).configured, true);
+              assert.ok(!JSON.stringify(await getConfig('/api/llm/config')).includes(testKey), 'Model key was exposed');
+              web = await getConfig('/api/web/config');
+              assert.equal(web.provider, 'openai');
+              assert.equal(web.model, 'gpt-4.1');
+              assert.equal(web.protocol, 'responses');
+              assert.equal(web.enabled, true);
+              assert.equal(web.hasKey, true);
+              assert.ok(!JSON.stringify(web).includes(testKey), 'Search key was exposed');
+              const removedSave = await fetch('http://127.0.0.1:8787/api/web/config', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true }),
+              });
+              assert.equal(removedSave.status, 404, 'Search configuration must remain read-only');
+              assert.equal((await save({ provider: 'openai', model: 'gpt-4o' })).status, 200);
+              assert.equal((await getConfig('/api/web/config')).supported, false);
+              console.log('SQLite, startup, model key validation and native search configuration passed');
             } finally { app.kill(); }
           })().catch(error => { console.error(error); process.exitCode = 1; });
           NODE

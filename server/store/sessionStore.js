@@ -77,10 +77,22 @@ function stripTransient(session) {
 
 function save(session) {
   init();
-  db.prepare(`
+  const write = db.prepare(`
     INSERT INTO sessions (id, data, updated_at) VALUES (?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
-  `).run(session.id, JSON.stringify(stripTransient(session)), Date.now());
+  `);
+  db.transaction(() => {
+    write.run(session.id, JSON.stringify(stripTransient(session)), Date.now());
+    if (session.learningScopeId && session.learningScopeId !== session.id) {
+      const row = db.prepare('SELECT data FROM sessions WHERE id=?').get(session.learningScopeId);
+      if (row) {
+        const canonical = JSON.parse(row.data);
+        canonical.learning = session.learning;
+        canonical.exam = session.exam;
+        write.run(canonical.id, JSON.stringify(canonical), Date.now());
+      }
+    }
+  })();
 }
 
 /** 删除会话 */

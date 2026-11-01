@@ -2,8 +2,7 @@
 (function () {
   const requestedLanguage = new URLSearchParams(location.search).get('lang');
   if (requestedLanguage === 'en' || requestedLanguage === 'zh') localStorage.setItem('eduowl_lang', requestedLanguage);
-  // Another tab may change the preference; this document keeps its own language.
-  const language = localStorage.getItem('eduowl_lang') === 'en' ? 'en' : 'zh';
+  let language = localStorage.getItem('eduowl_lang') === 'en' ? 'en' : 'zh';
   window.eduLanguage = () => language;
   window.eduUrl = (path) => {
     const url = new URL(path, location.href);
@@ -26,6 +25,17 @@
         el.setAttribute(attr, ui(el.getAttribute('data-ui-' + attr)));
       });
     }
+  };
+  window.setEduLanguage = (next) => {
+    if (!['zh', 'en'].includes(next) || next === language) return;
+    language = next;
+    localStorage.setItem('eduowl_lang', next);
+    const url = new URL(location.href);
+    url.searchParams.set('lang', next);
+    history.replaceState(history.state, '', url.href);
+    applyUiLanguage();
+    window.applySettings?.();
+    window.dispatchEvent(new CustomEvent('edu-language-change', { detail: { language: next } }));
   };
   document.addEventListener('DOMContentLoaded', applyUiLanguage);
   document.addEventListener('click', event => {

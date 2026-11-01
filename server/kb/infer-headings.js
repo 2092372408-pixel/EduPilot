@@ -101,7 +101,6 @@ function inferHeadings(markdown) {
   // ① 分类每一行候选：ch(显式章) / cap(全大写) / sec(编号节, 带类别)
   const kind = Array(lines.length).fill(null); // {type:'ch'|'cap'|'sec', ...}
   const styleCount = { num: 0, numdot: 0, cn: 0 };
-  const seenTitle = new Set(); // 相同标题文本只立一次（防页眉/重复行产生重复节）
   let chCount = 0;
   for (let i = 0; i < lines.length; i++) {
     if (scanned[i].code) continue;
@@ -109,13 +108,13 @@ function inferHeadings(markdown) {
     if (!t) continue;
     if (isExplicitChapter(t)) { kind[i] = { type: 'ch' }; chCount++; continue; }
     if (isUppercaseTitle(t)) {
-      if (!seenTitle.has(t)) { seenTitle.add(t); kind[i] = { type: 'cap' }; }
+      kind[i] = { type: 'cap' };
       continue;
     }
     const s = classifySection(t);
     if (s) {
-      const key = s.style + ':' + s.num + ':' + s.text;
-      if (!seenTitle.has(key)) { seenTitle.add(key); kind[i] = { type: 'sec', style: s.style, num: s.num, text: s.text }; styleCount[s.style]++; }
+      kind[i] = { type: 'sec', style: s.style, num: s.num, text: s.text };
+      styleCount[s.style]++;
     }
   }
 
@@ -137,6 +136,18 @@ function inferHeadings(markdown) {
     const hasChild = kind[i].type === 'ch' && child && (child.type === 'cap'
       || (child.type === 'sec' && styleCount[child.style] >= 2));
     if (!has && !hasChild) kind[i] = null;
+  }
+
+  // 目录候选先排除，再对有效标题去重，避免目录中的首次出现吞掉正文同名节。
+  const seenTitle = new Set();
+  for (const style of Object.keys(styleCount)) styleCount[style] = 0;
+  for (let i = 0; i < kind.length; i++) {
+    const k = kind[i];
+    if (!k || k.type === 'ch') continue;
+    const key = k.type === 'cap' ? lines[i].trim() : `${k.style}:${k.num}:${k.text}`;
+    if (seenTitle.has(key)) { kind[i] = null; continue; }
+    seenTitle.add(key);
+    if (k.type === 'sec') styleCount[k.style]++;
   }
 
   // ③ 章/节定级

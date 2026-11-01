@@ -2,7 +2,7 @@
  * llmconfig.js — LLM 接入配置（首次进入的"配置 API Key"向导 + 多平台适配）
  * ---------------------------------------------------------------------------
  * 为什么需要它：
- *   项目原本靠手改 .env 才能接入真实模型，上线后要求"用户进入前弹窗配置 Key"。
+ *   用户可以在设置中配置自己的模型供应商和 API Key。
  *   本模块提供：平台预设 → 拉取模型列表 → 测试连通 → 落盘 .env → 运行时热生效。
  *
  * 设计要点：
@@ -11,9 +11,9 @@
  *   2) 密钥只写不读：GET 接口一律返回掩码（sk-***abcd），明文永不回传前端。
  *      服务默认只监听 127.0.0.1（见 index.js HOST），且本模块额外校验来源为本机。
  *   3) 落盘 .env 时按行改写、保留注释与其他配置，不做整体覆盖（避免抹掉用户的
- *      TAVILY_API_KEY 等其它设置）。
+ *      其它本地设置）。
  *   4) 保存后立即写 process.env —— llm.js 每次调用都现读 process.env，
- *      因此无需重启即可生效。同时同步更新 .env.example 未覆盖的项。
+ *      因此无需重启即可生效。
  */
 
 const fs = require('fs');
@@ -25,7 +25,6 @@ const ROOT = path.join(__dirname, '..', '..');
 function envFilePath() {
   return process.env.EDUOWL_ENV_FILE || path.join(ROOT, '.env');
 }
-const ENV_EXAMPLE = path.join(ROOT, '.env.example');
 const discoveredCapabilities = new Map();
 
 function modelKey({ provider, baseUrl, model } = {}) {
@@ -155,13 +154,13 @@ function savedKeyFor(provider, baseUrl) {
 
 /** 读取当前生效配置（不含明文密钥） */
 function getConfig() {
-  const apiKey = process.env.LLM_API_KEY || '';
+  const apiKey = String(process.env.LLM_API_KEY || '').trim();
   const baseUrl = normalizeBase(process.env.LLM_BASE_URL || '');
   const provider = process.env.LLM_PROVIDER || inferProviderId(baseUrl);
   const model = process.env.LLM_MODEL || '';
   return {
     configured: !!apiKey,
-    mode: process.env.LLM_MODE === 'mock' ? 'mock' : (apiKey ? 'api' : 'mock'),
+    mode: process.env.EDUPILOT_TEST_MODE === '1' && process.env.LLM_MODE === 'mock' ? 'mock' : (apiKey ? 'api' : 'unconfigured'),
     provider,
     baseUrl,
     model,
@@ -169,14 +168,12 @@ function getConfig() {
     keyMasked: maskKey(apiKey),
     disableThinking: process.env.LLM_DISABLE_THINKING === '1',
     modelCapability: capability({ provider, baseUrl, model }),
-    // 用户显式选择过"保持离线演示"→ 不再反复弹配置引导
-    skipped: process.env.LLM_SETUP_SKIPPED === '1',
   };
 }
 
 /**
  * 按行改写 .env：只覆盖/追加指定键，保留注释与其它配置。
- * 为什么不用整体重写：.env 里有 TAVILY_API_KEY 等其它配置，整体覆盖会丢数据。
+ * 为什么不用整体重写：.env 里有其它本地配置，整体覆盖会丢数据。
  */
 function writeEnvKeys(pairs) {
   let lines = [];
@@ -229,7 +226,6 @@ function saveConfig(input = {}) {
     LLM_BASE_URL: baseUrl,
     LLM_MODEL: model,
     LLM_MODEL_CAPABILITY: JSON.stringify({ key: modelKey({ provider: preset.id, baseUrl, model }), capability: capability({ provider: preset.id, baseUrl, model }) }),
-    LLM_SETUP_SKIPPED: '', // 配置成功即清除"跳过"标记
   };
   if (apiKey !== undefined) pairs.LLM_API_KEY = apiKey;
   if (input.disableThinking !== undefined) pairs.LLM_DISABLE_THINKING = input.disableThinking ? '1' : '';
@@ -246,7 +242,6 @@ function saveConfig(input = {}) {
   process.env.LLM_BASE_URL = baseUrl;
   process.env.LLM_MODEL = model;
   process.env.LLM_MODEL_CAPABILITY = pairs.LLM_MODEL_CAPABILITY;
-  process.env.LLM_SETUP_SKIPPED = '';
   if (apiKey !== undefined) process.env.LLM_API_KEY = apiKey;
   if (input.disableThinking !== undefined) {
     if (input.disableThinking) process.env.LLM_DISABLE_THINKING = '1';
@@ -255,19 +250,7 @@ function saveConfig(input = {}) {
   if (apiKey) delete process.env.LLM_MODE;
 
   const out = getConfig();
-  try { fs.writeFileSync(ENV_EXAMPLE, fs.readFileSync(ENV_EXAMPLE, 'utf8'), 'utf8'); } catch (_) { /* 模板不动 */ }
   return { ok: true, config: out };
-}
-
-/** 用户选择"继续使用离线演示"：不再弹配置引导（可从顶部随时重新配置） */
-function skipSetup() {
-  try {
-    writeEnvKeys({ LLM_SETUP_SKIPPED: '1' });
-  } catch (e) {
-    return { ok: false, error: '写入 .env 失败：' + e.message };
-  }
-  process.env.LLM_SETUP_SKIPPED = '1';
-  return { ok: true, config: getConfig() };
 }
 
 /** 统一错误信息：把上游原始报错转成用户能看懂的中文提示 */
@@ -394,4 +377,4 @@ async function testConnection({ provider, baseUrl, model, apiKey, testVision = f
   };
 }
 
-module.exports = { PROVIDERS, providerOf, inferProviderId, getConfig, saveConfig, skipSetup, listModels, testConnection, capability, maskKey, normalizeBase, friendlyError };
+module.exports = { PROVIDERS, providerOf, inferProviderId, getConfig, saveConfig, listModels, testConnection, capability, maskKey, normalizeBase, friendlyError };

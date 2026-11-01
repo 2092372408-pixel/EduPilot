@@ -20,23 +20,21 @@ const mcpBridge = require('../mcp/bridge'); // MCP 工具来源（与内置工�
 const TOOL_NAMES = Object.keys(tools);
 
 /** 各角色的工具白名单（能力边界：Agent 只能调用自己清单内的工具）
- *  联网能力不再有内置工具：统一走 MCP 检索类工具（mcp__tavily__tavily_search /
- *  mcp__devsites__search_dev / mcp__devsites__github_search），由 mcpBridge 按角色合入。 */
+ *  互联网访问通过当前供应商的原生搜索预取，不合入额外 MCP 网络工具。 */
 const TOOL_WHITELIST = {
-  general: ['search_knowledge_base', 'conversation_search'],
-  coordinator: ['get_course_overview', 'get_learning_progress', 'recommend_next', 'conversation_search'],
-  // preview 需要 check_answer：预习自测出题后学生作答必须有判分反馈
-  // （判分逻辑本身不会因预习自测而授予掌握，见 tools.check_answer / state.completeQuiz）
-  preview: ['get_course_overview', 'get_knowledge_point', 'search_knowledge_base', 'conversation_search', 'generate_quiz', 'check_answer', 'update_progress', 'recommend_next'],
-  learn: ['get_course_overview', 'get_knowledge_point', 'search_knowledge_base', 'conversation_search', 'generate_quiz', 'check_answer', 'update_progress', 'recommend_next'],
-  review: ['get_knowledge_point', 'search_knowledge_base', 'conversation_search', 'generate_quiz', 'check_answer', 'update_progress', 'recommend_next'],
+  general: ['search_knowledge_base', 'conversation_search', 'present_practice'],
+  coordinator: ['present_practice', 'get_course_overview', 'get_learning_progress', 'recommend_next', 'conversation_search'],
+  // 预习只介绍教材内容；学生明确要求自测时由 quiz 意图转交学习角色。
+  preview: ['get_course_overview', 'get_knowledge_point', 'search_knowledge_base', 'conversation_search', 'update_progress', 'recommend_next'],
+  learn: ['get_course_overview', 'get_knowledge_point', 'search_knowledge_base', 'conversation_search', 'present_practice', 'generate_quiz', 'check_answer', 'update_progress', 'recommend_next'],
+  review: ['get_knowledge_point', 'search_knowledge_base', 'conversation_search', 'present_practice', 'generate_quiz', 'check_answer', 'update_progress', 'recommend_next'],
 };
 
 /**
  * 动态课程沿用相同的教学、测验与门禁工具，教材内容按 courseId 隔离。
  */
 const DYNAMIC_TOOLS = {
-  general: ['search_knowledge_base', 'conversation_search'],
+  general: ['search_knowledge_base', 'conversation_search', 'present_practice'],
   coordinator: [...TOOL_WHITELIST.coordinator, 'search_knowledge_base'],
   preview: [...TOOL_WHITELIST.preview, 'get_learning_progress'],
   learn: [...TOOL_WHITELIST.learn, 'get_learning_progress'],
@@ -67,8 +65,8 @@ const AGENTS = {
     name: '预习 Agent',
     emoji: '🔎',
     role: 'preview',
-    description: '预习引导：用提问激发思考，给知识地图，不直接给答案',
-    person: '你是一个善于启发式提问的预习引导师。你绝不一上来就讲答案，而是用问题、类比和知识地图让学生先建立好奇心和整体印象。预习阶段允许学生答错。',
+    description: '预习引导：先介绍本章或知识点的实际内容，再给知识地图与学习方向',
+    person: '你是一位耐心的预习老师。先用教材内容讲清本章或知识点学什么、核心概念与一个简短例子，再给知识地图。学生还没接触知识时不要先考他；讲完后可邀请深入学习或自愿自测。',
     tools: () => TOOL_WHITELIST.preview,
   },
   learn: {
@@ -141,6 +139,7 @@ function toolsForAgent(agentId, dynamic = false, opts = {}) {
   const whitelist = dynamic ? DYNAMIC_TOOLS[agentId] : cfg.tools();
   const result = {};
   for (const n of whitelist || []) if (tools[n]) result[n] = tools[n];
+  if (result.search_knowledge_base) result.read_material_image = tools.read_material_image;
   try {
     Object.assign(result, mcpBridge.toolsForAgent(agentId, opts));
   } catch (e) {

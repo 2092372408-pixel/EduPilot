@@ -7,7 +7,7 @@ const dict = {
     "phaseReviewing": "Reviewing",
     "phaseMastered": "Mastered",
     "stagePreviewLabel": "Preview",
-    "stagePreviewTeacher": "Let me pose some questions and give you a knowledge map first.",
+    "stagePreviewTeacher": "First explore the lesson content, core concepts and knowledge map. Self-checks are optional.",
     "stageLearningLabel": "Learn",
     "stageLearningTeacher": "Teaching: analogy → principles → examples → common pitfalls.",
     "stageReviewingLabel": "Review",
@@ -44,7 +44,7 @@ const dict = {
     "noChapters": "No chapter structure detected. Just ask me directly!",
     "codingTitle": "Code Practice: write, run & grade",
     "quizTitle": "Quiz Practice",
-    "noPracticeForDynamic": "Use chat for custom-course lessons and quizzes. The coding workspace is for the Python demo course.",
+    "noPracticeForDynamic": "Use chat for custom-course lessons and quizzes. The coding workspace is for the built-in Python course.",
     "dueReview": "Due",
     "reportBtn": "Report",
     "codeBtn": "Coding",
@@ -55,13 +55,11 @@ const dict = {
     "modelBtn": "Model",
     "settingsBtn": "Settings",
     "resetBtn": "Reset",
-    "settingsTitle": "Global Settings",
-    "llmSettingsTitle": "LLM model",
-    "llmSettingsSub": "Choose a provider and use an API key from that provider. Configure Tavily separately below.",
-    "webSettingsTitle": "Web search · Tavily",
-    "webSettingsSub": "Register with Tavily and create a separate API key to search public web sources.",
-    "webSettingsToggle": "Allow web search",
-    "webApiKeyLabel": "Tavily API key",
+    "settingsTitle": "Settings",
+    "llmSettingsTitle": "AI model",
+    "llmSettingsSub": "Choose a provider and enter its API key. Native web search uses the same model and key.",
+    "webSettingsTitle": "Native web search",
+    "webSettingsSub": "Availability depends on the selected model. Use the switch beside the chat input; the provider may charge for searches.",
     "apiKeyLinks": "Create an API key:",
     "fontSize": "Font Size",
     "fontSmall": "Small",
@@ -114,7 +112,7 @@ const dict = {
     "phaseReviewing": "复习中",
     "phaseMastered": "已掌握",
     "stagePreviewLabel": "预习",
-    "stagePreviewTeacher": "抛砖引玉：先抛几个问题、给一张知识地图，你自己想一想（答错也没关系）",
+    "stagePreviewTeacher": "先介绍本节内容、核心概念与知识地图，之后可自愿自测",
     "stageLearningLabel": "学习",
     "stageLearningTeacher": "教授知识：类比 → 原理 → 示例 → 常见误区，一次讲透一个点",
     "stageReviewingLabel": "复习",
@@ -151,24 +149,22 @@ const dict = {
     "noChapters": "素材未识别出章节结构，直接向学伴提问即可。",
     "codingTitle": "编程实践：写代码 + 试运行 + 提交判分",
     "quizTitle": "选择题练习",
-    "noPracticeForDynamic": "素材课在对话区学习与测验；编程工作区用于 Python 演示课",
+    "noPracticeForDynamic": "素材课在对话区学习与测验；编程工作区用于内置 Python 课程",
     "dueReview": "待复习",
     "reportBtn": "报告",
     "modelBtn": "模型",
     "settingsBtn": "设置",
     "resetBtn": "重置本课",
-    "settingsTitle": "全局设置",
-    "llmSettingsTitle": "LLM 模型",
-    "llmSettingsSub": "选择具体供应商，使用该供应商申请的 API Key。Tavily 密钥请在下方单独设置。",
-    "webSettingsTitle": "联网搜索 · Tavily",
-    "webSettingsSub": "注册 Tavily 并创建独立的 API Key，开启后可检索公开网页中的最新资料。",
-    "webSettingsToggle": "允许联网搜索",
-    "webApiKeyLabel": "Tavily API Key",
+    "settingsTitle": "设置",
+    "llmSettingsTitle": "AI 模型",
+    "llmSettingsSub": "选择供应商并填写其 API Key。原生联网使用当前模型和同一密钥。",
+    "webSettingsTitle": "模型原生联网",
+    "webSettingsSub": "是否可用取决于所选模型，通过对话输入框旁的开关控制；供应商可能收取搜索费用。",
     "apiKeyLinks": "申请 API Key：",
     "fontSize": "字体大小",
-    "fontSmall": "小 (Small)",
-    "fontMedium": "中等 (Medium)",
-    "fontLarge": "大 (Large)",
+    "fontSmall": "小",
+    "fontMedium": "中等",
+    "fontLarge": "大",
     "language": "语言 (Language)",
     "saveBtn": "保存 / Save",
     "nowLabel": "选择一门课，开始你的学习之旅",
@@ -235,6 +231,9 @@ function applySettings() {
 
   document.body.setAttribute('data-lang', lang);
   document.documentElement.lang = lang;
+  document.querySelectorAll('[data-language]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.language === lang));
+  });
 
   const nowLabel = document.getElementById('nowLabel');
   if(nowLabel && nowLabel.textContent.includes('选择一门课') || nowLabel && nowLabel.textContent.includes('Select a course')) nowLabel.textContent = dict[lang]["nowLabel"];
@@ -244,57 +243,62 @@ function applySettings() {
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { const k = el.getAttribute('data-i18n-placeholder'); if(dict[lang][k]) el.placeholder = dict[lang][k]; });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const settingsBtn = document.getElementById('settingsBtn');
-  const settingsOverlay = document.getElementById('settingsOverlay');
-  const settingsCloseBtn = document.getElementById('settingsCloseBtn');
-  const settingsSaveBtn = document.getElementById('settingsSaveBtn');
-  
-  if (settingsBtn && settingsOverlay) {
-    settingsBtn.addEventListener('click', () => {
-      
-      document.getElementById('fontSizeSelect').value = localStorage.getItem('eduowl_font_size') || 'medium';
-      settingsOverlay.classList.remove('hidden');
-      if (window.loadWebConfig) window.loadWebConfig();
-      if (window.loadLlmConfig) window.loadLlmConfig();
-    });
+function openEduSettings(refresh = true) {
+  const overlay = document.getElementById('settingsOverlay');
+  if (!overlay) return;
+  document.getElementById('fontSizeSelect').value = localStorage.getItem('eduowl_font_size') || 'medium';
+  overlay.classList.remove('hidden');
+  document.querySelector('.app').inert = true;
+  applySettings();
+  if (refresh) {
+    window.loadProfile?.();
+    window.loadWebConfig?.();
+    window.loadLlmConfig?.();
   }
-  
-  if (settingsCloseBtn) {
-    settingsCloseBtn.addEventListener('click', () => {
-      settingsOverlay.classList.add('hidden');
-      window.EduOnboarding?.resume();
-    });
-  }
-  
-  if (settingsSaveBtn) {
-    settingsSaveBtn.addEventListener('click', async () => {
-      const lang = eduLanguage();
-      const fontSize = document.getElementById('fontSizeSelect').value;
+  overlay.querySelector('[data-language][aria-pressed="true"]')?.focus();
+}
 
-      localStorage.setItem('eduowl_lang', lang);
-      localStorage.setItem('eduowl_font_size', fontSize);
-      
-      applySettings();
-      settingsOverlay.classList.add('hidden');
-      window.EduOnboarding?.resume();
-    });
-  }
-  
+function closeEduSettings() {
+  const overlay = document.getElementById('settingsOverlay');
+  if (!overlay) return;
+  overlay.classList.add('hidden');
+  document.querySelector('.app').inert = false;
+  document.getElementById('settingsBtn')?.focus();
+  window.EduOnboarding?.resume();
+}
+
+window.openEduSettings = openEduSettings;
+window.closeEduSettings = closeEduSettings;
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('settingsBtn')?.addEventListener('click', openEduSettings);
+  document.getElementById('settingsCloseBtn')?.addEventListener('click', closeEduSettings);
+  document.getElementById('settingsSaveBtn')?.addEventListener('click', closeEduSettings);
+  document.getElementById('settingsOverlay')?.addEventListener('click', event => {
+    if (event.target.id === 'settingsOverlay') closeEduSettings();
+  });
+  document.querySelectorAll('[data-language]').forEach(button => {
+    button.addEventListener('click', () => setEduLanguage(button.dataset.language));
+  });
+  document.getElementById('fontSizeSelect')?.addEventListener('change', event => {
+    localStorage.setItem('eduowl_font_size', event.target.value);
+    applySettings();
+    window.EduNavigation?.refreshLanguage?.();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Tab') return;
+    const dialog = document.querySelector('.overlay:not(.hidden) [role="dialog"]');
+    if (!dialog) return;
+    const controls = [...dialog.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary')]
+      .filter(control => control.getClientRects().length);
+    const first = controls[0], last = controls.at(-1);
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+  });
   applySettings();
 });
 
 function toggleLanguage() {
-  let lang = eduLanguage();
-  lang = lang === 'zh' ? 'en' : 'zh';
-  localStorage.setItem('eduowl_lang', lang);
-  const url = new URL(location.href);
-  if (url.searchParams.has('lang')) {
-    url.searchParams.set('lang', lang);
-    location.href = url.href;
-    return;
-  }
-  location.reload(); // Hard reload to apply language strings globally
+  setEduLanguage(eduLanguage() === 'zh' ? 'en' : 'zh');
 }
 
 window.applySettings = applySettings;

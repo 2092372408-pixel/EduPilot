@@ -5,8 +5,8 @@
  * 无法检测、也无法参加期末大实践。本模块用 LLM 从教材片段自动命题，把
  * 素材课补齐成与内置课同构的形态（同样是「节 = 知识点」，同样走严格梯级）。
  *
- * 新上传课程：lesson-gen 在发布前生成讲义和题目，本模块直接读取版本内题库。
- * 旧课程：保留 preGenerate / getQuiz 的缓存与按需生成兼容路径。
+ * 上传只保留教材；本模块按需命题，独立对照原文审核答案后才缓存。
+ * 先前已审核的预生成讲义仍可直接读取版本内题库。
  *
  * 缓存：data/courses/<courseId>.quizzes.json
  *   { [learningKey]: { title, chapter, generatedAt, questions: [{q, options, answer, explanation, source}] } }
@@ -25,20 +25,20 @@ const COURSES_DIR = path.join(__dirname, '..', '..', 'data', 'courses');
 const PER_SECTION = 3;      // 每节生成的选择题数量
 const MAX_CONTEXT = 4000;   // 单节喂给模型的教材片段上限（字符）
 const PRE_CONCURRENCY = 2;  // 预生成并发（避免打满 LLM 配额）
+const AUDIT_VERSION = 1;
 
 const cachePath = (cid) => path.join(COURSES_DIR, `${cid}.quizzes.json`);
 const versionOf = (cid) => courseRegistry.getDynamicCourse(cid)?.indexVersion || null;
 
 function readCache(cid) {
   const course = courseRegistry.getDynamicCourse(cid);
-  // New uploads publish lessons and their question banks in one registry commit.
-  if (course?.learningReady && course.lessons) return course.lessons;
+  const lessons = course?.lessons || {};
   try {
     const raw = fs.readFileSync(cachePath(cid), 'utf8');
     const j = JSON.parse(raw);
     if (!j || typeof j !== 'object') return {};
-    return Object.fromEntries(Object.entries(j).filter(([, entry]) => (entry.indexVersion || null) === versionOf(cid)));
-  } catch (_) { return {}; }
+    return { ...lessons, ...Object.fromEntries(Object.entries(j).filter(([, entry]) => entry.auditVersion === AUDIT_VERSION && (entry.indexVersion || null) === versionOf(cid))) };
+  } catch (_) { return { ...lessons }; }
 }
 
 function writeCache(cid, data) {
@@ -72,18 +72,9 @@ function cacheStats(cid) {
   return { sections: keys.length, questions };
 }
 
-/** 取该节的教材片段：优先按 learningKey 精确取该节 chunk，取不到再按标题检索 */
+/** 按 learningKey 精确取该节正文，不用其他章节兜底命题。 */
 async function sectionContext(cid, key, chapterTitle, sectionTitle) {
-  const query = [chapterTitle, sectionTitle].filter(Boolean).join(' ');
-  let hits = [];
-  try {
-    hits = await kbSearch.searchHybrid(query || key, { courseId: cid, kpId: key, topK: 6 });
-  } catch (_) {}
-  if (!hits || !hits.length) {
-    try {
-      hits = await kbSearch.searchHybrid(query || key, { courseId: cid, topK: 3 });
-    } catch (_) {}
-  }
+  const hits = (kbSearch.loadKB(cid)?.chunks || []).filter(c => c.kpId === key).slice(0, 6);
   const text = (hits || [])
     .map((h) => String(h.text || h.content || h.snippet || '').trim())
     .filter(Boolean)
@@ -172,8 +163,18 @@ async function generate(cid, key, meta = {}) {
     const raw = await llm.callApi([{ role: 'user', content: prompt + (attempt ? `\n上次输出只有 ${questions.length} 道通过格式校验。请重新输出完整的 ${PER_SECTION} 道不同题目，答案只能是 A/B/C/D，每题四个不同选项。` : '') }]);
     execution.throwIfAborted();
     if (versionOf(cid) !== indexVersion || !courseRegistry.getDynamicCourse(cid)) return null;
-    questions = parseQuestions(raw).map(normalize).filter(Boolean).filter((q, i, all) => all.findIndex(other => other.q === q.q) === i).slice(0, PER_SECTION);
-    if (questions.length === PER_SECTION) break;
+    questions = parseQuestions(raw).map(normalize).filter(q => q && q.explanation).filter((q, i, all) => all.findIndex(other => other.q === q.q) === i).slice(0, PER_SECTION);
+    if (questions.length === PER_SECTION) {
+      questions = questions.map(q => ({ ...q, evidence: context }));
+      try {
+        await require('./lesson-gen').auditLesson(context, {}, questions);
+        execution.throwIfAborted();
+        break;
+      } catch (error) {
+        execution.throwIfAborted();
+        questions = [];
+      }
+    }
   }
   if (questions.length !== PER_SECTION) return null;
   if (versionOf(cid) !== indexVersion || !courseRegistry.getDynamicCourse(cid)) return null;
@@ -183,6 +184,7 @@ async function generate(cid, key, meta = {}) {
     chapter: meta.chapterTitle || '',
     generatedAt: new Date().toISOString(),
     indexVersion,
+    auditVersion: AUDIT_VERSION,
     questions,
   };
   writeCache(cid, cache);

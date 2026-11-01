@@ -4,10 +4,11 @@
   <script src="ui-en.js"></script>
   <script src="i18n.js"></script>
   <script src="settings.js"></script>
+  <script src="/app-navigation.js?v=2" defer></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title data-ui="EduPilot · 选择题练习">EduPilot · 选择题练习</title>
-<link rel="stylesheet" href="/style.css?v=43" />
+<link rel="stylesheet" href="/style.css?v=49" />
 <style>
 /* 选择题页专用样式 */
 .coding-main { height: calc(100vh - 60px); }
@@ -18,10 +19,10 @@
 .problem-card h3 { margin: 0 0 8px; font-size: 15px; }
 .choice-list { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
 .choice-item { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: #fff; }
-.choice-q { font-size: 13.5px; margin-bottom: 10px; line-height: 1.7; }
+.choice-q { font-size: 15px; margin-bottom: 10px; line-height: 1.65; }
 .choice-opts { display: flex; flex-wrap: wrap; gap: 8px; }
 .choice-opt {
-  font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
+  font: inherit; font-size: var(--ui-font-size); cursor: pointer; text-align: left;
   padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px;
   background: #fff; color: var(--text-1);
 }
@@ -29,7 +30,7 @@
 .choice-opt.right { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
 .choice-opt.wrong { background: #fcebeb; color: #a32d2d; border-color: #e24b4a; }
 .choice-opt:disabled { cursor: default; opacity: 1; }
-.choice-feedback { font-size: 12.5px; margin-top: 8px; line-height: 1.6; color: var(--text-2); }
+.choice-feedback { font-size: var(--ui-font-size); margin-top: 8px; line-height: 1.6; color: var(--text-2); }
 .choice-stats { margin-top: 14px; font-size: 13px; color: var(--text-2); border-top: 1px dashed var(--border); padding-top: 10px; }
 /* 悬浮窗（做题助手） */
 .float-fab {
@@ -57,7 +58,7 @@
 .float-msgs { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .float-msg {
   max-width: 88%; padding: 8px 12px; border-radius: 10px;
-  font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word;
+  font-size: var(--chat-font-size); line-height: 1.65; word-break: break-word;
 }
 .float-msg.user { align-self: flex-end; background: #f1f1f1; color: var(--text); border-radius: 12px; }
 .float-msg.bot { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); border-radius: 10px 10px 10px 4px; }
@@ -69,7 +70,7 @@
 }
 .float-input-bar input:focus { border-color: var(--primary); }
 .float-input-bar button {
-  background: var(--primary); color: #fff; border: none; border-radius: 8px;
+  background: #262626; color: #fff; border: none; border-radius: 8px;
   padding: 8px 14px; cursor: pointer; font-size: 13px;
 }
 .float-input-bar button:disabled { opacity: .5; cursor: not-allowed; }
@@ -86,8 +87,8 @@
       </div>
     </div>
     <div class="top-right">
-      <a href="/coding.html" target="_blank" class="btn-ghost" rel="noopener" data-ui="去代码实践">去代码实践</a>
-      <a href="/" target="_blank" class="btn-ghost" rel="noopener" data-ui="↩ 返回对话">↩ 返回对话</a>
+      <a href="/coding.html" class="btn-ghost" data-ui="去代码实践">去代码实践</a>
+      <a href="/" class="btn-ghost" data-ui="↩ 返回对话">↩ 返回对话</a>
     </div>
   </header>
 
@@ -162,14 +163,26 @@ function showPracticeEmpty(html) {
   if (t) t.textContent = (courseData && courseData.title) || ui("做题区");
 }
 
-/** 判分结果回写主会话学习状态（打通做题区 ↔ 主对话记忆，静默失败不影响做题） */
-async function recordAnswer(kind, kpId, question, userAnswer, correct, explanation) {
+/** 保存同一次作答；重试沿用 requestId，服务端核验并防止重复计分。 */
+async function recordAnswer(answer, status, retry) {
+  retry.disabled = true;
+  retry.hidden = true;
+  status.textContent = ui("正在保存作答…");
   try {
-    await eduFetch('/api/coding/record', {
+    const res = await eduFetch('/api/coding/record', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: SESSION_ID, kind, kpId, question, userAnswer, correct, explanation: explanation || undefined }),
+      body: JSON.stringify(answer),
+      signal: AbortSignal.timeout(15000),
     });
-  } catch (_) {}
+    const result = await res.json();
+    if (!res.ok || !result.ok) throw new Error(result.error || 'HTTP ' + res.status);
+    status.textContent = ui("作答已保存");
+  } catch (e) {
+    status.textContent = ui("作答未保存：") + (e.message || ui("请重试"));
+    retry.hidden = false;
+  } finally {
+    retry.disabled = false;
+  }
 }
 
 async function loadCourse() {
@@ -227,6 +240,7 @@ async function selectUnit(kp) {
     return;
   }
   quiz.forEach((q, qi) => {
+    const kpId = kp.id;
     const item = document.createElement('div');
     item.className = 'choice-item';
     item.innerHTML = '<div class="choice-q">' + (qi + 1) + '. ' + escapeHtml(q.q) + '</div><div class="choice-opts"></div><div class="choice-feedback hidden"></div>';
@@ -251,7 +265,16 @@ async function selectUnit(kp) {
         fb.innerHTML = (correct ? ui("✅ 回答正确！") : ui("❌ 正确答案是 ") + q.answer + ui("。")) + (q.explanation ? '<br/>💡 ' + escapeHtml(q.explanation) : '');
         renderChoiceStats();
         // 判分结果回写主会话（报告错题本/复习/主对话记忆可见）
-        recordAnswer('choice', currentKp.id, q.q, letter, correct, q.explanation);
+        const status = document.createElement('span');
+        status.setAttribute('role', 'status');
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'btn-ghost small';
+        retry.textContent = ui("重试保存");
+        const answer = { sessionId: SESSION_ID, kind: 'choice', kpId, question: q.q, userAnswer: letter, requestId: crypto.randomUUID() };
+        retry.addEventListener('click', () => recordAnswer(answer, status, retry));
+        fb.append(document.createElement('br'), status, retry);
+        recordAnswer(answer, status, retry);
       });
       opts.appendChild(btn);
     });
@@ -270,7 +293,7 @@ function escapeHtml(s) {
 }
 
 /* ============ 做题助手悬浮窗 ============ */
-const FLOAT_SESSION = 'float-choice-' + Date.now();
+const FLOAT_SESSION = SESSION_ID + '~' + crypto.randomUUID();
 let floatBusy = false;
 
 function floatChoiceContext() {
@@ -278,6 +301,7 @@ function floatChoiceContext() {
     mode: 'choice',
     kpId: currentKp ? currentKp.id : '',
     problemTitle: currentKp ? currentKp.title : '',
+    problemDescription: $('choiceList').innerText,
     submitted: true, // 选择题已即时判分，答疑可正常讲解
     code: '',
     lastRun: null,
@@ -310,44 +334,57 @@ async function floatSend() {
   floatAddMsg('user', msg);
   const botEl = floatAddMsg('bot', '', true);
   let reply = '';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 180000);
+  let reader;
   try {
     const res = await eduFetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId: FLOAT_SESSION, message: msg, context: floatChoiceContext() }),
+      signal: controller.signal,
     });
     if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
-    const reader = res.body.getReader();
+    reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    while (true) {
+    let completed = false;
+    while (!completed) {
       const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const blocks = buffer.split('\n\n');
+      buffer += done ? decoder.decode() + '\n\n' : decoder.decode(value, { stream: true });
+      const blocks = buffer.split(/\r?\n\r?\n/);
       buffer = blocks.pop();
       for (const block of blocks) {
         let type = '', dataStr = '';
-        for (const line of block.split('\n')) {
+        for (const line of block.split(/\r?\n/)) {
           if (line.startsWith('event:')) type = line.slice(6).trim();
           else if (line.startsWith('data:')) dataStr += line.slice(5).trim();
         }
         if (type === 'delta') {
-          try { reply += JSON.parse(dataStr).text || ''; } catch (_) {}
+          reply += JSON.parse(dataStr).text || '';
           botEl.classList.remove('typing');
           botEl.innerHTML = floatSimpleMarkdown(reply);
           $('floatMsgs').scrollTop = $('floatMsgs').scrollHeight;
         } else if (type === 'error') {
-          try { reply = '⚠️ ' + (JSON.parse(dataStr).message || ui("出错了")); } catch (_) {}
+          throw new Error(JSON.parse(dataStr).message || ui("出错了"));
+        } else if (type === 'done') {
+          const result = JSON.parse(dataStr);
+          if (typeof result.reply === 'string') reply = result.reply;
+          completed = true;
+          break;
         }
       }
+      if (done && !completed) throw new Error(ui("连接已中断，请重试"));
     }
     botEl.classList.remove('typing');
-    if (!reply) botEl.innerHTML = ui("（没有收到回复，请重试）");
+    botEl.innerHTML = reply ? floatSimpleMarkdown(reply) : ui("（没有收到回复，请重试）");
   } catch (e) {
     botEl.classList.remove('typing');
-    botEl.innerHTML = ui("⚠️ 请求失败：") + escapeHtml(e.message || e);
+    botEl.innerHTML = (reply ? floatSimpleMarkdown(reply) + '<br><br>' : '') +
+      ui("⚠️ 请求失败：") + escapeHtml(e.name === 'AbortError' ? ui("请求超时，请重试") : (e.message || e));
   } finally {
+    clearTimeout(timeout);
+    if (reader) reader.cancel().catch(() => {});
     floatBusy = false;
     $('floatSendBtn').disabled = false;
     $('floatInput').focus();
@@ -357,9 +394,14 @@ async function floatSend() {
 $('floatFab').addEventListener('click', () => $('floatWindow').classList.toggle('hidden'));
 $('floatClose').addEventListener('click', () => $('floatWindow').classList.add('hidden'));
 $('floatSendBtn').addEventListener('click', floatSend);
-$('floatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') floatSend(); });
+$('floatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) floatSend(); });
 
-loadCourse();
+const courseLoaded = loadCourse();
+window.addEventListener('edu:select-topic', async event => {
+  await courseLoaded;
+  const kp = courseData?.chapters?.flatMap(ch => ch.knowledgePoints).find(kp => kp.id === event.detail.kpId);
+  if (kp) selectUnit(kp);
+});
 </script>
 </body>
 </html>

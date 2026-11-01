@@ -79,7 +79,8 @@ function runMarkItDown(srcPath, timeoutMs = 60_000) {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });
-    let stdout = '', stderr = '';
+    const stdout = [];
+    let size = 0, stderr = '';
     let done = false;
     const timer = setTimeout(() => {
       done = true;
@@ -87,7 +88,16 @@ function runMarkItDown(srcPath, timeoutMs = 60_000) {
       reject(new Error(`MarkItDown 转换超时（>${timeoutMs / 1000}s）`));
     }, timeoutMs);
 
-    child.stdout.on('data', (d) => { if (stdout.length < 2_000_000) stdout += d.toString('utf8'); });
+    child.stdout.on('data', (d) => {
+      if (done) return;
+      size += d.length;
+      if (size > 32 * 1024 * 1024) {
+        done = true;
+        clearTimeout(timer);
+        try { child.kill(); } catch (_) { /* ignore */ }
+        reject(new Error('MarkItDown 解析内容过大，请拆分文件后重试'));
+      } else stdout.push(d);
+    });
     child.stderr.on('data', (d) => { if (stderr.length < 200_000) stderr += d.toString('utf8'); });
     child.on('error', (e) => { if (!done) { done = true; clearTimeout(timer); reject(e); } });
     child.on('close', (code) => {
@@ -98,7 +108,7 @@ function runMarkItDown(srcPath, timeoutMs = 60_000) {
         const hint = stderr.split('\n').filter(Boolean).slice(-3).join(' | ');
         reject(new Error(`MarkItDown 转换失败(code=${code})${hint ? '：' + hint : ''}`));
       } else {
-        resolve(stdout);
+        resolve(Buffer.concat(stdout).toString('utf8'));
       }
     });
   });
@@ -127,19 +137,19 @@ function flattenJsonToLines(obj, keyPath, depth, out) {
             if (Array.isArray(el)) { flattenJsonToLines(el, [...keyPath, k, String(i)], depth + 1, out); return; }
             if (el && typeof el === 'object') {
               if (depth >= 4) { // 过深：拍平为行
-                out.push(`- **${k}[${i}]**：${JSON.stringify(el).slice(0, 200)}`);
+                out.push(`- **${k}[${i}]**：${JSON.stringify(el)}`);
                 return;
               }
-              out.push(`## ${k} ${i + 1}`);
-              pushKeyValues(el);
+              out.push(`## ${[...keyPath, k, String(i + 1)].join(' / ')}`);
+              flattenJsonToLines(el, [...keyPath, k, String(i + 1)], depth + 1, out);
             }
           });
         }
       } else if (v && typeof v === 'object') {
         if (depth >= 4) {
-          out.push(`- **${k}**：${JSON.stringify(v).slice(0, 200)}`);
+          out.push(`- **${k}**：${JSON.stringify(v)}`);
         } else {
-          out.push(`## ${k}`);
+          out.push(`## ${[...keyPath, k].join(' / ')}`);
           flattenJsonToLines(v, [...keyPath, k], depth + 1, out);
         }
       }
@@ -154,7 +164,7 @@ function flattenJsonToLines(obj, keyPath, depth, out) {
         if (isPlain(el)) { out.push(`${i + 1}. ${el}`); return; }
         if (el && typeof el === 'object' && !Array.isArray(el)) {
           out.push(`## 条目 ${i + 1}`);
-          pushKeyValues(el);
+          flattenJsonToLines(el, [...keyPath, String(i + 1)], depth + 1, out);
         } else {
           flattenJsonToLines(el, [...keyPath, String(i)], depth + 1, out);
         }
@@ -325,11 +335,13 @@ async function convertToMarkdown(srcPath, opts = {}) {
     warnings.push('JSON 已按“键=条目 / 嵌套=章节”扁平化，层级信息保留在标题中');
   } else if (EXT_NATIVE.has(ext)) {
     try {
+      if (opts.onProgress) opts.onProgress({ stage: 'parsing', message: require('../locale').english() ? 'Extracting document text' : '正在提取文档文字' });
       raw = await runAnyDoc(srcPath);
       if (!raw || !raw.trim()) throw new Error('解析内容为空');
     } catch (e) {
       console.warn('[convert] AnyDoc 解析失败，尝试 MarkItDown:', e.message);
       try {
+        if (opts.onProgress) opts.onProgress({ stage: 'parsing', message: require('../locale').english() ? 'Trying the compatible document parser' : '正在使用兼容解析器重试' });
         raw = await runMarkItDown(srcPath);
       } catch (fallbackError) {
         throw new Error(`本地解析失败（${e.message}）；兼容解析失败（${fallbackError.message}）`);
@@ -403,10 +415,10 @@ async function convertToMarkdown(srcPath, opts = {}) {
     }
   }
 
-  if (!structured) {
-    // 兜底：仍无章节/小节 → 整体包一层（原样内容，章节=标题）
-    return { markdown: `## ${docTitle}\n\n${markdown}`, docTitle, warnings };
-  }
+  if (!structured) markdown = `## ${docTitle}\n\n${markdown}`;
+  const retained = await require('./material-images').preserveImages(srcPath, markdown, opts.imageDir);
+  markdown = retained.markdown;
+  warnings.push(...retained.warnings);
   return { markdown, docTitle, warnings };
 }
 

@@ -1,5 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
   <symbol id="sidebar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></symbol>
+  <symbol id="chat" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 3V6a2 2 0 0 1 2-2Z"/></symbol>
+  <symbol id="attach" viewBox="0 0 24 24"><path d="m8 13 7-7a3 3 0 0 1 4 4l-9 9a5 5 0 0 1-7-7l9-9m-6 12 9-9"/></symbol>
   <symbol id="code" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/></symbol>
   <symbol id="checklist" viewBox="0 0 24 24"><path d="m3 7 2 2 3-4m-5 12 2 2 3-4m4-8h9m-9 10h9"/></symbol>
   <symbol id="chart" viewBox="0 0 24 24"><path d="M4 4v16h16M9 15v-4m5 4V7m5 8v-6"/></symbol>

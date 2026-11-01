@@ -47,6 +47,7 @@ function renderList() {
     row.className = 'file-row';
     const ext = it.file.name.match(/\.[^.]+$/)?.[0].toLowerCase() || '';
     const p = it.progress;
+    const tasks = Object.values(it.parallelProgress || {});
     const elapsed = it.state === 'running' ? ui(' · 已用 ') + Math.floor((Date.now() - it.startedAt) / 1000) + ui(' 秒') : '';
     const detail = p && p.chunkCount !== undefined
       ? ui('课程结构：') + p.chapterCount + ui(' 章 / ') + p.sectionCount + ui(' 节 / ') + p.chunkCount + ui(' 块')
@@ -56,7 +57,11 @@ function renderList() {
       `<span class="size">${fmtSize(it.file.size)}</span>` +
       `<span class="state ${it.state === 'ok' ? 'ok' : it.state === 'err' ? 'err' : it.state === 'running' ? 'run' : ''}">${it.state === 'err' ? '❌ ' + escapeHtml(it.msg) : it.state === 'running' ? escapeHtml(it.msg + elapsed) : stateMap[it.state]}</span>` +
       (uploading ? '' : `<button class="rm" data-i="${i}${ui("\" title=\"移除\">✕</button>")}`) +
-      (it.state === 'running' ? `<progress class="file-progress" aria-label="${ui('当前阶段进度')}" ${p && ['embedding', 'generating'].includes(p.stage) && p.total > 0 ? `max="${p.total}" value="${p.completed}"` : ''}></progress>` : '') +
+      (it.state === 'running' ? (tasks.length ? tasks : [p]).map((task) => {
+        const label = escapeHtml(progressText(task));
+        return (tasks.length ? `<span class="file-detail">${label}</span>` : '') +
+          `<progress class="file-progress" aria-label="${label}" ${Number.isFinite(task.total) && task.total > 0 && Number.isFinite(task.completed) ? `max="${task.total}" value="${Math.max(0, Math.min(task.completed, task.total))}"` : ''}></progress>`;
+      }).join('') : '') +
       (detail ? `<span class="file-detail">${escapeHtml(detail)}</span>` : '');
     box.appendChild(row);
   });
@@ -82,19 +87,21 @@ function setState(i, state, msg) {
   if (state === 'running') {
     files[i].startedAt = Date.now();
     files[i].progress = { stage: 'uploading' };
+    files[i].parallelProgress = {};
   }
   renderList();
 }
 
 function progressText(p) {
-  if (p.stage === 'generating') return ui('正在生成教学讲义和题目 ') + p.completed + '/' + p.total + ui(' 节') + (p.title ? ' · ' + p.title : '');
+  if (p.stage === 'generating') return ui('正在生成教学讲义和题目 ') + p.completed + '/' + p.total + ui(' 节') + (p.title ? ' · ' + p.title : '') + (p.message ? ' · ' + p.message : '');
   if (p.stage === 'embedding') {
     return p.total ? ui('正在向量化 ') + p.completed + '/' + p.total + ui(' 块') : ui('复用已有向量');
   }
-  return {
+  const text = {
     uploading: ui('正在上传文件…'), parsing: ui('正在解析文档…'), structuring: ui('正在识别章节…'),
     chunking: ui('正在按章节切块…'), saving: ui('正在保存课程与索引…'),
   }[p.stage] || ui('处理中…');
+  return text + (p.message ? ' · ' + p.message : '');
 }
 
 async function readUploadResponse(res, onProgress) {
@@ -176,6 +183,7 @@ async function startUpload() {
   $('statusTip').textContent = ui("上传中，请勿关闭页面…");
   $('upProgress').classList.remove('hidden');
   $('upProgressText').classList.remove('hidden');
+  $('summary').classList.add('hidden');
   const elapsedTimer = setInterval(renderList, 1000);
 
   const customTitle = $('courseTitleInput').value.trim();
@@ -199,8 +207,18 @@ async function startUpload() {
           body: it.file,
         });
         const data = await readUploadResponse(res, (p) => {
-          it.progress = { ...it.progress, ...p };
-          it.msg = progressText(p);
+          // Counts describe only the current stage; retain structure, not a previous stage's 100%.
+          const previous = it.progress.stage === p.stage ? it.progress : {
+            chapterCount: it.progress.chapterCount, sectionCount: it.progress.sectionCount, chunkCount: it.progress.chunkCount,
+          };
+          it.progress = { ...previous, ...p };
+          if (p.stage === 'embedding' || p.stage === 'generating') {
+            it.parallelProgress[p.stage] = { ...it.parallelProgress[p.stage], ...p };
+            it.msg = ui('处理中…');
+          } else {
+            it.parallelProgress = {};
+            it.msg = progressText(p);
+          }
           renderList();
         });
         if (!firstCourseId) firstCourseId = data.courseId; // 后续文件都并入这一门课
@@ -233,7 +251,8 @@ async function startUpload() {
   if (last) {
     lines.push(`${ui("✅ 已")}${mode === 'append' ? ui("追加到") : ui("创建")}${ui("课程《")}${last.title}${ui("》（")}${last.bookCount}${ui(" 篇素材 / ")}${last.chapterCount}${ui(" 章 / ")}${last.chunkCount}${ui(" 块可检索内容）")}`); // 摘要按纯文本渲染，不加 markdown 记号
     if (ok.length > 1) lines.push(`${ui("📦 本批共 ")}${ok.length}${ui(" 个文件，全部合并到这门课。")}`);
-    if (last.learningReady) lines.push(ui('📖 教学讲义和题目已就绪，可直接开始预习、学习和复习。'));
+    if (last.lessonMode === 'on-demand') lines.push(ui('📖 课程已可学习；讲解和练习将在需要时生成。'));
+    else if (last.learningReady) lines.push(ui('📖 教学讲义和题目已就绪，可直接开始预习、学习和复习。'));
   } else {
     sum.classList.add('err');
     lines.push(ui("❌ 没有文件上传成功，课程未创建。"));
@@ -251,7 +270,11 @@ async function startUpload() {
     go.style.marginTop = '10px';
     go.innerHTML = `${ui("<button class=\"btn-primary\" id=\"goCourseBtn\">📚 进入《")}${escapeHtml(last.title)}${ui("》</button>\n      <a href=\"/\" class=\"btn-ghost small\" style=\"margin-left:8px;\">返回主页</a>")}`;
     sum.appendChild(go);
-    $('goCourseBtn').addEventListener('click', () => { location.href = eduUrl('/?course=' + encodeURIComponent(last.courseId)); });
+    $('goCourseBtn').addEventListener('click', () => {
+      const href = eduUrl('/?course=' + encodeURIComponent(last.courseId));
+      if (window.EduNavigation) window.EduNavigation.navigate(href);
+      else location.href = href;
+    });
   }
 }
 

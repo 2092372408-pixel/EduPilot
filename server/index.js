@@ -19,7 +19,7 @@ const crypto = require('crypto');
 const agent = require('./agent/core');
 const llm = require('./agent/llm');
 const llmConfig = require('./agent/llmconfig'); // LLM 接入配置（平台预设/模型发现/热写入）
-const webConfig = require('./agent/webconfig'); // Tavily 联网配置（本机保存/掩码返回）
+const webConfig = require('./agent/webconfig'); // 当前模型的原生联网能力
 const logger = require('./store/logger');
 const profileStore = require('./store/profiles'); // 用户档案（本地身份：昵称/头像）
 const runner = require('./coding/runner');
@@ -230,6 +230,22 @@ function serveStatic(req, res, urlPath) {
 }
 
 const locale = require('./locale');
+function llmRequestFailure(error) {
+  const key = String(process.env.LLM_API_KEY || '').trim();
+  const detail = String(error.message || '模型请求失败');
+  const safe = key ? detail.split(key).join('[redacted]') : detail;
+  const webError = /^WEB_SEARCH_/.test(error.code || '');
+  const message = error.code === 'LLM_NOT_CONFIGURED' || error.code === 'LLM_REQUEST_FAILED' || webError
+    ? safe
+    : error.status ? llmConfig.friendlyError(error.status, safe)
+      : /timeout|超时|中断/i.test(safe) ? safe
+        : /fetch failed|ECONN|ENOTFOUND|network|socket|connection|connect|terminated/i.test(safe)
+          ? '模型请求失败，请检查 API Key、服务地址和网络后重试。' : safe;
+  return Object.assign(new Error(message), {
+    code: error.code === 'LLM_NOT_CONFIGURED' || webError ? error.code : 'LLM_REQUEST_FAILED',
+    status: error.code === 'LLM_NOT_CONFIGURED' ? 503 : webError ? (error.status || 502) : 502,
+  });
+}
 const server = http.createServer((req, res) => locale.runRequest(req, async () => {
   activeRequests++;
   try {
@@ -250,18 +266,22 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
     }
     // API 路由
     if (p === '/api/chat' && req.method === 'POST') {
+      llm.assertConfigured();
       const body = await readBody(req);
       const sessionId = String(body.sessionId || 'default');
       const message = String(body.message || '').trim();
       const attachments = Array.isArray(body.attachments) ? body.attachments : [];
       if (!message && !attachments.length) { sendJSON(res, 400, { error: '消息不能为空' }); return; }
-      const result = await agent.run(sessionId, message, { webMode: body.webMode, attachments });
+      let result;
+      try { result = await agent.run(sessionId, message, { webMode: body.webMode, attachments, context: body.context }); }
+      catch (error) { throw llmRequestFailure(error); }
       sendJSON(res, 200, { sessionId, ...result });
       return;
     }
 
     // SSE 流式接口：event: tool（工具调用）/ delta（文本增量）/ done（完整结果）
     if (p === '/api/chat/stream' && req.method === 'POST') {
+      llm.assertConfigured();
       const body = await readBody(req);
       const sessionId = String(body.sessionId || 'default');
       const message = String(body.message || '').trim();
@@ -293,8 +313,10 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       };
 
       try {
+        sendEvent('step', { id: 'received', label: locale.translate('消息已接收，准备学习上下文') });
         const result = await agent.runStream(sessionId, message, {
           signal: controller.signal,
+          onStep: (step) => sendEvent('step', { ...step, label: locale.translate(step.label) }),
           onTool: (tc) => sendEvent('tool', tc),
           onDelta: (text) => sendEvent('delta', { text }),
           context: body.context, // 做题悬浮窗上下文（P3）
@@ -307,10 +329,11 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
         sendEvent('done', locale.display({ sessionId, ...result }));
       } catch (e) {
         if (controller.signal.aborted) return;
+        const failure = llmRequestFailure(e);
         // 错误也通过 SSE 事件下发，前端可明确提示，而不是断连后让前端卡在等待
-        console.error('[stream error]', e.message);
-        logger.error('sse_error', `[${sessionId}] 流式处理异常: ${e.message}`, { sessionId, message: message.slice(0, 60) });
-        sendEvent('error', { message: locale.translate(String(e.message || '内部错误').slice(0, 300)) });
+        console.error('[stream error]', failure.message);
+        logger.error('sse_error', `[${sessionId}] 流式处理异常: ${failure.message}`, { sessionId, message: message.slice(0, 60) });
+        sendEvent('error', { code: failure.code, message: locale.translate(failure.message.slice(0, 300)) });
       } finally {
         streamDone = true;
         res.removeListener('close', onClose);
@@ -364,7 +387,7 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       const body = await readBody(req);
       const sessionId = String(body.sessionId || 'default');
       const courseId = String(body.courseId || '');
-      const result = agent.switchCourse(sessionId, courseId);
+      const result = await agent.withSessionLock(sessionId, () => agent.switchCourse(sessionId, courseId));
       if (!result.ok) { sendJSON(res, 400, { error: result.error }); return; }
       const info = agent.getSessionInfo(sessionId);
       const active = agent.getActiveCourse(sessionId);
@@ -492,11 +515,44 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       return;
     }
 
+    if (p === '/api/conversations' && req.method === 'GET') {
+      const scopeId = String(url.searchParams.get('sessionId') || 'default');
+      sendJSON(res, 200, { conversations: agent.listConversations(scopeId) });
+      return;
+    }
+    if (p === '/api/conversations' && req.method === 'POST') {
+      const body = await readBody(req);
+      const result = await agent.withSessionLock(String(body.sessionId || 'default'), () => agent.createConversation(body.sessionId || 'default'));
+      sendJSON(res, 201, result);
+      return;
+    }
+
+    if (p.startsWith('/api/session/') && p.endsWith('/history') && req.method === 'GET') {
+      const sessionId = decodeURIComponent(p.slice('/api/session/'.length, -'/history'.length));
+      const before = url.searchParams.get('before');
+      if (before !== null && (!/^\d+$/.test(before) || !Number.isSafeInteger(Number(before)) || Number(before) < 1)) {
+        sendJSON(res, 400, { error: 'Invalid history cursor' });
+        return;
+      }
+      if (!agent.sessions.has(sessionId)) { sendJSON(res, 404, { error: '会话不存在' }); return; }
+      const page = require('./store/memoryStore').conversationHistory(sessionId, { before, limit: url.searchParams.get('limit') });
+      const recent = agent.getSession(sessionId).messages;
+      page.messages = page.messages.map(message => {
+        const original = recent.find(row => row.role === message.role && (row.turn === message.turn || row.content === message.content));
+        return { ...message,
+          ...(original?.attachments ? { attachments: original.attachments } : {}),
+          sources: message.sources?.length ? message.sources : original?.sources || [],
+        };
+      });
+      sendJSON(res, 200, page);
+      return;
+    }
+
     if (p.startsWith('/api/session/')) {
       const sessionId = decodeURIComponent(p.slice('/api/session/'.length));
       if (req.method === 'DELETE') {
         // 删除会话（重置该课程的对话/进度/记忆）
-        agent.removeSession(sessionId);
+        await agent.withSessionLock(sessionId, () => agent.removeSession(sessionId));
         logger.info('session_delete', `删除会话: ${sessionId}`);
         sendJSON(res, 200, { ok: true, sessionId });
         return;
@@ -632,18 +688,12 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
         sendJSON(res, 200, { ok: true, config: r.config, runtime: llm.runtimeInfo() });
         return;
       }
-      if (p === '/api/llm/skip' && req.method === 'POST') {
-        // 用户选"先用离线演示"：记录标记，之后不再弹配置引导
-        const r = llmConfig.skipSetup();
-        sendJSON(res, r.ok ? 200 : 400, r);
-        return;
-      }
       sendJSON(res, 404, { error: '未知的配置接口' });
       return;
     }
 
     // ---- 联网检索配置 ----
-    // Tavily key 与 LLM key 一样只允许本机页面读写；明文永不回传。
+    // Read-only capability state: search reuses the selected model and key.
     if (p.startsWith('/api/web/')) {
       if (!canManageSecrets(req)) {
         logger.warn('web_config', `拒绝非本机来源的联网配置请求: ${req.socket.remoteAddress}`);
@@ -652,19 +702,6 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       }
       if (p === '/api/web/config' && req.method === 'GET') {
         sendJSON(res, 200, { ok: true, config: webConfig.getConfig() });
-        return;
-      }
-      if (p === '/api/web/config' && req.method === 'POST') {
-        const body = await readBody(req);
-        const result = webConfig.saveConfig({
-          enabled: body.enabled === true,
-          apiKey: body.apiKey === undefined ? undefined : body.apiKey,
-        });
-        if (!result.ok) { sendJSON(res, 400, result); return; }
-        // Recreate MCP children so a newly saved key is available immediately.
-        const mcpResult = await mcp.start({ force: true });
-        logger.info('web_config', `联网检索已${result.config.enabled ? '开启' : '关闭'}，Tavily MCP ${mcpResult.filter((item) => item.ok).length}/${mcpResult.length} 就绪`);
-        sendJSON(res, 200, { ...result, mcp: mcp.summary() });
         return;
       }
       sendJSON(res, 404, { error: '未知的联网配置接口' });
@@ -723,8 +760,15 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       const kpId = String(body.kpId || '');
       const problemId = String(body.problemId || '');
       const code = String(body.code || '');
-      const result = await grader.gradeSubmission(kpId, problemId, code);
-      if (body.sessionId && !result.error) result.record = agent.recordCodingGrade(String(body.sessionId), kpId, problemId, result);
+      const gradeAndRecord = async () => {
+        const result = await grader.gradeSubmission(kpId, problemId, code);
+        if (body.sessionId && !result.error) {
+          result.record = agent.recordCodingGrade(String(body.sessionId), kpId, problemId, result, String(body.requestId || ''), crypto.createHash('sha256').update(code).digest('hex'));
+          if (!result.record.ok) result.error = result.record.error || '作答保存失败，请重试';
+        }
+        return result;
+      };
+      const result = body.sessionId ? await agent.withSessionLock(String(body.sessionId), gradeAndRecord) : await gradeAndRecord();
       logger.info('coding_submit', `提交 ${problemId} | ${result.error ? result.error : `通过 ${result.passed}/${result.total}`}`);
       sendJSON(res, 200, result);
       return;
@@ -734,7 +778,7 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       // 做题区判分结果回写主会话学习状态（choice/coding → learning.kps.quizHistory + 卡点）
       const body = await readBody(req);
       const sessionId = String(body.sessionId || '');
-      const r = agent.recordPracticeAnswer(sessionId, body);
+      const r = await agent.withSessionLock(sessionId, () => agent.recordPracticeAnswer(sessionId, body));
       if (!r.ok) { sendJSON(res, 400, { error: r.error }); return; }
       logger.info('coding_record', `[${sessionId}] 做题记录 ${body.kind || 'choice'} 写入 kp=${body.kpId} correct=${r.correct}`);
       sendJSON(res, 200, r);
@@ -752,7 +796,7 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       // 按 id 删除错题记录（同时清掉该题沉淀的卡点）
       const body = await readBody(req);
       const sessionId = String(body.sessionId || 'default');
-      const r = agent.deleteMistakes(sessionId, body.ids || []);
+      const r = await agent.withSessionLock(sessionId, () => agent.deleteMistakes(sessionId, body.ids || []));
       if (!r.ok) { sendJSON(res, 400, r); return; }
       logger.info('mistake_delete', `[${sessionId}] 删除错题 ${r.removed} 条`);
       sendJSON(res, 200, r);
@@ -768,10 +812,13 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
     if (p === '/api/exam/start' && req.method === 'POST') {
       const body = await readBody(req);
       const sessionId = String(body.sessionId || 'default');
-      const s = agent.getSession(sessionId);
-      const r = exam.startExam(s);
+      const r = await agent.withSessionLock(sessionId, () => {
+        const s = agent.getSession(sessionId);
+        const result = exam.startExam(s);
+        if (!result.error) sessionStore.save(s);
+        return result;
+      });
       if (r.error) { sendJSON(res, 400, r); return; }
-      sessionStore.save(s);
       logger.info('exam_start', `[${sessionId}] 期末大实践开考：${r.paper.choice.length} 选择题 + ${r.paper.coding.length} 编程题`);
       sendJSON(res, 200, r);
       return;
@@ -779,19 +826,26 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
     if (p === '/api/exam/leave' && req.method === 'POST') {
       // 闭卷约束：离开答题页仅记录次数（不直接作废，避免误伤切屏看时间）
       const body = await readBody(req);
-      const s = agent.getSession(String(body.sessionId || 'default'));
-      const r = exam.noteLeave(s);
-      sessionStore.save(s);
+      const sessionId = String(body.sessionId || 'default');
+      const r = await agent.withSessionLock(sessionId, () => {
+        const s = agent.getSession(sessionId);
+        const result = exam.noteLeave(s);
+        sessionStore.save(s);
+        return result;
+      });
       sendJSON(res, 200, r);
       return;
     }
     if (p === '/api/exam/submit' && req.method === 'POST') {
       const body = await readBody(req);
       const sessionId = String(body.sessionId || 'default');
-      const s = agent.getSession(sessionId);
-      const r = await exam.submitExam(s, { attemptId: body.attemptId, answers: body.answers, code: body.code });
+      const r = await agent.withSessionLock(sessionId, async () => {
+        const s = agent.getSession(sessionId);
+        const result = await exam.submitExam(s, { attemptId: body.attemptId, answers: body.answers, code: body.code });
+        if (!result.error) sessionStore.save(s);
+        return result;
+      });
       if (r.error) { sendJSON(res, 400, r); return; }
-      sessionStore.save(s);
       logger.info('exam_submit', `[${sessionId}] 期末大实践交卷：得分 ${r.attempt.score}（通过=${r.passed}）离开 ${r.attempt.leftCount} 次`);
       sendJSON(res, 200, r);
       return;
@@ -800,7 +854,7 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
     // 静态资源
     serveStatic(req, res, p);
   } catch (e) {
-    if (!res.destroyed && !res.headersSent) sendJSON(res, e.status || 500, { error: e.message });
+    if (!res.destroyed && !res.headersSent) sendJSON(res, e.status || 500, { error: e.message, ...(e.code ? { code: e.code } : {}) });
   } finally {
     activeRequests--;
   }

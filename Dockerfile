@@ -34,7 +34,9 @@ RUN /opt/eduowl-venv/bin/pip install --no-cache-dir -r requirements-docker.txt
 
 COPY server ./server
 COPY public ./public
-COPY data ./data
+COPY data/kb/index.json data/kb/questions.json ./data/kb/
+COPY data/kb/books/python-intro ./data/kb/books/python-intro
+COPY data/kb/chunks/python-intro ./data/kb/chunks/python-intro
 COPY mcp.servers.json ./mcp.servers.json
 
 RUN mkdir -p /app/data /app/data/logs /app/data/courses /app/data/trash \

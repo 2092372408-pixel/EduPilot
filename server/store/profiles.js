@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const FILE = path.join(__dirname, '..', '..', 'data', 'profiles.json');
+const FILE = process.env.EDUOWL_PROFILE_FILE || path.join(__dirname, '..', '..', 'data', 'profiles.json');
 const AVATARS = new Set(['edupilot']);
 
 let cache = null; // { uid: { nickname, avatar, updatedAt } }

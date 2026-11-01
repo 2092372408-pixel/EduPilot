@@ -95,9 +95,9 @@ function renderMarkdown(text) {
       continue;
     }
 
-    // 3) 标题 ## / ### / ####（h3~h5，避免与页面 h1/h2 冲突）
-    const h = line.match(/^(#{2,4})\s+(.+)$/);
-    if (h) { out.push(`<h${h[1].length + 1}>${inlineMarkdown(h[2])}</h${h[1].length + 1}>`); i++; continue; }
+    // 3) 标题 #~######（h3~h6，避免与页面 h1/h2 冲突）
+    const h = line.match(/^(#{1,6})\s+(.+)$/);
+    if (h) { const level = Math.min(6, Math.max(3, h[1].length + 1)); out.push(`<h${level}>${inlineMarkdown(h[2])}</h${level}>`); i++; continue; }
 
     // 4) 列表：**整块**收集后渲染成一个 ol/ul
     //    根因（曾导致"序号全是 1"）：旧实现只合并「连续且同标记」的行，一旦遇到

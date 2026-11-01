@@ -5,7 +5,7 @@
     {
       element: '#courseSelect', sidebar: true,
       title: '先选择一门课程',
-      text: '这里切换课程。推荐先体验内置 Python 演示课，无需 API Key；每门课分别保存对话和进度。',
+      text: '这里切换课程。接入模型后可学习内置 Python 课程，也能上传自己的教材。每门课分别保存对话和学习进度。',
     },
     {
       element: () => document.querySelector('#chapterList .kp-item') || $('courseSelect'), sidebar: true,
@@ -15,7 +15,7 @@
     {
       element: '#journeySteps', sidebar: true,
       title: '按三个阶段逐步学习',
-      text: '先做预习自测，再看讲解并完成随堂检测，最后通过复习检测，知识点才会标为已验证掌握。',
+      text: '先预习了解内容，再看讲解并完成随堂检测，最后通过复习检测，知识点才会标为已验证掌握。预习自测可自愿选择。',
     },
     {
       element: '#input', sidebar: false,
@@ -30,7 +30,7 @@
     {
       element: '#settingsBtn', sidebar: false,
       title: '模型、语言和字号都在设置里',
-      text: '打开设置，在“LLM 模型”中配置供应商和密钥。教材生成与审核会使用模型额度；内置演示课和本教程无需付费调用。',
+      text: '开始学习前，请在“AI 模型”中配置供应商、模型和 API Key。AI 对话、教材生成与审核会使用模型额度；浏览已有记录和本教程不会调用模型。',
       action: '打开模型配置', target: 'llmChip',
     },
     {

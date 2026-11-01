@@ -35,7 +35,10 @@ function secureWindow(window) {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);
   });
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (ownsURL(url)) return { action: 'allow', overrideBrowserWindowOptions: { width: 1200, height: 850, webPreferences: preferences } };
+    if (ownsURL(url)) {
+      window.webContents.executeJavaScript(`window.EduNavigation?.navigate(${JSON.stringify(url)})`).catch(() => {});
+      return { action: 'deny' };
+    }
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });

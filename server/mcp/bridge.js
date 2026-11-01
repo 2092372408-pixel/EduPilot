@@ -22,7 +22,7 @@ const nameOf = (server, tool) => `${PREFIX}${server}__${tool}`;
 // All outbound web tools are hidden when a request is marked off. This
 // includes page extraction, which is network access even though its name does
 // not contain "search".
-const SEARCH_TOOL_RE = /search|research|extract|fetch_page|crawl|map/i;
+const SEARCH_TOOL_RE = /search|research|extract|fetch|crawl|map|browse|read_url|open_url|visit|http/i;
 const isSearchTool = (toolName) => SEARCH_TOOL_RE.test(toolName);
 
 /** JSON Schema → 紧凑 args 说明（legacy ReAct 提示词用，LangGraph 走 parameters 原样透传） */
@@ -79,20 +79,9 @@ function buildTool(conn, def) {
     args: argsHint(def.inputSchema),
     parameters: def.inputSchema && def.inputSchema.type ? def.inputSchema : { type: 'object', properties: {} },
     async run(input) {
-      // 课程边界闸门（硬拦截）：检索类工具只在本轮"允许联网"时执行。
-      // 提示词只是软约束，模型仍可能自作主张调用；这里做最后一道防线，
-      // 由 core 每轮通过 scope.runWithWebScope 声明是否允许（AsyncLocalStorage）。
+      // 网络访问只通过本轮原生搜索，旧的 MCP 工具名不能绕过前端开关。
       if (isSearchTool(def.name)) {
-        try {
-          const scope = require('../agent/scope');
-          if (!scope.isWebAllowedNow()) {
-            return {
-              error: '本次未获准联网检索：该问题与当前课程/编程学习无关，或学生选择了不联网',
-              tool: name,
-              hint: '不要重试该工具；请如实说明"这个问题和课程无关/本次不联网"，并把话题引导回本课程的学习内容',
-            };
-          }
-        } catch (_) { /* 闸门不可用时保持既有行为 */ }
+        return { error: '互联网检索由当前模型的原生联网统一执行，不调用额外 MCP 网络工具。', tool: name };
       }
       const call = await manager.call(server, def.name, input || {});
       if (!call.ok) {
@@ -128,7 +117,6 @@ function allTools(opts = {}) {
  * @param {object} [opts] { webMode } —— webMode==='off' 时隐藏检索类工具（学生选择本次不联网）
  */
 function toolsForAgent(agentId, opts = {}) {
-  const webOff = opts.webMode === 'off';
   const conf = config.load();
   const out = {};
   for (const conn of manager.readyConns()) {
@@ -137,7 +125,7 @@ function toolsForAgent(agentId, opts = {}) {
     if (!(serverCfg.agents.includes('*') || serverCfg.agents.includes(agentId))) continue;
     for (const def of conn.tools) {
       if (!config.toolEnabled(serverCfg, def.name)) continue;
-      if (webOff && isSearchTool(def.name)) continue; // 不联网：检索类工具对本轮不可见
+      if (isSearchTool(def.name)) continue; // 互联网访问统一由原生搜索预取执行。
       out[nameOf(conn.cfg.name, def.name)] = buildTool(conn, def);
     }
   }

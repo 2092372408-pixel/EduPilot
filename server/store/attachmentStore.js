@@ -56,7 +56,7 @@ function init() {
 function scopeOf(sessionId) {
   const value = String(sessionId || 'default');
   const at = value.lastIndexOf('@');
-  return at > 0 ? { uid: value.slice(0, at), courseId: value.slice(at + 1) } : { uid: value, courseId: 'python-intro' };
+  return at > 0 ? { uid: value.slice(0, at), courseId: value.slice(at + 1).split('~')[0] } : { uid: value, courseId: 'python-intro' };
 }
 
 function safeName(name) {

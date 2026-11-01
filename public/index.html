@@ -8,7 +8,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title data-ui="EduPilot · 教育智能体">EduPilot · 教育智能体</title>
 <link rel="stylesheet" href="/vendor/driver-1.9.0/driver.css" />
-<link rel="stylesheet" href="/style.css?v=47" />
+<link rel="stylesheet" href="/style.css?v=49" />
 <link rel="icon" type="image/png" href="/favicon.png" />
 <link rel="apple-touch-icon" href="/logo-mark.png" />
 </head>
@@ -24,22 +24,10 @@
         <p class="sub" data-i18n="subTitle">教育智能体 · 预习 · 学习 · 复习</p>
         </div>
       </div>
+    <div class="workspace-heading"><span data-ui="学习空间">学习空间</span><span class="workspace-divider" aria-hidden="true">/</span><span id="workspaceTitle" data-ui="学习对话">学习对话</span></div>
     <div class="top-right">
       <!-- 学习功能区 -->
-      <div class="tb-group">
-        <a id="codingLink" class="tb-btn" href="/coding.html" target="_blank" rel="noopener" title="编程实践：写代码 + 试运行 + 提交判分" data-ui-title="编程实践：写代码 + 试运行 + 提交判分">
-          <svg class="icon" aria-hidden="true"><use href="/icons.svg#code"></use></svg>
-          <span data-i18n="codeBtn">代码实践</span>
-        </a>
-        <a id="choiceLink" class="tb-btn" href="/choice.html" target="_blank" rel="noopener" title="选择题练习" data-ui-title="选择题练习">
-          <svg class="icon" aria-hidden="true"><use href="/icons.svg#checklist"></use></svg>
-          <span data-i18n="quizBtn">选择题</span>
-        </a>
-        <a id="reportLink" class="tb-btn" href="/report.html" target="_blank" rel="noopener" title="学习报告：学习旅程 / 复习清单 / 错题本" data-ui-title="学习报告：学习旅程 / 复习清单 / 错题本">
-          <svg class="icon" aria-hidden="true"><use href="/icons.svg#chart"></use></svg>
-          <span data-i18n="reportBtn">报告</span>
-        </a>
-      </div>
+
       <span class="tb-sep" aria-hidden="true"></span>
       
       <!-- 身份 -->
@@ -60,18 +48,37 @@
   <div class="main">
     <!-- ===== 左栏：课程大纲与进度 ===== -->
     <aside class="sidebar" id="courseSidebar" aria-label="课程与学习进度" aria-hidden="false" data-ui-aria-label="课程与学习进度">
+      <nav class="tb-group workspace-nav" aria-label="学习工具" data-ui-aria-label="学习工具">
+        <a id="chatLink" class="tb-btn" href="/" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chat"></use></svg><span data-ui="学习对话">学习对话</span></a>
+        <a id="codingLink" class="tb-btn" href="/coding.html" title="编程实践：写代码 + 试运行 + 提交判分" data-ui-title="编程实践：写代码 + 试运行 + 提交判分">
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg#code"></use></svg>
+          <span data-i18n="codeBtn">代码实践</span>
+        </a>
+        <a id="choiceLink" class="tb-btn" href="/choice.html" title="选择题练习" data-ui-title="选择题练习">
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg#checklist"></use></svg>
+          <span data-i18n="quizBtn">选择题</span>
+        </a>
+        <a id="reportLink" class="tb-btn" href="/report.html" title="学习报告：学习旅程 / 复习清单 / 错题本" data-ui-title="学习报告：学习旅程 / 复习清单 / 错题本">
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg#chart"></use></svg>
+          <span data-i18n="reportBtn">报告</span>
+        </a>
+      </nav>
       <div class="side-head">
         <div class="course-switch">
           <select id="courseSelect" title="切换课程" aria-label="切换课程" data-ui-title="切换课程" data-ui-aria-label="切换课程"></select>
           <button id="addCourseBtn" class="btn-ghost small" title="进入独立上传页：可一次选择多个文件，创建新课程或追加到已有课程" data-ui-title="进入独立上传页：可一次选择多个文件，创建新课程或追加到已有课程"><svg class="icon" aria-hidden="true"><use href="/icons.svg#upload"></use></svg><span data-ui="上传">上传</span></button>
         </div>
         <h2 id="courseTitle" data-ui="课程">课程</h2>
+        <details class="course-manage">
+          <summary data-ui="管理课程">管理课程</summary>
         <div class="course-tools">
-          <button id="renameCourseBtn" class="btn-ghost small" disabled title="修改本课程名称（仅用户上传的课程可改名）" data-ui-title="修改本课程名称（仅用户上传的课程可改名）"><svg class="icon" aria-hidden="true"><use href="/icons.svg#edit"></use></svg><span class="sr-only" data-i18n="renameBtn">改名</span></button>
-          <button id="deleteCourseBtn" class="btn-ghost small" disabled title="删除本课程（不可恢复）" data-ui-title="删除本课程（不可恢复）"><svg class="icon" aria-hidden="true"><use href="/icons.svg#trash"></use></svg><span class="sr-only" data-i18n="deleteBtn">删除</span></button>
+          <button id="renameCourseBtn" class="btn-ghost small" disabled title="修改本课程名称（仅用户上传的课程可改名）" data-ui-title="修改本课程名称（仅用户上传的课程可改名）"><svg class="icon" aria-hidden="true"><use href="/icons.svg#edit"></use></svg><span data-i18n="renameBtn">改名</span></button>
+          <button id="deleteCourseBtn" class="btn-ghost small" disabled title="删除本课程（不可恢复）" data-ui-title="删除本课程（不可恢复）"><svg class="icon" aria-hidden="true"><use href="/icons.svg#trash"></use></svg><span data-i18n="deleteBtn">删除</span></button>
         </div>
+        </details>
         <!-- 学习旅程：预习（抛砖引玉）→ 学习（教授知识）→ 复习（巩固知识）
              三阶段是"教师角色"，不做百分比折算；高亮学生此刻所处的这一步 -->
+        <details class="course-progress" id="courseProgress"><summary data-ui="学习进度">学习进度</summary>
         <div class="overall" id="overallBox">
           <div class="journey">
             <div class="journey-steps" id="journeySteps">
@@ -86,6 +93,7 @@
             <small id="overallCounts"></small>
           </div>
         </div>
+        </details>
         <div id="dueBar" class="due-bar hidden" title="到期复习的知识点（艾宾浩斯间隔 1/3/7/14/30 天）" data-ui-title="到期复习的知识点（艾宾浩斯间隔 1/3/7/14/30 天）">
           <span id="dueText" data-ui="🔁 待复习 0">🔁 待复习 0</span>
           <button id="dueReviewBtn" class="btn-primary tiny" data-ui="开始复习">开始复习</button>
@@ -100,7 +108,18 @@
           <span class="exam-entry-sub" id="mistakeSub" data-ui="答错的题会自动收进来">答错的题会自动收进来</span>
         </button>
       </div>
-      <div class="chapter-list" id="chapterList"></div>
+      <div class="sidebar-content">
+        <h3 class="sidebar-section-title" data-ui="课程目录">课程目录</h3>
+        <div class="chapter-list" id="chapterList"></div>
+        <button id="newConversationBtn" class="btn-ghost small conversation-new-action" type="button" data-ui="新对话" data-ui-title="保留学习进度与长期记忆，开始新的对话" title="保留学习进度与长期记忆，开始新的对话">新对话</button>
+        <details id="conversationHistory" class="conversation-history">
+          <summary><span data-ui="历史对话">历史对话</span><span id="conversationCount" class="conversation-count"></span></summary>
+          <div class="conversation-history-body">
+            <p class="conversation-memory-note" data-ui="对话按课程分别保存；学习进度归属本课，长期记忆在所有课程间共享。">对话按课程分别保存；学习进度归属本课，长期记忆在所有课程间共享。</p>
+            <nav id="conversationList" class="conversation-list" aria-label="历史对话" data-ui-aria-label="历史对话"></nav>
+          </div>
+        </details>
+      </div>
       <div class="side-foot" id="sideFoot">
         <p data-ui="点击知识点可让学伴讲解">点击知识点可让学伴讲解</p>
       </div>
@@ -116,10 +135,16 @@
     <!-- ===== 右栏：对话区 ===== -->
     <main class="chat-panel">
       <div class="chat-head">
+        <strong data-ui="当前课程">当前课程</strong>
         <div class="now-learning">
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#book"></use></svg>
-          <span id="nowLabel" data-ui="选择一门课，开始你的学习之旅">选择一门课，开始你的学习之旅</span>
+          <span id="nowLabel" data-ui="选择一门课程开始">选择一门课程开始</span>
         </div>
+      </div>
+
+      <div id="modelSetupNotice" class="model-setup-notice" role="status">
+        <div><strong data-ui="接入模型后开始学习">接入模型后开始学习</strong><p data-ui="请先配置模型供应商、模型和 API Key。已有对话与学习记录仍可查看。">请先配置模型供应商、模型和 API Key。已有对话与学习记录仍可查看。</p></div>
+        <button id="modelSetupBtn" class="btn-primary" type="button" data-ui="配置模型">配置模型</button>
       </div>
 
       <div class="messages" id="messages" role="log" aria-label="学习对话" aria-live="polite" aria-relevant="additions" aria-busy="false" data-ui-aria-label="学习对话"></div>
@@ -150,15 +175,23 @@
             <span class="web-txt" data-ui="联网">联网</span>
           </button>
           <button type="button" id="attachmentBtn" class="web-btn attachment-btn" title="添加图片或文件" data-ui-title="添加图片或文件">
-            <span aria-hidden="true">📎</span><span class="web-txt" data-ui="附件">附件</span>
+            <svg class="icon" aria-hidden="true"><use href="/icons.svg#attach"></use></svg><span class="web-txt" data-ui="附件">附件</span>
           </button>
           <span class="composer-spacer"></span>
-          <button id="sendBtn" class="btn-primary send-btn" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#arrow-up"></use></svg><span id="sendLabel" class="sr-only" data-i18n="sendBtn">发送</span></button>
+          <button type="button" id="composerModelBtn" class="composer-model" title="配置 AI 模型" data-ui-title="配置 AI 模型"><span id="composerModelLabel" data-ui="选择模型">选择模型</span><span aria-hidden="true">⌄</span></button>
+          <button id="sendBtn" class="btn-primary send-btn" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#arrow-up"></use></svg><span id="sendLabel" data-i18n="sendBtn">发送</span></button>
         </div>
       </div>
       <div class="input-hint" id="inputHint"><span data-ui="Enter 发送 · Shift + Enter 换行">Enter 发送 · Shift + Enter 换行</span><span id="sendStatus" role="status" aria-live="polite" data-ui="随时提问，按你的节奏学习">随时提问，按你的节奏学习</span></div>
       <p class="ai-disclaimer" data-ui="内容为AI生成，AI有可能犯错">内容为AI生成，AI有可能犯错</p>
     </main>
+  <section id="featureHost" class="feature-host" hidden aria-label="学习功能" data-ui-aria-label="学习功能">
+    <div class="feature-toolbar">
+      <button id="featureBackBtn" class="btn-ghost" type="button" data-ui="返回对话">返回对话</button>
+      <h2 id="featureTitle"></h2>
+    </div>
+    <div id="featureFrames" class="feature-frames"></div>
+  </section>
   </div>
 </div>
 
@@ -214,7 +247,7 @@
   <div class="llm-card" role="dialog" aria-modal="true" aria-labelledby="llmTitle">
     <button id="llmCloseBtn" class="btn-ghost profile-close" aria-label="关闭配置" data-ui-aria-label="关闭配置">✕</button>
     <h2 id="llmTitle" data-ui="配置大模型">配置大模型</h2>
-    <p class="llm-sub" id="llmSub"><span data-ui="填入你自己的 API Key，EduPilot 就能用真实大模型讲课与出题。密钥只保存在本机">填入你自己的 API Key，EduPilot 就能用真实大模型讲课与出题。密钥只保存在本机 </span><code>.env</code><span data-ui="，不会上传。">，不会上传。</span></p>
+    <p class="llm-sub" id="llmSub"><span data-ui="开始使用前，请配置模型供应商和你自己的 API Key。密钥保存在本机，仅随请求发送到你配置的模型服务。">开始使用前，请配置模型供应商和你自己的 API Key。密钥保存在本机，仅随请求发送到你配置的模型服务。</span></p>
 
     <label class="llm-label" for="llmProvider" data-ui="① 选择模型供应商">① 选择模型供应商</label>
     <select id="llmProvider" class="llm-input"></select>
@@ -251,22 +284,40 @@
       <button id="llmVisionTestBtn" class="btn-ghost" type="button" data-ui="测试图片能力">测试图片能力</button>
       <button id="llmSaveBtn" class="btn-primary" type="button" data-ui="保存并启用">保存并启用</button>
     </div>
-    <button id="llmSkipBtn" class="btn-ghost welcome-skip" type="button" data-ui="先用离线演示模式（之后可随时配置）">先用离线演示模式（之后可随时配置）</button>
   </div>
 </div>
 
 <!-- ===== 设置向导 ===== -->
 <div id="settingsOverlay" class="overlay hidden">
-  <div class="llm-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-    <button id="settingsCloseBtn" class="btn-ghost profile-close" aria-label="Close">✕</button>
-    <h2 id="settingsTitle" data-i18n="settingsTitle">全局设置</h2>
-    
-    <label class="llm-label" data-i18n="fontSize">字体大小</label>
-    <select id="fontSizeSelect" class="llm-input">
-      <option value="small" data-i18n="fontSmall">小 (Small)</option>
-      <option value="medium" selected data-i18n="fontMedium">中等 (Medium)</option>
-      <option value="large" data-i18n="fontLarge">大 (Large)</option>
-    </select>
+  <div class="llm-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <button id="settingsCloseBtn" class="btn-ghost profile-close" aria-label="关闭设置" data-ui-aria-label="关闭设置">✕</button>
+    <header class="settings-header">
+      <h2 id="settingsTitle" data-i18n="settingsTitle">全局设置</h2>
+      <p class="llm-note" data-ui="语言和字号即时生效；联网使用当前模型配置。">语言和字号即时生效；联网使用当前模型配置。</p>
+    </header>
+
+    <div class="settings-appearance">
+      <div class="settings-field">
+        <span class="llm-label" id="languageLabel" data-ui="界面语言">界面语言</span>
+        <div class="language-options" role="group" aria-labelledby="languageLabel">
+          <button type="button" data-language="zh" lang="zh-CN" aria-pressed="true">简体中文</button>
+          <button type="button" data-language="en" lang="en" aria-pressed="false">English</button>
+        </div>
+      </div>
+      <div class="settings-field">
+        <label class="llm-label" for="fontSizeSelect" data-i18n="fontSize">字体大小</label>
+        <select id="fontSizeSelect" class="llm-input">
+          <option value="small" data-i18n="fontSmall">小</option>
+          <option value="medium" selected data-i18n="fontMedium">中等</option>
+          <option value="large" data-i18n="fontLarge">大</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="settings-section settings-section-head">
+      <div><h3 class="llm-label" data-ui="我的称呼">我的称呼</h3><p id="settingsProfileName" class="llm-note"></p></div>
+      <button id="settingsProfileBtn" class="btn-ghost" type="button" data-ui="编辑昵称">编辑昵称</button>
+    </div>
 
     <div class="settings-section">
       <div class="settings-section-head">
@@ -274,58 +325,35 @@
           <h3 class="llm-label" data-i18n="llmSettingsTitle">LLM 模型</h3>
           <p class="llm-note" id="llmSettingsSummary"></p>
         </div>
-        <button id="llmChip" class="btn-primary" type="button" data-ui="配置供应商与密钥">配置供应商与密钥</button>
+        <button id="llmChip" class="btn-ghost" type="button" data-ui="配置供应商与密钥">配置供应商与密钥</button>
       </div>
-      <p class="llm-note" data-i18n="llmSettingsSub">选择具体供应商，使用该供应商申请的 API Key。Tavily 密钥请在下方单独设置。</p>
+      <p class="llm-note" data-i18n="llmSettingsSub">选择供应商并填写该供应商申请的 API Key，原生联网复用同一密钥。</p>
     </div>
 
-    <div class="settings-section">
-      <div class="settings-section-head">
-        <div>
-          <label class="llm-label" for="webEnabled" data-i18n="webSettingsTitle">联网搜索</label>
-          <p class="llm-note" data-i18n="webSettingsSub">开启后，学习对话可以按需检索最新网页内容。</p>
-        </div>
-        <label class="switch-control">
-          <input id="webEnabled" type="checkbox" />
-          <span class="switch-track" aria-hidden="true"></span>
-          <span class="sr-only" data-i18n="webSettingsToggle">允许联网搜索</span>
-        </label>
-      </div>
-      <label class="llm-label" for="webApiKey" data-i18n="webApiKeyLabel">Tavily API key</label>
-      <div class="llm-keyrow">
-        <input id="webApiKey" class="llm-input" type="password" spellcheck="false" autocomplete="off" placeholder="粘贴你的 Tavily API Key" data-ui-placeholder="粘贴你的 Tavily API Key" />
-        <button id="webKeyToggle" class="btn-ghost small" type="button" data-ui="显示" data-ui-title="显示或隐藏密钥" data-ui-aria-label="显示或隐藏密钥">显示</button>
-      </div>
-      <p class="llm-note" id="webKeyHint"></p>
-      <p class="settings-links">
-        <span data-i18n="apiKeyLinks">申请 API key：</span>
-        <a href="https://app.tavily.com/home" target="_blank" rel="noopener" data-ui="注册 Tavily 并创建密钥 ↗">注册 Tavily 并创建密钥 ↗</a>
-      </p>
+    <details class="settings-section settings-optional">
+      <summary data-ui="联网搜索（可选）">联网搜索（可选）</summary>
+      <div class="settings-section-body">
+      <p class="llm-note" data-i18n="webSettingsSub">输入框旁的联网开关控制本轮是否调用当前模型的原生搜索，无需另配搜索密钥。</p>
+      <p class="llm-note" id="webNativeHint"></p>
       <div id="webStatus" class="llm-status hidden"></div>
-      <div class="llm-actions">
-        <button id="webSaveBtn" class="btn-primary" type="button" data-ui="保存联网设置">保存联网设置</button>
       </div>
-    </div>
+    </details>
 
-    
+    <details class="settings-section settings-danger">
+      <summary data-ui="当前课程数据">当前课程数据</summary>
+      <div class="settings-section-body">
+      <p class="llm-note" data-ui="重置会删除当前课程的全部对话、进度和课程记忆，不影响其他课程。">重置会删除当前课程的全部对话、进度和课程记忆，不影响其他课程。</p>
       <div class="field-row">
         <label class="llm-label" data-i18n="resetBtn">重置本课</label>
-        <button id="resetBtn" class="tb-btn tb-danger" style="margin:0;" title="清空当前课程的对话与学习进度" data-ui-title="清空当前课程的对话与学习进度">
+        <button id="resetBtn" class="tb-btn tb-danger" title="清空当前课程的对话与学习进度" data-ui-title="清空当前课程的对话与学习进度">
           <span data-i18n="resetBtn">重置本课</span>
         </button>
       </div>
-      <div class="field-row">
-        <label class="llm-label" data-i18n="language">语言 (Language)</label>
-        <button type="button" class="lang-switch" onclick="toggleLanguage()" title="Toggle Language" aria-label="Switch language">
-          <span class="lang-text zh" data-ui="中">中</span>
-          <span class="lang-text en">EN</span>
-          <span class="lang-slider"></span>
-        </button>
       </div>
+    </details>
 
-    
-    <div class="llm-actions">
-      <button id="settingsSaveBtn" class="btn-primary" type="button" data-ui="保存偏好">保存偏好</button>
+    <div class="llm-actions settings-footer">
+      <button id="settingsSaveBtn" class="btn-primary" type="button" data-ui="完成">完成</button>
     </div>
   </div>
 </div>
@@ -335,7 +363,8 @@
 <script src="/practice-card.js?v=45"></script>
 <script src="/vendor/driver-1.9.0/driver.js"></script>
 <script src="/onboarding.js?v=2"></script>
-<script src="/app.js?v=48"></script>
+<script src="/app.js?v=49"></script>
+<script src="/app-navigation.js?v=2"></script>
 
 </body>
 </html>

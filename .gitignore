@@ -11,6 +11,7 @@ desktop/app/logo.png
 
 # 动态课程运行时产物（上传素材建课，不入库）
 data/courses/
+data/attachments/
 data/kb/books/user-*/
 data/kb/chunks/user-*/
 data/kb/.tmp/
@@ -102,3 +103,4 @@ docs/screenshots/home-mobile.png
 !/docs/releases/v1.1.4.md
 !/docs/releases/v1.1.5.md
 !/docs/releases/v1.1.6.md
+!/docs/releases/v1.2.0.md

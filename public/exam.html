@@ -4,10 +4,12 @@
   <script src="ui-en.js"></script>
   <script src="i18n.js"></script>
   <script src="settings.js"></script>
+  <script src="/app-navigation.js?v=2" defer></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title data-ui="期末大实践 · EduPilot">期末大实践 · EduPilot</title>
 <style>
+  body.app-embedded .exam-bar h1, body.app-embedded .exam-bar #backHome { display: none; }
   :root { --primary:#6155d9; --text:#22212a; --text-2:#6b6a75; --line:#e6e4ee; --danger:#c0392b; }
   * { box-sizing: border-box; }
   body { margin:0; font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif; color:var(--text); background:#f6f5fa; }
@@ -295,6 +297,11 @@ window.addEventListener('beforeunload', (e) => {
 });
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && paper && !submitted) {
+    eduFetch('/api/exam/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: SID }) }).catch(() => {});
+  }
+});
+window.addEventListener('edu:activate', event => {
+  if (!event.detail.active && event.detail.visibilityChanged && paper && !submitted) {
     eduFetch('/api/exam/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: SID }) }).catch(() => {});
   }
 });
