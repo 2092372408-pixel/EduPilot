@@ -145,6 +145,11 @@ function toolsForAgent(agentId, dynamic = false, opts = {}) {
   } catch (e) {
     console.warn('[mcp] 工具合入失败（已忽略，不影响内置工具）:', e.message);
   }
+  if (opts.excludeTextbook) {
+    delete result.search_knowledge_base;
+    delete result.get_knowledge_point;
+    delete result.read_material_image;
+  }
   return result;
 }
 

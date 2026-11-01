@@ -217,27 +217,30 @@ const tools = {
       if (isDynamicCtx(ctx)) {
         const dyn = courseRegistry.getDynamicCourse(ctx.courseId);
         const lesson = dyn?.lessons?.[input.kpId];
+        const kb = kbSearch.loadKB(ctx.courseId);
+        const chunks = (kb?.chunks || []).filter(c => c.kpId === input.kpId);
+        let remaining = 12000;
+        const sourceResults = chunks.map(c => {
+          if (remaining <= 0) return null;
+          const content = sanitizeUntrusted(String(c.content || ''), remaining);
+          remaining -= content.length;
+          return { ...c, courseId: ctx.courseId, indexVersion: kb.version ?? dyn?.indexVersion ?? null,
+            content, source: `《${c.docId}》·${c.chapter}` };
+        }).filter(Boolean);
+        const original = { sourceExcerpts: sourceResults.map(e => e.content), sourceResults, truncated: remaining <= 0 };
         if (!lesson) {
           const view = dyn && courseRegistry.dynamicCourseView(dyn);
           const chapter = view?.chapters.find(ch => ch.knowledgePoints.some(kp => kp.id === input.kpId));
           const point = chapter?.knowledgePoints.find(kp => kp.id === input.kpId);
           if (!point) return { error: '未找到该知识点', kpId: input.kpId };
-          const chunks = (kbSearch.loadKB(ctx.courseId)?.chunks || []).filter(c => c.kpId === input.kpId);
           if (!chunks.length) return { error: '该知识点没有可读取的正文', kpId: input.kpId };
-          let remaining = 12000;
-          const excerpts = chunks.map(c => {
-            if (remaining <= 0) return null;
-            const content = sanitizeUntrusted(String(c.content || ''), remaining);
-            remaining -= content.length;
-            return { chunkId: c.chunkId, content };
-          }).filter(Boolean);
-          return { kpId: input.kpId, title: point.title, chapter: chapter.title, sourceExcerpts: excerpts.map(e => e.content), sources: excerpts.map(e => ({ chunkId: e.chunkId })),
+          return { kpId: input.kpId, title: point.title, chapter: chapter.title, ...original, sources: sourceResults.map(e => ({ chunkId: e.chunkId })),
             images: chunks.flatMap(c => c.images || []),
-            truncated: remaining <= 0, note: '以下是教材原文片段而非预生成讲义；依据原文讲解，不足之处应说明。' };
+            note: '以下是教材原文片段而非预生成讲义；依据原文讲解，不足之处应说明。' };
         }
         const { title, chapter, summary, keyPoints, example, pitfalls, sources } = lesson;
         return { kpId: input.kpId, title, chapter, summary, keyPoints, example, pitfalls, sources,
-          sourceExcerpts: [...new Set((lesson.questions || []).map(q => q.evidence).filter(Boolean))] };
+          ...original };
       }
       const { kp, chapter } = findKnowledgePoint(input.kpId) || {};
       if (!kp) return { error: '未找到该知识点', kpId: input.kpId };
@@ -533,7 +536,7 @@ const tools = {
 
   search_knowledge_base: {
     name: 'search_knowledge_base',
-    description: '在教材知识库中检索相关内容（BM25+向量语义检索），返回带《教材》引用来源的片段。回答知识性问题、需要教材依据时优先使用。注意：这是查教材；教材外的实时信息用联网检索工具（MCP），知识点的固定讲解用 get_knowledge_point',
+    description: '在当前课程教材知识库中检索候选片段（BM25+向量语义检索）。返回的来源和排名只说明检索命中，不代表片段支持问题或答案；引用前必须核对原文。回答知识性问题、需要教材依据时优先使用。教材外的实时信息用联网检索工具（MCP），知识点的固定讲解用 get_knowledge_point',
     args: '{"query": "要检索的问题", "kpId": "知识点id（可选，限定范围）", "topK": "返回条数，默认3"}',
     parameters: {'type':'object','properties':{'query':{'type':'string','description':'检索问题'},'kpId':{'type':'string','description':'限定知识点（可选）'},'topK':{'type':'number','description':'返回条数，默认 3'}},'required':['query']},
     async run(input, ctx) {
@@ -566,14 +569,18 @@ const tools = {
         candidates = await kbSearch.searchHybrid(query, { topK: wide, kpId: input.kpId, courseId });
       }
       if (!candidates.length) {
-        // 空结果 = 正常查询结果（非错误）：教材无该内容，模型用自身知识讲解
-        return { count: 0, results: [], note: '本次检索未找到相关片段（正常结果，非故障）。教材限定问答请明确说明证据不足；用户允许补充时才使用通用知识，并标明不是教材依据。' };
+        // 未命中不能证明整本教材不存在答案，也不能授权模型补写教材事实。
+        return { count: 0, courseId, query, evidenceStatus: 'not_found', results: [], note: '本次检索未找到相关片段（正常结果，非故障），不等于证明教材没有答案。教材限定问答请明确说明证据不足；用户允许补充时才使用通用知识，并标明不是教材依据。' };
       }
       // RAG 重排（Reranker）：候选 > topK 时用 LLM 精排（延迟加载防循环依赖；失败自动降级为原序）
       const results = candidates.length > topK ? await rerankTopResults(query, candidates, topK) : candidates.slice(0, topK);
       // 来源片段做"不可信内容"清洗（去不可见字符 + 截断，防教材/网页类内容夹带指令）
-      const safeResults = results.map((r) => ({ ...r, content: sanitizeUntrusted(String(r.content || ''), 4000) }));
-      return { count: safeResults.length, engine: safeResults[0] ? safeResults[0].engine : null, query, queriesUsed: expanded.queries.length + (expanded.hyde ? 1 : 0), results: safeResults };
+      const safeResults = results.map((r) => {
+        const fullContent = sanitizeUntrusted(String(r.content || ''), Number.MAX_SAFE_INTEGER);
+        return { ...r, courseId, content: sanitizeUntrusted(fullContent, 4000), contentTruncated: fullContent.length > 4000 };
+      });
+      return { count: safeResults.length, courseId, evidenceStatus: 'unverified', engine: safeResults[0] ? safeResults[0].engine : null, query, queriesUsed: expanded.queries.length + (expanded.hyde ? 1 : 0), results: safeResults,
+        note: '这些是相关性检索候选，尚未核验是否支持答案。score、排序、来源标签及非空结果都不是答案证据；仅在原文直接支持具体事实时引用，不能把改写或HyDE假想内容当作教材事实。' };
     },
   },
 

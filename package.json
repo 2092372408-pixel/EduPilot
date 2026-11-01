@@ -1,6 +1,6 @@
 {
   "name": "edupilot",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "EduPilot · AI 学习向导 —— 本地优先的中文教育智能体：预习 → 学习 → 复习闭环，教材 RAG，模型原生联网检索。",
   "private": true,
   "license": "SEE LICENSE IN LICENSE",

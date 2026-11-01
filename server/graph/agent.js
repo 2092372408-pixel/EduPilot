@@ -176,7 +176,7 @@ function wrapTool(name, orig, session) {
 /** 按白名单包装工具（能力边界：Agent 只能用自己清单内的工具；动态课走受限工具集） */
 function wrapTools(session, agentId) {
   const isDynamic = courseRegistry.isDynamicCourseId(session.activeCourseId);
-  const pool = toolsForAgent(agentId, isDynamic, { webMode: session._webMode, attachmentQuestion: session._attachmentQuestion });
+  const pool = toolsForAgent(agentId, isDynamic, { webMode: session._webMode, attachmentQuestion: session._attachmentQuestion, excludeTextbook: !!session._plainChat });
   return Object.entries(pool).map(([name, orig]) => wrapTool(name, orig, session));
 }
 
@@ -200,7 +200,7 @@ function getGraphAgent(session, agentCfg) {
       const cfg = AGENTS[session._graphAgentId] || agentCfg;
       const isDynamic = courseRegistry.isDynamicCourseId(session.activeCourseId);
       const sys = practiceNote.appendToSystemPrompt(
-        buildAgentSystemPrompt(cfg, toolsForAgent(cfg.id, isDynamic, { webMode: session._webMode, attachmentQuestion: session._attachmentQuestion }), {
+        buildAgentSystemPrompt(cfg, toolsForAgent(cfg.id, isDynamic, { webMode: session._webMode, attachmentQuestion: session._attachmentQuestion, excludeTextbook: !!session._plainChat }), {
           withProtocol: false,
           webMode: session._webMode,
           webScope: session._webScope,

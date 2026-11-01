@@ -22,7 +22,7 @@ const { tools, WEB_SIGNAL, isMetaQuestion, fallbackKpId, activeQuizOf } = requir
 const scopeEngine = require('./scope'); // 课程边界闸门（联网只服务课程/编程领域）
 const { AGENTS, routeIntent, toolsForAgent } = require('./agents');
 const nativeSearch = require('./native-search');
-const groundingEngine = require('./grounding'); // 答案忠实度校验（只标注，不阻断）
+const groundingEngine = require('./grounding'); // 教材发布前核验与异步审计
 const usageEngine = require('./usage'); // token/成本核算（AsyncLocalStorage 按会话归集）
 const execution = require('./execution');
 const llm = require('./llm');
@@ -611,7 +611,8 @@ async function markDynamicLearning(session, toolCalls, opts = {}) {
     rec.lastActivity = new Date().toISOString();
     // 只升不降：已掌握（含已通过复习测验）的节不该因为"又问了一次"被降回学习中。
     // 原实现无条件覆盖 phase，导致"已掌握"与"学习中"同时出现（isMastered 仍为 true）。
-    const target = /复习|回顾/.test(opts.query || '') ? PHASES.REVIEWING : PHASES.LEARNING;
+    const target = opts.intent === 'preview' ? PHASES.PREVIEW
+      : opts.intent === 'review' || /复习|回顾/.test(opts.query || '') ? PHASES.REVIEWING : PHASES.LEARNING;
     if ((DYNAMIC_PHASE_ORDER[rec.phase] || 0) < (DYNAMIC_PHASE_ORDER[target] || 0)) rec.phase = target;
   }
   if (touched.size) {
@@ -687,7 +688,7 @@ function matchKnowledgePoint(text) {
 
 /** 教材限定问答保持只读；明确要求生成练习时仍走测验。 */
 function isTextbookQuery(text) {
-  return /教材|课本|材料|\b(textbook|source material)\b/i.test(text)
+  return groundingEngine.isTextbookRequest(text)
     && !/(?:出|生成|给我|来|做|练).{0,12}(?:题|测验|测试)|\b(?:give|generate|create|start|take)\b.{0,30}\b(?:quiz|test|practice|questions)\b/i.test(text);
 }
 
@@ -1233,12 +1234,11 @@ async function ensureWebSearch(turn, context) {
 function replySources(toolCalls, webResult) {
   const sources = [...(webResult?.sources || [])];
   for (const call of toolCalls) {
-    if (call.name === 'search_knowledge_base') {
-      for (const result of call.output?.results || []) {
-        const title = result.source || [result.docId, result.chapter, result.section].filter(Boolean).join(' · ');
-        if (typeof title === 'string' && title) sources.push({ title, kind: 'textbook' });
-      }
-    } else if (call.name === 'get_knowledge_point' && call.output?.title) sources.push({ title: call.output.title, kind: 'textbook' });
+    // Retrieval candidates become citations only through the release audit above.
+    // Built-in standard lessons remain official course data without original excerpt fields.
+    if (call.name === 'get_knowledge_point' && call.output?.title && !call.output?.sourceResults && !call.output?.sourceExcerpts) {
+      sources.push({ title: call.output.title, kind: 'textbook' });
+    }
   }
   return sources.filter((source, index) => sources.findIndex(item => (item.url || item.title) === (source.url || source.title)) === index);
 }
@@ -1267,13 +1267,14 @@ async function ensureReadonlyQuery(learning, turn, intent, ctx) {
  *  目的：让讲解内容来自教材（get_knowledge_point），而不是模型自述；
  *  与 webResult/readonlyResult 同一套"系统代取 + 注入上下文"范式。 */
 async function ensureKnowledgePrefetch(learning, turn, intent, matched, ctx) {
-  if (turn.hasAttachments) return null;
+  if (turn.plainChat) return null;
   if (intent === 'chat' && isTextbookQuery(turn.userMessage) && turn.agent?.id === 'general') {
     const input = { query: turn.userMessage, topK: 3 };
     const out = await tools.search_knowledge_base.run(input, ctx);
     turn.toolCalls.push({ name: 'search_knowledge_base', input, output: out });
     return out;
   }
+  if (turn.hasAttachments) return null;
   if (courseRegistry.isDynamicCourseId(turn.courseId)) {
     if (!['chat', 'preview', 'learn', 'review'].includes(intent) || /^(你好|谢谢|hi|hello|thanks)[!！。\s]*$/i.test(turn.userMessage.trim())) return null;
     const kpId = matched?.kp.id || fallbackKpId(learning);
@@ -1540,6 +1541,7 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
   const session = getSession(sessionId);
   const preparedAttachments = prepareAttachments(sessionId, userMessage, attachments);
   const learning = session.learning;
+  const learningBeforeReply = structuredClone(learning);
   const courseId = session.activeCourseId || course.id;
   const isDynamicCourse = courseId !== course.id; // 动态课：自由问答模式
   const turn = {
@@ -1585,6 +1587,8 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
   const webAllowed = turn.webMode !== 'off' && turn.webScope.allowed;
   // 同时挂到 session：legacy ReAct 与 graph 的工具护栏都从 session 读取本轮结论
   session._offTopicSubject = turn.offTopicSubject;
+  turn.plainChat = groundingEngine.isPlainChat(userMessage, turn.offTopicSubject);
+  session._plainChat = turn.plainChat;
 
   // 通用问答与专用课程角色分别路由；联网仍受本轮开关与课程边界约束。
   const agentId = turn.hasAttachments ? 'general' : routeIntent(intent, learning, userMessage);
@@ -1653,6 +1657,9 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
   if (!card && session._practiceExhausted && !quizPrepared) quizPrepared = { exhausted: true };
   if (card && !quizPrepared) quizPrepared = cardToQuizPrepared(card);
 
+  const evidenceRequired = groundingEngine.requiresTextbookEvidence({ userMessage, intent, dynamic: isDynamicCourse,
+    hasAttachments: turn.hasAttachments, practice: !!buildPracticeContext(context), offTopic: turn.offTopicSubject, external: !!webResult?.sources?.length });
+
   // ---- 3. LLM 生成（引擎分流：LangGraph 图 / legacy ReAct；mock 走演示引擎） ----
   // 用 scope.runWithWebScope 包裹：让 MCP 工具层（bridge）知道本轮是否允许联网，
   // 从而对模型自作主张调用检索工具做硬拦截（提示词只是软约束）。
@@ -1672,9 +1679,24 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
     return llm.generate({ intent, kp, chapter, toolResult: knowledge || toolResult, ctx: session, userMessage, userContent: preparedAttachments.userContent, attachmentContext: preparedAttachments.attachmentContext, codingContext: context, toolCalls: turn.toolCalls, agent, quizPrepared, checkResult, webResult, readonlyResult, gate: turn.gate, cardWillRender: !!card, webMode: turn.webMode, webScope: turn.webScope, offTopicSubject: turn.offTopicSubject });
   });
   execution.throwIfAborted();
-  const reply = gen.reply;
-  annotateGroundingAsync(session, turn, reply); // 异步标注，不阻塞回答
   if (gen.toolCalls !== turn.toolCalls) turn.toolCalls = turn.toolCalls.concat(gen.toolCalls || []);
+  const evidenceUsed = evidenceRequired || (['chat', 'learn', 'preview', 'review'].includes(intent) && !turn.hasAttachments && !buildPracticeContext(context) && turn.toolCalls.some(call => call.name === 'search_knowledge_base'
+    || (call.name === 'get_knowledge_point' && call.output?.sourceExcerpts?.length)));
+  const externalEvidence = webResult?.sources?.length ? webResult
+    : turn.toolCalls.find(call => call.name === 'native_web_search' && call.output?.sources?.length)?.output;
+  const verified = evidenceUsed ? await groundingEngine.enforceTextbookEvidence(gen.reply, turn.toolCalls, userMessage, { external: externalEvidence }) : null;
+  execution.throwIfAborted();
+  const reply = verified ? verified.reply : gen.reply;
+  if (verified) turn.grounding = verified.grounding;
+  else annotateGroundingAsync(session, turn, reply);
+  if (verified?.grounding.verdict === 'unverified' && !checkResult && !turn.toolCalls.some(call =>
+    ['check_answer', 'generate_quiz', 'present_practice'].includes(call.name) && !call.output?.error)) {
+    // Preserve completed grading/cards; undo unverified teaching activity only.
+    for (const key of Object.keys(learning)) delete learning[key];
+    Object.assign(learning, learningBeforeReply);
+    turn.phaseChanged = [];
+    gen.phaseChanges = [];
+  }
   if (!session._presentedPractice && turn.toolCalls.some(call => call.name === 'generate_quiz' && !call.output?.error && !call.output?.gated)) {
     await presentPreparedCard(session, await buildOfficialQuizCard(session), turn, onTool);
   }
@@ -1693,7 +1715,7 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
   }
 
   // ---- 4. 记忆更新 ----
-  const sourceMeta = { sources: replySources(turn.toolCalls, webResult), searched: !!webResult?.searched,
+  const sourceMeta = { sources: verified ? verified.sources : replySources(turn.toolCalls, webResult), searched: !!webResult?.searched,
     searchStatus: webResult?.searchStatus || (turn.webMode === 'off' ? 'off' : 'not_searched') };
   session.messages.push({ role: 'assistant', content: reply, ...sourceMeta });
   memoryEngine.recordMessage(session, { role: 'assistant', content: reply, ...sourceMeta }, session.turnCount || 0); // ② recall：原文落库
@@ -1711,7 +1733,9 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
     : null;
   // 动态课：先按本轮检索命中标记节/章学习状态，再按节级状态机算整体进度
   if (isDynamicCourse && agentId !== 'general') {
-    await markDynamicLearning(session, turn.toolCalls, { mock: isMock, query: userMessage });
+    await markDynamicLearning(session, verified
+      ? [{ name: 'search_knowledge_base', output: { results: verified.usedResults } }]
+      : turn.toolCalls, { mock: !verified && isMock, query: userMessage, intent });
   }
   if (isDynamicCourse) {
     const view = dynamicViewOf(session.activeCourseId);
@@ -1784,6 +1808,7 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, onStep,
   const session = getSession(sessionId);
   const preparedAttachments = prepareAttachments(sessionId, userMessage, attachments);
   const learning = session.learning;
+  const learningBeforeReply = structuredClone(learning);
   const courseId = session.activeCourseId || course.id;
   const isDynamicCourse = courseId !== course.id; // 动态课：自由问答模式
   const turn = {
@@ -1828,6 +1853,8 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, onStep,
   const webAllowed = turn.webMode !== 'off' && turn.webScope.allowed;
   // 同时挂到 session：legacy ReAct 与 graph 的工具护栏都从 session 读取本轮结论
   session._offTopicSubject = turn.offTopicSubject;
+  turn.plainChat = groundingEngine.isPlainChat(userMessage, turn.offTopicSubject);
+  session._plainChat = turn.plainChat;
 
   // 通用问答与专用课程角色分别路由；联网仍受本轮开关与课程边界约束。
   const agentId = turn.hasAttachments ? 'general' : routeIntent(intent, learning, userMessage);
@@ -1890,6 +1917,16 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, onStep,
   if (!card && session._practiceExhausted && !quizPrepared) quizPrepared = { exhausted: true };
   if (card && !quizPrepared) quizPrepared = cardToQuizPrepared(card);
 
+  const evidenceRequired = groundingEngine.requiresTextbookEvidence({ userMessage, intent, dynamic: isDynamicCourse,
+    hasAttachments: turn.hasAttachments, practice: !!buildPracticeContext(context), offTopic: turn.offTopicSubject, external: !!webResult?.sources?.length });
+  // Model tokens cannot be withdrawn after SSE delivery. Hold only material-bound answers.
+  const publishDelta = onDelta;
+  const holdDeltas = evidenceRequired || (!turn.plainChat && ['chat', 'learn', 'preview', 'review'].includes(intent) && !turn.hasAttachments && !buildPracticeContext(context));
+  if (holdDeltas) {
+    onDelta = null;
+    if (onStep) onStep({ id: 'evidence', label: '正在查证教材依据，核验后显示回答' });
+  }
+
   // ---- 3. 流式 LLM 生成（引擎分流：LangGraph 图 / legacy ReAct） ----
   if (onStep) onStep({ id: 'answer', label: '正在生成回答' });
   // ALS：本轮是否允许联网（MCP 工具层据此硬拦截，见 mcp/bridge.js）
@@ -1916,9 +1953,25 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, onStep,
     );
   });
   execution.throwIfAborted();
-  const reply = gen.reply;
-  annotateGroundingAsync(session, turn, reply); // 异步标注，不阻塞回答
   if (gen.toolCalls !== turn.toolCalls) turn.toolCalls = turn.toolCalls.concat(gen.toolCalls || []);
+  const evidenceUsed = evidenceRequired || (['chat', 'learn', 'preview', 'review'].includes(intent) && !turn.hasAttachments && !buildPracticeContext(context) && turn.toolCalls.some(call => call.name === 'search_knowledge_base'
+    || (call.name === 'get_knowledge_point' && call.output?.sourceExcerpts?.length)));
+  const externalEvidence = webResult?.sources?.length ? webResult
+    : turn.toolCalls.find(call => call.name === 'native_web_search' && call.output?.sources?.length)?.output;
+  const verified = evidenceUsed ? await groundingEngine.enforceTextbookEvidence(gen.reply, turn.toolCalls, userMessage, { external: externalEvidence }) : null;
+  execution.throwIfAborted();
+  const reply = verified ? verified.reply : gen.reply;
+  if (verified) turn.grounding = verified.grounding;
+  else annotateGroundingAsync(session, turn, reply);
+  if (verified?.grounding.verdict === 'unverified' && !checkResult && !turn.toolCalls.some(call =>
+    ['check_answer', 'generate_quiz', 'present_practice'].includes(call.name) && !call.output?.error)) {
+    // Preserve completed grading/cards; undo unverified teaching activity only.
+    for (const key of Object.keys(learning)) delete learning[key];
+    Object.assign(learning, learningBeforeReply);
+    turn.phaseChanged = [];
+    gen.phaseChanges = [];
+  }
+  if (holdDeltas && publishDelta) publishDelta(reply);
   if (!session._presentedPractice && turn.toolCalls.some(call => call.name === 'generate_quiz' && !call.output?.error && !call.output?.gated)) {
     await presentPreparedCard(session, await buildOfficialQuizCard(session), turn, onTool);
   }
@@ -1937,7 +1990,7 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, onStep,
   }
 
   // ---- 4. 记忆更新 ----
-  const sourceMeta = { sources: replySources(turn.toolCalls, webResult), searched: !!webResult?.searched,
+  const sourceMeta = { sources: verified ? verified.sources : replySources(turn.toolCalls, webResult), searched: !!webResult?.searched,
     searchStatus: webResult?.searchStatus || (turn.webMode === 'off' ? 'off' : 'not_searched') };
   session.messages.push({ role: 'assistant', content: reply, ...sourceMeta });
   memoryEngine.recordMessage(session, { role: 'assistant', content: reply, ...sourceMeta }, session.turnCount || 0); // ② recall：原文落库
@@ -1951,7 +2004,9 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, onStep,
     : null;
   // 动态课：先按本轮检索命中标记节/章学习状态，再按节级状态机算整体进度
   if (isDynamicCourse && agentId !== 'general') {
-    await markDynamicLearning(session, turn.toolCalls, { mock: isMock, query: userMessage });
+    await markDynamicLearning(session, verified
+      ? [{ name: 'search_knowledge_base', output: { results: verified.usedResults } }]
+      : turn.toolCalls, { mock: !verified && isMock, query: userMessage, intent });
   }
   if (isDynamicCourse) {
     const view = dynamicViewOf(session.activeCourseId);
@@ -2065,6 +2120,7 @@ module.exports = {
   cardToQuizPrepared,   // 白盒：卡片 → 提示词用 ground truth
   replyLooksLikeQuiz,   // 白盒：正文是否"像在出题"（兜底补卡判据）
   ensureQuizCardForReply, // 白盒：模型未走卡片时的结构性兜底
+  replySources, // 白盒：未审核候选不作为回答引用
   prepareAttachments, // 白盒：附件归属与多模态消息转换
   orchestrateMockForTest: orchestrateMock, // 演示编排（测"新生说做题"等路径）
 };

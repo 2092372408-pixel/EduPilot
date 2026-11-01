@@ -490,7 +490,7 @@ async function generate(turn) {
   }
   const isDynamic = courseRegistry.isDynamicCourseId(turn.ctx && turn.ctx.activeCourseId);
   const messages = await buildReactMessages(turn);
-  return reactLoop(messages, turn.ctx, { agentTools: toolsForAgent((turn.agent && turn.agent.id) || 'coordinator', isDynamic, { webMode: turn.webMode, attachmentQuestion: !!turn.attachmentContext }), agentName: (turn.agent && turn.agent.name) || '协调者', checkedThisTurn: !!turn.checkResult });
+  return reactLoop(messages, turn.ctx, { agentTools: toolsForAgent((turn.agent && turn.agent.id) || 'coordinator', isDynamic, { webMode: turn.webMode, attachmentQuestion: !!turn.attachmentContext, excludeTextbook: !!turn.ctx?._plainChat }), agentName: (turn.agent && turn.agent.name) || '协调者', checkedThisTurn: !!turn.checkResult });
 }
 
 /**
@@ -517,7 +517,7 @@ async function generateStream(turn, { onDelta, onTool } = {}) {
   const isDynamic = courseRegistry.isDynamicCourseId(turn.ctx && turn.ctx.activeCourseId);
   const messages = await buildReactMessages(turn);
   return reactLoop(messages, turn.ctx, {
-    agentTools: toolsForAgent((turn.agent && turn.agent.id) || 'coordinator', isDynamic, { webMode: turn.webMode, attachmentQuestion: !!turn.attachmentContext }),
+    agentTools: toolsForAgent((turn.agent && turn.agent.id) || 'coordinator', isDynamic, { webMode: turn.webMode, attachmentQuestion: !!turn.attachmentContext, excludeTextbook: !!turn.ctx?._plainChat }),
     agentName: (turn.agent && turn.agent.name) || '协调者',
     checkedThisTurn: !!turn.checkResult,
     onDelta,
@@ -531,7 +531,7 @@ async function buildReactMessages(turn) {
   const agentId = (turn.agent && turn.agent.id) || 'coordinator';
   const agentCfg = AGENTS[agentId] || AGENTS.coordinator;
   const isDynamic = courseRegistry.isDynamicCourseId(ctx && ctx.activeCourseId);
-  const agentTools = toolsForAgent(agentId, isDynamic, { webMode: turn.webMode, attachmentQuestion: !!turn.attachmentContext });
+  const agentTools = toolsForAgent(agentId, isDynamic, { webMode: turn.webMode, attachmentQuestion: !!turn.attachmentContext, excludeTextbook: !!turn.ctx?._plainChat });
   const messages = [
     {
       role: 'system',
