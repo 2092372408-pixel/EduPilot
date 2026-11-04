@@ -2,8 +2,9 @@
 const { AsyncLocalStorage } = require('node:async_hooks');
 const signals = new AsyncLocalStorage();
 
-function currentSignal() { return signals.getStore(); }
+function currentSignal() { return signals.getStore()?.signal; }
+function currentThinking() { return signals.getStore()?.thinking; }
 function throwIfAborted() { currentSignal()?.throwIfAborted(); }
-function runWithSignal(signal, fn) { return signals.run(signal, fn); }
+function runWithSignal(signal, fn, thinking) { return signals.run({ signal, thinking }, fn); }
 
-module.exports = { currentSignal, throwIfAborted, runWithSignal };
+module.exports = { currentSignal, currentThinking, throwIfAborted, runWithSignal };

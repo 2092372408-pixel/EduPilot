@@ -31,6 +31,7 @@ const memoryEngine = require('./memory'); // 三层记忆（core/recall/archival
 const profileStore = require('../store/profiles'); // 用户档案（昵称称呼注入）
 const { trimMessages } = require('./context');
 const llmConfig = require('./llmconfig');
+const { modelRequest } = require('./provider-request');
 const execution = require('./execution');
 const { buildPracticeContext } = require('./practice-context');
 
@@ -88,16 +89,18 @@ function runtimeInfo() {
   const engine = process.env.ENGINE === 'legacy' ? 'ReAct' : 'LangGraph';
   // 未配置时保留只读浏览，通过设置接入模型后开始对话。
   const needsSetup = mode === 'unconfigured';
-  const provider = process.env.LLM_PROVIDER || '';
   const model = process.env.LLM_MODEL || 'deepseek-flash';
+  const baseUrl = (process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
+  const provider = process.env.LLM_PROVIDER || llmConfig.inferProviderId(baseUrl);
   return {
     mode,
     engine,
     label: mode === 'api' ? `真实 LLM · ${engine} 引擎` : (needsSetup ? '尚未配置模型' : '内部测试引擎'),
     model,
-    baseUrl: process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1',
+    baseUrl,
     provider,
-    modelCapability: llmConfig.capability({ provider, baseUrl: process.env.LLM_BASE_URL, model }),
+    modelCapability: llmConfig.capability({ provider, baseUrl, model }),
+    thinking: modelRequest({ baseUrl, model }).thinking,
     needsSetup,
     tip: mode !== 'api'
       ? (needsSetup ? '请先配置模型供应商和 API Key 后开始使用' : '仅用于自动化测试')
@@ -117,23 +120,8 @@ function supportsVision() {
   return visionCapability().vision === true;
 }
 
-function isOpenAIReasoningModel(model) {
-  return /^(?:o[1-9]|gpt-[56])/i.test(String(model || '').trim());
-}
-
-function supportsStreamUsage(baseUrl) {
-  return /(?:openai\.com|dashscope\.aliyuncs\.com|moonshot\.cn|volces\.com)/i.test(String(baseUrl || ''));
-}
-
-/**
- * 组装 OpenAI 兼容请求体（支持流式）。
- * 跨平台注意：
- *  - max_tokens 是各兼容网关的通用字段；OpenAI 的推理型模型（o 系列 / gpt-5 系）
- *    要求改用 max_completion_tokens，故对 openai.com 走后者。
- *  - enable_thinking 是 Qwen3 系的非标准扩展，仅 DashScope 认；发给别的平台属于
- *    未知字段，多数网关会忽略，但为稳妥仍只对 DashScope 发送。
- */
-function buildRequest(messages, { stream = false, maxTokens = 1500, json = false, temperature } = {}) {
+/** 组装 OpenAI 兼容请求体。 */
+function buildRequest(messages, { stream = false, maxTokens, json = false, temperature, thinking = execution.currentThinking() } = {}) {
   if (require('../locale').english()) {
     const language = 'Write all learner-facing text in English, including explanations, generated questions, hints, and feedback. Preserve the requested JSON schema, code identifiers, exact quotations, and user-provided names.';
     const hasSystem = messages.some(message => message.role === 'system');
@@ -142,13 +130,9 @@ function buildRequest(messages, { stream = false, maxTokens = 1500, json = false
       : [{ role: 'system', content: language }, ...messages];
   }
   const baseUrl = process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1';
-  const isOpenAI = /(^|\.)openai\.com/i.test(baseUrl);
-  const isDashScope = /dashscope\.aliyuncs\.com/i.test(baseUrl);
   const model = process.env.LLM_MODEL || 'deepseek-flash';
-  const reasoning = isOpenAI && isOpenAIReasoningModel(model);
-  const provider = require('./modelCapabilities').providerKey(process.env.LLM_PROVIDER, baseUrl);
-  const kimi = provider === 'moonshot' || (provider === 'siliconflow' && model === 'Pro/moonshotai/Kimi-K2.6');
-  const tokenField = isOpenAI ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens };
+  const request = modelRequest({ baseUrl, model, enabled: json ? false : thinking });
+  const tokenField = request.completionLimit ? 'max_completion_tokens' : 'max_tokens';
   return {
     method: 'POST',
     headers: {
@@ -158,26 +142,20 @@ function buildRequest(messages, { stream = false, maxTokens = 1500, json = false
     body: JSON.stringify({
       model,
       messages,
-      ...(reasoning || kimi ? {} : { temperature: temperature ?? (json ? 0.2 : 0.6) }),
-      ...(kimi && (model === 'kimi-k2.6' || model === 'Pro/moonshotai/Kimi-K2.6') ? { thinking: { type: 'disabled' } } : {}),
-      ...tokenField,
+      ...(request.omitTemperature ? {} : { temperature: temperature ?? (json ? 0.2 : 0.6) }),
+      [tokenField]: maxTokens ?? (request.thinking.enabled ? 4096 : 1500),
       ...(json ? { response_format: { type: 'json_object' } } : {}),
       stream,
-      ...(provider === 'dashscope' ? { enable_search: false } : {}),
-      ...(provider === 'openrouter' ? { plugins: [{ id: 'web', enabled: false }] } : {}),
-      // 让上游在流末尾带 usage（OpenAI 兼容协议；不支持的网关会忽略，届时走字符粗估）
-      ...(stream && supportsStreamUsage(baseUrl) ? { stream_options: { include_usage: true } } : {}),
-      // 思考型模型（Qwen3.x 系）：关闭思考可显著降低延迟，并提升工具调用稳定性
-      // 实测 qwen3.5-flash：同题 11.5s→2.4s，且带思考时偶发"反问而不调工具"的退化
-      ...(isDashScope && process.env.LLM_DISABLE_THINKING === '1' ? { enable_thinking: false } : {}),
+      ...request.params,
+      ...(stream && request.streamUsage ? { stream_options: { include_usage: true } } : {}),
     }),
   };
 }
 
-/** 非流式调用，返回完整文本 */
+/** 检索改写、校验等辅助调用保留预算给实际输出。 */
 async function callApi(messages, options = {}) {
   const base = (process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
-  const res = await fetchWithTimeout(`${base}/chat/completions`, buildRequest(messages, options));
+  const res = await fetchWithTimeout(`${base}/chat/completions`, buildRequest(messages, { ...options, thinking: false }));
   if (!res.ok) {
     const text = await res.text();
     throw Object.assign(new Error(llmConfig.friendlyError(res.status, text)), { code: 'LLM_REQUEST_FAILED', status: 502 });
@@ -705,4 +683,4 @@ function mockGenerate(turn) {
   }
 }
 
-module.exports = { generate, generateStream, detectMode, assertConfigured, runtimeInfo, visionCapability, supportsVision, parseAction, callApi, buildRequest, isOpenAIReasoningModel, supportsStreamUsage };
+module.exports = { generate, generateStream, detectMode, assertConfigured, runtimeInfo, visionCapability, supportsVision, parseAction, callApi, buildRequest };

@@ -273,7 +273,7 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       const attachments = Array.isArray(body.attachments) ? body.attachments : [];
       if (!message && !attachments.length) { sendJSON(res, 400, { error: '消息不能为空' }); return; }
       let result;
-      try { result = await agent.run(sessionId, message, { webMode: body.webMode, attachments, context: body.context }); }
+      try { result = await agent.run(sessionId, message, { webMode: body.webMode, attachments, context: body.context, thinking: body.thinking }); }
       catch (error) { throw llmRequestFailure(error); }
       sendJSON(res, 200, { sessionId, ...result });
       return;
@@ -321,6 +321,7 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
           onDelta: (text) => sendEvent('delta', { text }),
           context: body.context, // 做题悬浮窗上下文（P3）
           webMode: body.webMode, // 首页"是否联网"选择：off / on / auto
+          thinking: body.thinking,
           attachments,
         });
         streamDone = true;

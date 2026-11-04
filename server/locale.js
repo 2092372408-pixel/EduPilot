@@ -82,6 +82,7 @@ Object.entries({
   '请填写 API Key': 'Enter an API key.', '请先填写 API Key': 'Enter an API key first.',
   'API Key 无效或已过期，请到平台重新申请后填入': 'The API key is invalid or expired. Obtain a new key from your provider.',
   '该 Key 无权限访问此模型（可能是未开通或欠费）': 'This key cannot access the model. Check model access and your account balance.',
+  '所选模型在当前地区不可用，请换用其他模型': 'The selected model is unavailable in this region. Choose another model.',
   '服务地址或模型名不正确（请检查 base_url 是否包含 /v1 之类的版本路径）': 'Incorrect service URL or model name. Check the version path in base_url, such as /v1.',
   '请求过于频繁或额度不足，请稍后再试或检查账户余额': 'Rate limit or quota exceeded. Try later or check your account balance.',
   '平台服务端暂时异常，请稍后重试': 'The provider is temporarily unavailable. Try again later.',

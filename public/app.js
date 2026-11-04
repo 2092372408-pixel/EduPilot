@@ -1109,7 +1109,7 @@ async function sendMessage(text, context) {
     const res = await eduFetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: requestSessionId, message: text, attachments: uploaded.map((item) => ({ id: item.id })), context, webMode: webOn ? 'on' : 'off' }),
+      body: JSON.stringify({ sessionId: requestSessionId, message: text, attachments: uploaded.map((item) => ({ id: item.id })), context, webMode: webOn ? 'on' : 'off', thinking: thinkingChoice() }),
       signal: controller.signal,
     });
     if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
@@ -1547,9 +1547,33 @@ let _llmProviders = [];
 let _llmConfig = {};
 let llmReturnToSettings = false;
 
+function thinkingKey() {
+  return 'eduowl_thinking:' + JSON.stringify([_llmConfig.provider, _llmConfig.baseUrl, _llmConfig.model]);
+}
+
+function thinkingChoice() {
+  if (!modelReady || !_llmConfig.thinking?.supported) return undefined;
+  const saved = localStorage.getItem(thinkingKey());
+  return saved === null ? _llmConfig.thinking.enabled : saved === 'on';
+}
+
+function renderThinkingToggle() {
+  const button = $('thinkingToggle');
+  const choice = thinkingChoice();
+  button.disabled = choice === undefined;
+  button.setAttribute('aria-pressed', String(choice === true));
+  button.classList.toggle('is-on', choice === true);
+  button.title = ui(choice === undefined ? '当前模型没有可切换的深度思考模式' : choice ? '深度思考已开启，点击关闭' : '深度思考已关闭，点击开启');
+}
+
 /** 渲染顶部"模型"徽标：真实模式显示模型名，未配置则高亮提示 */
 function renderLlmChip(runtime) {
   modelReady = !!(runtime && runtime.mode === 'api');
+  if (runtime?.thinking) {
+    const { provider, baseUrl, model, thinking } = runtime;
+    _llmConfig = { ..._llmConfig, provider, baseUrl, model, thinking };
+  }
+  renderThinkingToggle();
   const modelLabel = $('composerModelLabel');
   if (modelLabel) modelLabel.textContent = modelReady ? runtime.model || ui('已接入') : ui('选择模型');
   $('modelSetupNotice')?.classList.toggle('hidden', modelReady);
@@ -1681,7 +1705,6 @@ async function openLlmCard() {
     const matchesPreset = cfg.baseUrl === preset?.baseUrl || !cfg.baseUrl;
     const entries = matchesPreset ? (preset?.models || []).map(entry => entry.model === cfg.model ? { ...entry, capability: cfg.modelCapability } : entry) : [];
     renderModelOptions(entries, cfg.model || '', cfg.modelCapability);
-    $('llmDisableThinking').checked = !!cfg.disableThinking;
     // 密钥只显示掩码占位：留空=不改，填写=覆盖
     $('llmApiKey').value = '';
     $('llmApiKey').type = 'password';
@@ -1710,7 +1733,8 @@ function renderProviderPreset(resetUrl) {
   const p = _llmProviders.find((x) => x.id === id);
   if (!p) return;
   $('llmProviderNote').innerHTML = (p.note ? escapeHtml(p.note) : '')
-    + (p.docs ? `${ui("　<a href=\"")}${escapeHtml(p.docs)}${ui("\" target=\"_blank\" rel=\"noopener\">去申请 Key ↗</a>")}` : '');
+    + (p.docs ? `${ui("　<a href=\"")}${escapeHtml(p.docs)}${ui("\" target=\"_blank\" rel=\"noopener\">去申请 Key ↗</a>")}` : '')
+    + (p.apiDocs ? `　<a href="${escapeHtml(p.apiDocs)}" target="_blank" rel="noopener">${ui('官方接口文档')} ↗</a>` : '');
   if (resetUrl) $('llmBaseUrl').value = p.baseUrl || '';
   _llmModelRequest += 1;
   renderModelOptions(p.models || []);
@@ -1801,7 +1825,6 @@ async function saveLlmConfig() {
       body: JSON.stringify({
         provider, baseUrl, model,
         apiKey: apiKey || undefined,       // 留空 = 不修改已存的 Key
-        disableThinking: $('llmDisableThinking').checked,
       }),
     });
     _llmConfig = d.config;
@@ -1996,6 +2019,10 @@ $('resetBtn').addEventListener('click', async () => {
 // 用户资料：顶栏 chip 点击 → 编辑；保存 / 跳过
 $('userChip').addEventListener('click', () => openProfileCard(false));
 $('composerModelBtn').addEventListener('click', openLlmCard);
+$('thinkingToggle').addEventListener('click', () => {
+  localStorage.setItem(thinkingKey(), thinkingChoice() ? 'off' : 'on');
+  renderThinkingToggle();
+});
 $('settingsProfileBtn').addEventListener('click', () => {
   profileReturnToSettings = true;
   $('settingsOverlay').classList.add('hidden');

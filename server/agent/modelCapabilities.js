@@ -4,7 +4,7 @@ const CHECKED_AT = '2026-10-08';
 const HOSTS = {
   deepseek: ['api.deepseek.com'],
   openai: ['api.openai.com'],
-  dashscope: ['dashscope.aliyuncs.com', 'dashscope-intl.aliyuncs.com', 'dashscope-us.aliyuncs.com'],
+  dashscope: ['dashscope.aliyuncs.com', 'dashscope-intl.aliyuncs.com', 'dashscope-us.aliyuncs.com', 'cn-hongkong.dashscope.aliyuncs.com'],
   zhipu: ['open.bigmodel.cn'],
   moonshot: ['api.moonshot.cn', 'api.moonshot.ai'],
   siliconflow: ['api.siliconflow.cn', 'api.siliconflow.com'],
@@ -72,6 +72,8 @@ function providerKey(provider, baseUrl = '') {
   if (!baseUrl) return explicit ? provider : 'custom';
   let hostname;
   try { hostname = new URL(baseUrl).hostname; } catch (_) { return 'custom'; }
+  // DashScope also issues official, region-specific workspace domains.
+  if ((!explicit || provider === 'dashscope') && /^[a-z0-9-]+\.(?:cn-beijing|cn-hongkong|ap-southeast-1|ap-northeast-1|us-east-1)\.maas\.aliyuncs\.com$/.test(hostname)) return 'dashscope';
   if (explicit) return HOSTS[provider].includes(hostname) ? provider : 'custom';
   return Object.keys(HOSTS).find(key => HOSTS[key].includes(hostname)) || 'custom';
 }

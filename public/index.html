@@ -165,6 +165,12 @@
         <input id="attachmentInput" type="file" hidden multiple accept="image/png,image/jpeg,image/webp,image/gif,.md,.markdown,.txt,.json,.docx,.pdf,.pptx">
         <div id="attachmentList" class="attachment-list" aria-live="polite"></div>
         <div class="composer-bar">
+          <button type="button" id="thinkingToggle" class="web-btn" aria-pressed="false" disabled>
+            <svg class="web-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 18h6m-5 3h4M9 15v-1a5 5 0 1 1 6 0v1z"/><path d="M12 1v1M4 5l1 1m14 0 1-1"/>
+            </svg>
+            <span data-ui="深度思考">深度思考</span>
+          </button>
           <button type="button" id="webToggle" class="web-btn" aria-pressed="false"
                   title="联网搜索：点击开启，回答会先检索教材外的最新资料；再点一次关闭" data-ui-title="联网搜索：点击开启，回答会先检索教材外的最新资料；再点一次关闭">
             <svg class="web-ico" viewBox="0 0 24 24" aria-hidden="true">
@@ -275,7 +281,6 @@
     <p class="llm-note" id="llmVisionHint"></p>
     <p class="llm-note" data-ui="当前聊天支持文字、图片和文档附件，暂不接收音频或视频。">当前聊天支持文字、图片和文档附件，暂不接收音频或视频。</p>
 
-    <label class="llm-check"><input id="llmDisableThinking" type="checkbox" /><span data-ui="关闭思考模式（Qwen3 等思考型模型推荐，响应更快）"> 关闭思考模式（Qwen3 等思考型模型推荐，响应更快）</span></label>
 
     <div id="llmStatus" class="llm-status hidden"></div>
 

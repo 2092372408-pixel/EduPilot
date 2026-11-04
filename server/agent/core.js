@@ -1515,7 +1515,7 @@ function runTurn(sessionId, userMessage, opts, inner) {
       if (cancelled) opts.signal.throwIfAborted();
       throw error;
     }
-  })));
+  }), opts.thinking));
 }
 
 function quizIntroduction(intent, card, context, checkResult, quizPrepared) {

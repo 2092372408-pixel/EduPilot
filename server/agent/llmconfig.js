@@ -19,6 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const modelCapabilities = require('./modelCapabilities');
+const { modelRequest } = require('./provider-request');
 
 const ROOT = path.join(__dirname, '..', '..');
 /** .env 路径：可用 EDUOWL_ENV_FILE 覆盖（测试隔离用，避免并行测试读写同一文件串号） */
@@ -45,8 +46,7 @@ function capability(input = {}) {
 
 /**
  * 平台预设。
- * baseUrl 均为各平台官方文档给出的 OpenAI 兼容地址（本项目已实测可达：
- * 多数返回 401「密钥无效」而非 404，说明端点正确）。
+ * baseUrl 为平台官方 Chat Completions 接入地址。账号和地区权限通过连接测试确认。
  * 注意：不带 key，用户需自行到平台申请；docs 字段给出申请入口。
  */
 const PROVIDERS = [
@@ -55,6 +55,7 @@ const PROVIDERS = [
     name: 'DeepSeek 深度求索',
     baseUrl: 'https://api.deepseek.com/v1',
     docs: 'https://platform.deepseek.com/api_keys',
+    apiDocs: 'https://api-docs.deepseek.com/api/create-chat-completion/',
     note: 'Flash 支持文字与图片；V4 Pro 仅支持文字。模型权限以账户为准。',
   },
   {
@@ -62,6 +63,7 @@ const PROVIDERS = [
     name: '阿里云百炼（通义千问 Qwen）',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     docs: 'https://bailian.console.aliyun.com/',
+    apiDocs: 'https://help.aliyun.com/zh/model-studio/compatibility-of-openai-with-dashscope',
     note: '模型最全（含 Qwen / Kimi / GLM 等托管版）；注意密钥与区域绑定',
   },
   {
@@ -69,6 +71,7 @@ const PROVIDERS = [
     name: '智谱 GLM',
     baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
     docs: 'https://open.bigmodel.cn/usercenter/apikeys',
+    apiDocs: 'https://docs.bigmodel.cn/api-reference/模型-api/对话补全',
     note: 'GLM 视觉版与文本版分别标注；注意服务地址包含 /paas/v4。',
   },
   {
@@ -76,6 +79,7 @@ const PROVIDERS = [
     name: 'Moonshot Kimi',
     baseUrl: 'https://api.moonshot.cn/v1',
     docs: 'https://platform.kimi.com/console/api-keys',
+    apiDocs: 'https://platform.kimi.com/docs/api/chat',
     note: '当前 Kimi 模型支持文字、图片与视频；旧版 Moonshot V1 已退役。',
   },
   {
@@ -83,6 +87,7 @@ const PROVIDERS = [
     name: '硅基流动 SiliconFlow',
     baseUrl: 'https://api.siliconflow.cn/v1',
     docs: 'https://cloud.siliconflow.cn/account/ak',
+    apiDocs: 'https://docs.siliconflow.cn/docs/api/chat-completions-post',
     note: '提供托管模型；请刷新账户模型列表，权限与能力以所选模型为准。',
   },
   {
@@ -90,6 +95,7 @@ const PROVIDERS = [
     name: '火山方舟（豆包 Doubao）',
     baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
     docs: 'https://console.volcengine.com/ark',
+    apiDocs: 'https://docs.volcengine.com/docs/ark/chat-api?lang=zh',
     note: '可选择官方 Model ID；私有推理接入点需刷新账户列表，能力单独确认。',
   },
   {
@@ -97,6 +103,7 @@ const PROVIDERS = [
     name: 'OpenAI',
     baseUrl: 'https://api.openai.com/v1',
     docs: 'https://platform.openai.com/api-keys',
+    apiDocs: 'https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create',
     note: '推理型模型（o 系列 / gpt-5 系）可能限制 temperature 且需 max_completion_tokens',
   },
   {
@@ -104,6 +111,7 @@ const PROVIDERS = [
     name: 'OpenRouter（聚合）',
     baseUrl: 'https://openrouter.ai/api/v1',
     docs: 'https://openrouter.ai/keys',
+    apiDocs: 'https://openrouter.ai/docs/guides/best-practices/reasoning-tokens',
     note: '模型输入能力来自 OpenRouter 官方模型目录；一个 Key 可访问多家模型。',
   },
   {
@@ -167,6 +175,7 @@ function getConfig() {
     hasKey: !!apiKey,
     keyMasked: maskKey(apiKey),
     disableThinking: process.env.LLM_DISABLE_THINKING === '1',
+    thinking: modelRequest({ baseUrl, model }).thinking,
     modelCapability: capability({ provider, baseUrl, model }),
   };
 }
@@ -260,6 +269,7 @@ function friendlyError(status, text) {
   if (status === 401 || /invalid.*(api.?key|token)|authentication|unauthorized|密钥|令牌|token is invalid/i.test(raw)) {
     return 'API Key 无效或已过期，请到平台重新申请后填入';
   }
+  if (status === 403 && /not available in your region|geo restrictions|unsupported country/i.test(raw)) return '所选模型在当前地区不可用，请换用其他模型';
   if (status === 403) return '该 Key 无权限访问此模型（可能是未开通或欠费）';
   if (status === 404) return '服务地址或模型名不正确（请检查 base_url 是否包含 /v1 之类的版本路径）';
   if (status === 429 || /rate.?limit|quota|exceed/i.test(low)) return '请求过于频繁或额度不足，请稍后再试或检查账户余额';
@@ -325,6 +335,7 @@ async function testConnection({ provider, baseUrl, model, apiKey, testVision = f
   if (!m) return { ok: false, error: '请先选择模型' };
   if (!key) return { ok: false, error: '请先填写 API Key' };
   const selected = capability({ provider, baseUrl: base, model: m });
+  const request = modelRequest({ baseUrl: base, model: m, enabled: false });
   if (testVision && selected.vision === false) return { ok: false, error: '官方资料确认该模型不支持图片输入' };
 
   const body = {
@@ -336,9 +347,9 @@ async function testConnection({ provider, baseUrl, model, apiKey, testVision = f
         ] }]
       : [{ role: 'user', content: 'ping' }],
     stream: false,
-    ...((selected.provider === 'moonshot' && m === 'kimi-k2.6') || (selected.provider === 'siliconflow' && m === 'Pro/moonshotai/Kimi-K2.6') ? { thinking: { type: 'disabled' } } : {}),
+    ...request.params,
   };
-  if (modelCapabilities.providerKey(provider, base) === 'openai') body.max_completion_tokens = 256;
+  if (request.completionLimit) body.max_completion_tokens = 256;
   else body.max_tokens = 256;
   const t0 = Date.now();
   let res;

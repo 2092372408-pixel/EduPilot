@@ -34,7 +34,7 @@ const practiceNote = require('../agent/practice-note'); // 做题区记录 → �
 const memoryEngine = require('../agent/memory'); // 记忆引擎（注入会话回顾/卡点/语义记忆）
 const courseRegistry = require('../kb/course-registry');
 const { trimMessages } = require('../agent/context');
-const { providerKey } = require('../agent/modelCapabilities');
+const { modelRequest } = require('../agent/provider-request');
 const execution = require('../agent/execution');
 // Per-run image bytes stay outside persisted session/tool logs.
 const materialImages = new WeakMap();
@@ -67,30 +67,40 @@ function makeUsageHandler() {
 }
 
 /** 创建对话模型（OpenAI 兼容协议：DeepSeek / 百炼 Qwen 等） */
-function createChatModel() {
+function createChatModel(getReasoning = () => []) {
   const base = (process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
   const model = process.env.LLM_MODEL || 'deepseek-flash';
-  const provider = providerKey(process.env.LLM_PROVIDER, base);
-  const reasoning = provider === 'openai' && /^(?:o[1-9]|gpt-[56])/i.test(model);
-  const kimi = provider === 'moonshot' || (provider === 'siliconflow' && model === 'Pro/moonshotai/Kimi-K2.6');
-  const streamUsage = /(?:openai\.com|dashscope\.aliyuncs\.com|moonshot\.cn|volces\.com)/i.test(base);
+  const request = modelRequest({ baseUrl: base, model, enabled: execution.currentThinking() });
+  const maxTokens = request.thinking.enabled ? 4096 : 1500;
+  // Older SDK versions select max_completion_tokens only for these model IDs.
+  const sdkCompletionLimit = /^o\d|^gpt-5(?!-chat)/.test(model);
   return new ChatOpenAI({
     apiKey: process.env.LLM_API_KEY,
     model,
     maxRetries: 1,
-    ...(reasoning || kimi ? {} : { temperature: 0.6 }),
-    // This SDK does not yet recognize GPT-6's completion-token parameter.
-    maxTokens: provider === 'openai' && model === 'gpt-6-astra' ? -1 : 1500,
-    streamUsage,
-    configuration: { baseURL: base, timeout: 45000, maxRetries: 0 },
+    ...(request.omitTemperature ? {} : { temperature: 0.6 }),
+    maxTokens: request.completionLimit && !sdkCompletionLimit ? -1 : maxTokens,
+    streamUsage: request.streamUsage,
+    configuration: { baseURL: base, timeout: 45000, maxRetries: 0,
+      ...(request.replayReasoning ? { fetch: (url, init) => {
+        // The SDK receives reasoning_content but omits it when serializing messages.
+        const body = JSON.parse(init.body);
+        const reasoning = getReasoning();
+        let assistant = 0;
+        for (const message of body.messages) {
+          if (message.role !== 'assistant') continue;
+          const content = reasoning[assistant++];
+          if (typeof content === 'string' || (request.id === 'deepseek' && body.tools?.length)) {
+            message.reasoning_content = content || '';
+          }
+        }
+        return fetch(url, { ...init, body: JSON.stringify(body) });
+      } } : {}),
+    },
     callbacks: [makeUsageHandler()], // token 用量核算
-    // 思考型模型（Qwen3.x 系）：关闭思考降低延迟并提升工具调用稳定性
     modelKwargs: {
-      ...(provider === 'dashscope' ? { enable_search: false } : {}),
-      ...(provider === 'openrouter' ? { plugins: [{ id: 'web', enabled: false }] } : {}),
-      ...(provider === 'dashscope' && process.env.LLM_DISABLE_THINKING === '1' ? { enable_thinking: false } : {}),
-      ...(kimi && (model === 'kimi-k2.6' || model === 'Pro/moonshotai/Kimi-K2.6') ? { thinking: { type: 'disabled' } } : {}),
-      ...(provider === 'openai' && model === 'gpt-6-astra' ? { max_completion_tokens: 1500 } : {}),
+      ...request.params,
+      ...(request.completionLimit ? { max_completion_tokens: maxTokens } : {}),
     },
   });
 }
@@ -187,8 +197,9 @@ const graphCache = new Map();
 function getGraphAgent(session, agentCfg) {
   if (graphCache.has(session.id)) return graphCache.get(session.id);
   const wrappedTools = wrapTools(session, agentCfg.id);
+  let reasoning = [];
   const agent = createReactAgent({
-    llm: createChatModel(),
+    llm: createChatModel(() => reasoning),
     tools: wrappedTools,
     // 注意：曾尝试 toolNode: new ToolNode(wrappedTools, { maxParallelism: 1 }) 实现串行调用，
     // 但实测引发 "Tool not found"（子图内工具注册异常），已回退默认 ToolNode。
@@ -213,7 +224,10 @@ function getGraphAgent(session, agentCfg) {
       );
       const sysMsg = { role: 'system', content: sys };
       const images = materialImages.get(session);
-      return [sysMsg, ...trimMessages(messages), ...(images?.length ? [{ role: 'user', content: images }] : [])];
+      const trimmed = trimMessages(messages);
+      reasoning = trimmed.filter(message => message.getType?.() === 'ai' || message.role === 'assistant')
+        .map(message => message.additional_kwargs?.reasoning_content);
+      return [sysMsg, ...trimmed, ...(images?.length ? [{ role: 'user', content: images }] : [])];
     },
   });
   graphCache.set(session.id, agent);

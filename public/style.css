@@ -519,7 +519,6 @@ a.disabled-entry { opacity: .45; pointer-events: none; cursor: not-allowed; text
 .llm-note.ok { color: #2f6b2f; }
 .llm-note.err { color: #a32d2d; }
 .llm-note a { color: var(--primary); }
-.llm-check { display: flex; align-items: center; gap: 7px; font-size: var(--note-font-size); color: var(--text-2); margin: 14px 0 4px; }
 .llm-status {
   margin-top: 12px; padding: 9px 12px; border-radius: 10px; font-size: var(--note-font-size); line-height: 1.6;
   border: 1px solid var(--border); background: #fafafa; white-space: pre-wrap;
@@ -676,6 +675,8 @@ a.disabled-entry { opacity: .45; pointer-events: none; cursor: not-allowed; text
 .learning-page .composer textarea { border: 0; background: transparent; box-shadow: none; font-size: var(--chat-font-size); min-height: 30px; max-height: 144px; padding: 3px 0 7px; }
 .learning-page .composer .composer-bar { padding: 0; }
 .learning-page .web-btn { padding: 0 8px; border: 0; border-radius: 7px; }
+.learning-page #thinkingToggle { white-space: nowrap; }
+.learning-page #thinkingToggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .composer-model { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; min-width: 0; height: 32px; padding: 0 7px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font: inherit; font-size: var(--note-font-size); cursor: pointer; }
 .composer-model > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-model:hover { background: var(--bg); color: var(--text); }
@@ -763,6 +764,9 @@ a.disabled-entry { opacity: .45; pointer-events: none; cursor: not-allowed; text
 }
 
 @media (max-width: 480px) {
+  .learning-page .composer-bar { gap: 3px; }
+  .learning-page .composer-bar .web-btn { flex-shrink: 0; gap: 4px; padding: 0 5px; }
+  .learning-page .composer-bar .send-btn { flex-shrink: 0; padding: 0 9px; }
   body .rp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .brand .sub { font-size: 10px; }
   .brand .logo { width: 36px; height: 36px; }
