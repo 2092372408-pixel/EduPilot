@@ -77,6 +77,19 @@ The native installer includes the application runtime, Python and document conve
 
 <a id="demo"></a>
 
+## New in source: diagnostic practice
+
+Open **Diagnostic practice** in the built-in **Python Introduction** course and choose branches, loops or functions. Try a problem, inspect actual failing inputs and results, request hints one level at a time, then check your understanding on an unseen variant. Reports distinguish corrections from first-attempt passes on new problems, and the tutor can read recent practice evidence when you return to the conversation.
+
+- **Explicit checks** verify return values, printed output and implementation constraints stated in the task, including relevant zero, negative, empty-interval and single-point cases. AI feedback cannot change the objective result.
+- **Validation before delivery** executes a reference solution and curated incorrect programs for each parameterized variant. A failed reference or surviving incorrect program blocks that variant.
+- **Persistent attempts** retain hint counts, submissions, template versions and independent checks locally. Refreshing resumes the task; a repeated request does not duplicate credit.
+- **Bounded evidence** records a new problem passed on its first submission without requesting its hints. This does not replace the course review assessment or establish long-term mastery. Help from other pages or external tools is not observed.
+
+Generation, grading and graded hints for these three topics require local Python but no model API key. They use controlled templates and executable checks. This form of validation is not yet available for uploaded courses.
+
+**This feature is available from this branch's source and is not included in the v1.2.2 installers above.** With Node.js 22+ and Python 3, run `npm ci --omit=dev`, then `npm start`, open `http://127.0.0.1:8787`, and choose Diagnostic practice. Code execution retains the local teaching runner and static prechecks; it is not designed as a public multi-user execution service.
+
 ## From your materials to a complete study session
 
 Import materials → Create a course → Preview check → Learn and practise → View your report. The animation below shows key steps from real interactions.

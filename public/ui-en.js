@@ -4,6 +4,22 @@
   else root.EduEnglish = factory();
 })(typeof window !== "undefined" ? window : this, function () {
   return {
+  "诊断练习": "Diagnostic practice",
+  "诊断练习：找到卡点，用一道新题确认理解": "Diagnostic practice: find a gap, then check your understanding on a new problem",
+  "独立作答记录": "Independent practice evidence",
+  "Python 诊断练习中的订正与新题验证，分别记录。": "Corrections and checks on new Python problems are recorded separately.",
+  "已完成的订正": "Completed corrections",
+  "新题首次独立通过": "New problems passed on the first attempt",
+  "已完成的验收": "Validated problems",
+  "次提交": "submissions",
+  "次系统内提示": "in-app hints",
+  "此记录表示首次提交通过一道新题，期间未使用系统内提示；它不替代课程复习测验。": "Each record means a new problem passed on its first submission without in-app hints. It does not replace the course review assessment.",
+  "还没有独立作答记录。完成练习订正后，试试一道未见过的新题。": "No independent attempt is recorded yet. Complete a practice problem, then try an unseen variant.",
+  "开始诊断练习": "Start diagnostic practice",
+  "查看练习记录": "View practice history",
+  "检查通过": "checks passed",
+  "练习操作不存在": "This practice action does not exist",
+  "请求方式不支持": "This request method is not supported",
   "今天想学什么？": "What would you like to learn?",
   "：从左侧选择章节，或直接提问。": ": choose a chapter or ask a question.",
   "学习空间": "Workspace",

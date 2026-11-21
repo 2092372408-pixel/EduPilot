@@ -25,6 +25,7 @@ const profileStore = require('./store/profiles'); // 用户档案（本地身份
 const runner = require('./coding/runner');
 const problemsModule = require('./coding/problems');
 const grader = require('./coding/grader');
+const learningLab = require('./agent/learning-lab');
 const { course, findKnowledgePoint } = require('./data/course');
 const courseEn = require('./data/course_en');
 const kbUpload = require('./kb/upload');
@@ -736,6 +737,46 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       const result = await runner.runPython(code, { timeoutMs: body.timeoutMs || undefined });
       logger.info('run_python', `代码运行 ${result.rejected ? '被拦截' : result.timeout ? '超时' : `exit=${result.exitCode}`} | 输入 ${code.length} 字符`);
       sendJSON(res, 200, result);
+      return;
+    }
+
+    if (p === '/api/learning-lab' || p.startsWith('/api/learning-lab/')) {
+      const action = p === '/api/learning-lab' ? 'overview' : p.slice('/api/learning-lab/'.length);
+      const operations = { start: learningLab.start, submit: learningLab.submit, hint: learningLab.hint, next: learningLab.next, reset: learningLab.reset };
+      if (action !== 'overview' && !Object.hasOwn(operations, action)) {
+        sendJSON(res, 404, { ok: false, errorCode: 'not_found', error: '练习操作不存在' }); return;
+      }
+      if (req.method !== (action === 'overview' ? 'GET' : 'POST')) {
+        res.setHeader('Allow', action === 'overview' ? 'GET' : 'POST');
+        sendJSON(res, 405, { ok: false, errorCode: 'method_not_allowed', error: '请求方式不支持' }); return;
+      }
+      const body = action === 'overview' ? {} : await readBody(req);
+      const sessionId = action === 'overview' ? url.searchParams.get('sessionId') : body.sessionId;
+      const lang = (url.searchParams.get('lang') || body.lang || (locale.english() ? 'en' : 'zh')) === 'en' ? 'en' : 'zh';
+      if (typeof sessionId !== 'string' || !sessionId.trim() || sessionId.length > 200 || /[\s\u0000-\u001f\u007f]/.test(sessionId)) {
+        sendJSON(res, 400, { ok: false, errorCode: 'invalid_request', error: lang === 'en' ? 'A valid learning session is required.' : '缺少有效的学习会话' }); return;
+      }
+      // Unknown course IDs otherwise fall back to Python in the legacy session API.
+      // Reject that fallback here so a stale course tab cannot write Python evidence.
+      const courseKey = sessionId.includes('@') ? sessionId.slice(sessionId.indexOf('@') + 1).split('~')[0] : null;
+      if (courseKey && courseKey !== course.id) {
+        sendJSON(res, 400, { ok: false, supported: false, errorCode: 'unsupported_course', error: lang === 'en' ? 'Diagnostic practice currently supports the built-in Python course.' : '诊断练习目前支持内置 Python 课程' }); return;
+      }
+      if (action !== 'overview' && (typeof body.requestId !== 'string' || !/^[a-zA-Z0-9:_-]{8,120}$/.test(body.requestId))) {
+        sendJSON(res, 400, { ok: false, errorCode: 'invalid_request', error: lang === 'en' ? 'A valid request ID is required. Please retry.' : '缺少有效的请求标识，请重试' }); return;
+      }
+      if (action === 'submit' && (typeof body.code !== 'string' || !body.code.trim() || body.code.length > 20000)) {
+        sendJSON(res, 400, { ok: false, errorCode: 'invalid_request', error: lang === 'en' ? 'Enter code within the 20,000 character limit.' : '请输入代码，最多支持 20000 个字符' }); return;
+      }
+      const result = await agent.withSessionLock(sessionId, async () => {
+        const session = agent.getSession(sessionId);
+        const options = { lang, familyId: body.familyId, taskId: body.taskId, requestId: body.requestId, code: body.code };
+        const output = action === 'overview' ? learningLab.getOverview(session, options) : await operations[action](session, options);
+        if (action !== 'overview' && output.ok) sessionStore.save(session);
+        return output;
+      });
+      const status = result.ok ? 200 : ['stale_task', 'request_conflict'].includes(result.errorCode) ? 409 : 400;
+      sendJSON(res, status, result);
       return;
     }
 

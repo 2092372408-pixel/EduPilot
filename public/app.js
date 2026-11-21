@@ -674,6 +674,7 @@ function updatePracticeLinks() {
     }
   };
   apply('codingLink', '/coding.html', window.t('codingTitle'));
+  apply('learningLabLink', '/learning-lab.html', ui('诊断练习：找到卡点，用一道新题确认理解'));
   apply('choiceLink', '/choice.html', window.t('quizTitle'));
 }
 /* ============ 学习旅程：预习/学习/复习 是"教师角色"，不是可量化的刻度 ============ */

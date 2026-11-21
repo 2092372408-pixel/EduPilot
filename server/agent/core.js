@@ -35,6 +35,7 @@ const logger = require('../store/logger');
 const locale = require('../locale');
 const webConfig = require('./webconfig');
 const { buildPracticeContext } = require('./practice-context');
+const learningLab = require('./learning-lab');
 
 /** 引擎选择：默认 LangGraph（supervisor 图，原生 function calling）；
  *  显式设置 ENGINE=legacy 时回退到自研 ReAct 文本协议。两条引擎共享同一套工具/状态/知识库。 */
@@ -2085,6 +2086,7 @@ function getSessionInfo(sessionId) {
       .reduce((total, item) => total + (Number(item.turnCount) || item.turnLog?.length || 0), 0),
     messages: s.messages,
     learning: {
+      learningLab: s.learning.learningLab ? learningLab.getOverview(s, { lang: locale.english() ? 'en' : 'zh' }) : null,
       currentKpId: s.learning.currentKpId,
       currentQuizIndex: s.learning.currentQuizIndex,
       currentQuiz: s.learning.currentQuiz
@@ -2096,7 +2098,9 @@ function getSessionInfo(sessionId) {
       kps: Object.fromEntries(
         Object.entries(s.learning.kps).map(([id, rec]) => [
           id,
-          { phase: rec.phase, phaseLabel: PHASE_LABEL[rec.phase], mastery: computeMastery(rec), masteryEstimate: estimateMastery(rec), checks: rec.checks || null, assessment: rec.assessment || null, quizCorrect: rec.quizCorrect, quizTotal: rec.quizTotal, quizHistory: rec.quizHistory || [], painPoints: (rec.painPoints || []).slice(-5), lastActivity: rec.lastActivity || null, review: rec.review || null, legacyProgress: rec.legacyProgress || null },
+          { phase: rec.phase, phaseLabel: PHASE_LABEL[rec.phase], mastery: computeMastery(rec), masteryEstimate: estimateMastery(rec), checks: rec.checks || null, assessment: rec.assessment || null, quizCorrect: rec.quizCorrect, quizTotal: rec.quizTotal, quizHistory: rec.quizHistory || [], painPoints: (rec.painPoints || []).slice(-5), lastActivity: rec.lastActivity || null, review: rec.review || null, legacyProgress: rec.legacyProgress || null,
+            transferEvidence: (rec.transferEvidence || []).map(({ id, taskId, familyId, at, kind, verified, attempt, hintsUsed, answerExposed, passed, total }) => ({ id, taskId, familyId, at, kind, verified, attempt, hintsUsed, answerExposed, passed, total })),
+          },
         ])
       ),
     },

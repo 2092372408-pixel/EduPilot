@@ -515,12 +515,17 @@ const tools = {
           phaseLabel: PHASE_LABEL[rec.phase],
           assessment: rec.assessment || null,
           practice: { correct: rec.quizCorrect || 0, total: rec.quizTotal || 0 },
+          diagnosticPractice: {
+            independentTransfers: (rec.transferEvidence || []).filter(item => item.verified && item.kind === 'independent_transfer').length,
+            lastIndependentAt: (rec.transferEvidence || []).filter(item => item.verified && item.kind === 'independent_transfer').at(-1)?.at || null,
+            recentAttempts: (rec.practiceEvidence || []).slice(-3).map(({ correct, attempt, hintsUsed, independent, at }) => ({ correct, attempt, hintsUsed, independent, at })),
+          },
         };
       });
       return {
         overall: progress,
         knowledgePoints: kps,
-        note: '汇报方式：按"已经预习过 / 正在学 / 已掌握 / 还没开始 / 该复习了"来叙述，并结合学生当前所处阶段给出下一步引导（不要给百分比）',
+        note: '按阶段汇报，不给掌握百分比。diagnosticPractice 独立记录：看过提示或重复提交后通过只能说明已订正；independentTransfers 只表示在记录时间首次提交通过新变式、未使用系统内提示，不能推断没借助外部工具，也不替代复习测验或证明长期掌握。仍按 assessment 与当前阶段引导下一步。',
       };
     },
   },

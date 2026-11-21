@@ -123,7 +123,7 @@ function runAstPrecheck(code) {
 
 /** 真正执行（临时目录 + -I 隔离 + 超时 + 输出截断） */
 function runIsolated(code, opts, resolve) {
-    const { timeoutMs, checks } = opts;
+    const { timeoutMs, checks, spec } = opts;
     // 临时目录 + 脚本文件
     let tmpDir = null;
     try {
@@ -154,7 +154,7 @@ function runIsolated(code, opts, resolve) {
       USERPROFILE: tmpDir,
       PYTHONPATH: '',
     };
-    const child = spawn(python, ['-I', '-X', 'utf8', checks ? path.join(__dirname, 'judge.py') : script], {
+    const child = spawn(python, ['-I', '-X', 'utf8', checks || spec ? path.join(__dirname, 'judge.py') : script], {
       cwd: tmpDir,
       env: safeEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -170,7 +170,7 @@ function runIsolated(code, opts, resolve) {
     }, timeoutMs);
 
     // User programs should never wait for interactive input in the server.
-    try { child.stdin.end(checks ? JSON.stringify({ code, checks }) : undefined); } catch (_) {}
+    try { child.stdin.end(checks || spec ? JSON.stringify({ code, checks, spec }) : undefined); } catch (_) {}
 
     child.stdout.on('data', (d) => { if (stdout.length < MAX_OUT) stdout += d.toString('utf8').slice(0, MAX_OUT - stdout.length); });
     child.stderr.on('data', (d) => { if (stderr.length < MAX_OUT) stderr += d.toString('utf8').slice(0, MAX_OUT - stderr.length); });
@@ -183,7 +183,7 @@ function runIsolated(code, opts, resolve) {
     child.on('close', (exitCode) => {
       clearTimeout(timer);
       cleanup();
-      resolve({ stdout, stderr, exitCode: timedOut ? null : exitCode, timeout: timedOut, error: timedOut ? '运行超时（5 秒）' : null });
+      resolve({ stdout, stderr, exitCode: timedOut ? null : exitCode, timeout: timedOut, error: timedOut ? `运行超时（${Math.round(timeoutMs / 100) / 10} 秒）` : null });
     });
 
     function cleanup() {

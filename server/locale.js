@@ -30,8 +30,8 @@ const problemTranslations = [
 ];
 require('./coding/problems').PROBLEMS.forEach((problem, i) => {
   const [title, description, starterCode, descriptions] = problemTranslations[i];
-  pair(problem.title, title); pair(problem.description, description); pair(problem.starterCode, starterCode);
-  problem.testCases.forEach((test, n) => pair(test.desc, descriptions[n]));
+  pair(problem.title, problem.titleEn || title); pair(problem.description, problem.descriptionEn || description); pair(problem.starterCode, problem.starterCodeEn || starterCode);
+  problem.testCases.forEach((test, n) => pair(test.desc, test.descEn || descriptions[n]));
 });
 Object.entries({
   '入门': 'Beginner', '进阶': 'Intermediate',

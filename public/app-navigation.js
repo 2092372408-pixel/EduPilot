@@ -2,6 +2,7 @@
 (function () {
   const views = {
     coding: { path: '/coding.html', title: '代码实践', link: 'codingLink' },
+    lab: { path: '/learning-lab.html', title: '诊断练习', link: 'learningLabLink' },
     choice: { path: '/choice.html', title: '选择题', link: 'choiceLink' },
     report: { path: '/report.html', title: '学习报告', link: 'reportLink' },
     upload: { path: '/upload.html', title: '上传学习素材' },

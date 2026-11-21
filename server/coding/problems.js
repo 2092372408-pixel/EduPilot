@@ -45,7 +45,8 @@ const PROBLEMS = [
     kpId: 'kp4',
     title: '1 到 100 求和',
     difficulty: '入门',
-    description: '用 `for` 循环计算 `1 + 2 + ... + 100` 的和，存入变量 `total`，并打印出来。',
+    description: '用 `for` 循环逐项更新累加器，计算 `1 + 2 + ... + 100` 的和，将累加结果存入变量 `total`，并打印出来。',
+    descriptionEn: 'Use a for loop to update an accumulator one item at a time for 1 + 2 + ... + 100. Store the accumulated result in total and print it.',
     starterCode: '# 在这里编写代码\ntotal = 0\n',
     testCases: [
       { check: 'total == 5050', desc: '总和为 5050' },
@@ -68,7 +69,8 @@ const PROBLEMS = [
     kpId: 'kp6',
     title: '列表最大值',
     difficulty: '进阶',
-    description: '给定列表 `nums = [3, 8, 1, 6, 9, 2]`，请找出其中的最大值，存入变量 `max_val` 并打印。\n（不允许使用内置 `max()` 函数）',
+    description: '给定列表 `nums = [3, 8, 1, 6, 9, 2]`，请找出其中的最大值，存入变量 `max_val` 并打印。\n不允许使用内置 `max()` 或其别名，也不要把自定义变量或函数命名为 `max`。',
+    descriptionEn: 'Given nums = [3, 8, 1, 6, 9, 2], find the maximum, store it in max_val and print it. Do not use max() or an alias, and do not name your own variables or functions max.',
     starterCode: 'nums = [3, 8, 1, 6, 9, 2]\n# 在这里编写代码\n',
     testCases: [
       { check: 'max_val == 9', desc: '最大值为 9' },
@@ -87,6 +89,56 @@ const PROBLEMS = [
     ],
   },
 ];
+
+// Trusted requirements check what the task actually asks for. Output checks and
+// explicit implementation constraints are separate from numerical correctness.
+const stateCase = (id, desc, descEn, checks) => ({ id, desc, descEn, kind: 'state', checks, expected: true });
+const outputCase = (id, desc, descEn, expected) => ({ id, desc, descEn, kind: 'stdout', expected });
+const returnCase = (id, desc, descEn, fn, args, expected) => ({ id, desc, descEn, kind: 'return', function: fn, args, expected });
+const SPECS = {
+  'kp1-1': { constraints: [], cases: [
+    stateCase('swapped', '交换后 a=2 且 b=1', 'After swapping, a=2 and b=1', ['a == 2 and b == 1']),
+  ] },
+  'kp2-1': { constraints: [], cases: [
+    stateCase('float-value', '保留题目给定的浮点数 x=3.14', 'Keep the given floating-point value x=3.14', ["type(x).__name__ == 'float' and x == 3.14"]),
+    outputCase('printed-lines', '分两行打印 float 和 3', 'Print float and 3 on separate lines', 'float\n3'),
+  ] },
+  'kp3-1': { constraints: [
+    { id: 'branch', kind: 'require_node', nodes: ['If'], desc: '使用题目要求的 if/else 分支', descEn: 'Use the required if/else branch', diagnosisId: 'branch_missing' },
+  ], cases: [
+    { ...outputCase('odd-output', '对给定 n=7 打印奇数', 'Print odd for the given n=7', '奇数'), expectedEn: 'odd' },
+  ] },
+  'kp4-1': { constraints: [
+    { id: 'for-loop', kind: 'loop_accumulator', output: 'total', desc: '用实际执行的 for 循环累加得到 total', descEn: 'Accumulate total with an executed for loop' },
+  ], cases: [
+    stateCase('total-value', '把正确总和存入 total', 'Store the correct sum in total', ['total == 5050']),
+    outputCase('total-output', '打印得到的总和', 'Print the computed sum', '5050'),
+  ] },
+  'kp5-1': { constraints: [], cases: [
+    returnCase('positive', '正数相加返回正确结果', 'Return the sum of positive numbers', 'add', [3, 4], 7),
+    returnCase('mixed', '不同符号输入也能相加', 'Handle inputs with different signs', 'add', [10, -2], 8),
+    returnCase('zero', '零输入返回正确结果', 'Handle zero inputs', 'add', [0, 0], 0),
+    returnCase('negative', '两个负数返回正确结果', 'Handle two negative inputs', 'add', [-2, -3], -5),
+    outputCase('call-output', '调用 add(3,4) 并打印其返回值', 'Call add(3,4) and print its return value', '7'),
+  ] },
+  'kp6-1': { constraints: [
+    { id: 'no-max', kind: 'forbid_call', names: ['max'], desc: '遵守不使用 max() 的要求', descEn: 'Do not use max()', diagnosisId: 'constraint_violation' },
+  ], cases: [
+    stateCase('maximum', '将列表最大值存入 max_val', 'Store the maximum value in max_val', ['max_val == 9']),
+    outputCase('maximum-output', '打印找到的最大值', 'Print the maximum value', '9'),
+  ] },
+  'kp7-1': { constraints: [], cases: [
+    stateCase('constructor', '不同实例保存各自的 name', 'Instances preserve their own name', ["Dog('旺财').name == '旺财' and Dog('小黑').name == '小黑'"]),
+    stateCase('bark-return', 'bark() 返回题目指定的字符串', 'bark() returns the specified string', ["Dog('x').bark() == '汪汪'"]),
+    { ...stateCase('created-instance', '创建名为旺财的实例 d', 'Create instance d named Rover', ["isinstance(d, Dog) and d.name == '旺财'"]), checksEn: ["isinstance(d, Dog) and d.name == 'Rover'"] },
+    stateCase('saved-sound', '将 d.bark() 的结果存入 sound', 'Store d.bark() in sound', ["sound == d.bark() == '汪汪'"]),
+  ] },
+};
+for (const problem of PROBLEMS) {
+  problem.judgeSpec = SPECS[problem.id];
+  problem.testCases = [...problem.judgeSpec.constraints, ...problem.judgeSpec.cases]
+    .map(({ id, desc, descEn }) => ({ id, desc, descEn }));
+}
 
 /** 某单元的公开题目列表（不含测试检查表达式） */
 function getProblems(kpId) {
