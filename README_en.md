@@ -83,12 +83,29 @@ Open **Diagnostic practice** in the built-in **Python Introduction** course and 
 
 - **Explicit checks** verify return values, printed output and implementation constraints stated in the task, including relevant zero, negative, empty-interval and single-point cases. AI feedback cannot change the objective result.
 - **Validation before delivery** executes a reference solution and curated incorrect programs for each parameterized variant. A failed reference or surviving incorrect program blocks that variant.
-- **Persistent attempts** retain hint counts, submissions, template versions and independent checks locally. Refreshing resumes the task; a repeated request does not duplicate credit.
-- **Bounded evidence** records a new problem passed on its first submission without requesting its hints. This does not replace the course review assessment or establish long-term mastery. Help from other pages or external tools is not observed.
+- **Persistent attempts** retain hints, task discussions, submissions, template versions and independent checks locally. Refreshing resumes the task; a repeated request does not duplicate credit. “Discuss this task” records assistance before generating a reply.
+- **Bounded evidence** records an unseen problem passed on its first verified submission only when the system has a known record of no assistance. Missing records are shown as unknown; unrelated chat in the same course also marks an unfinished task's assistance as unknown. Independent checks do not replace the course review assessment, establish long-term mastery or determine whether external help was used.
 
 Generation, grading and graded hints for these three topics require local Python but no model API key. They use controlled templates and executable checks. This form of validation is not yet available for uploaded courses.
 
 **This feature is available from this branch's source and is not included in the v1.2.2 installers above.** With Node.js 22+ and Python 3, run `npm ci --omit=dev`, then `npm start`, open `http://127.0.0.1:8787`, and choose Diagnostic practice. Code execution retains the local teaching runner and static prechecks; it is not designed as a public multi-user execution service.
+
+### Personal knowledge graph
+
+Open **Knowledge graph** in the sidebar to explore courses, chapters and concepts with search, filters and a list alternative. Select a concept to see sources, learning evidence and suggested prerequisites, save a personal note, or return to the relevant course or diagnostic exercise.
+
+- Course structure, curated study suggestions and personally confirmed connections have distinct provenance labels.
+- Same-title concepts across courses appear as unconfirmed candidates. They are neither merged automatically nor treated as prerequisites based on title similarity.
+- Add related, prerequisite or applies-to connections. Cyclic prerequisites are rejected with an explanation.
+- The graph reads actual attempts and review evidence; notes and links do not change grades. A view contains at most 600 concepts, with an explicit notice when content is truncated.
+
+### Course management and run activity
+
+Choose **Manage courses** from the course selector to search, open, rename or delete an uploaded course, including one that is not currently open. Confirmed deletion removes that course's materials, related conversations, learning records, course memories and graph connections from this installation. Other courses and cross-course profile information remain. The bundled Python course is protected. Incomplete file cleanup remains visible and can be retried.
+
+**Run activity** in the conversation and diagnostic practice views shows execution status, confirmed steps, call counts and token accounting, and lets you cancel an active run. Interrupted runs can continue while their original deadline remains valid and learning state is unchanged. Continuation shares the original budget and reuses confirmed writes. Calls without reported usage keep their reservation instead of being counted as free. Deleted or reset learning scopes reject late writes from old runs.
+
+These source features retain the local-use model. Python owns learning evidence rules, execution rules and graph computation; Node.js owns UI endpoints, model I/O and persistence. No external graph database or additional Python package is required.
 
 ## From your materials to a complete study session
 

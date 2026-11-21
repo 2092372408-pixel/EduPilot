@@ -10,7 +10,9 @@
 const { createHash, randomUUID } = require('crypto');
 const { course } = require('../data/course');
 
-const VERSION = 1;
+const VERSION = 2;
+const RULE_VERSION = 'learning-harness-2';
+const { callCore } = require('../harness/python-core');
 const MAX_CODE = 20000;
 const MAX_VISIBLE_HISTORY = 20;
 const MAX_RECENT_EVIDENCE = 50;
@@ -62,6 +64,42 @@ function currentOf(state) {
   return state?.tasks?.find(task => task.id === state.currentTaskId) || null;
 }
 
+function assistanceOf(task) {
+  const data = task?.assistance || {};
+  return { ...data, state: ['known_none', 'assisted', 'unknown'].includes(data.state) ? data.state : 'unknown',
+    hintsUsed: Number(data.hintsUsed) || 0, chatHelpCount: Number(data.chatHelpCount) || 0,
+    answerExposed: data.answerExposed === true };
+}
+
+function recordHelp(session, { taskId, requestId, source = 'chat' } = {}) {
+  const task = currentOf(stateOf(session));
+  if (!task || task.id !== taskId) return { ok: false, errorCode: 'stale_task' };
+  if (['passed', 'independent'].includes(task.status)) return { ok: true, changed: false };
+  task.assistance = assistanceOf(task);
+  const key = sha(String(requestId || randomUUID()));
+  task.helpLedger ||= {};
+  if (task.helpLedger[key]) return { ok: true, changed: false, duplicate: true };
+  task.helpLedger[key] = { source, at: iso(), ruleVersion: RULE_VERSION };
+  if (source === 'unknown') {
+    if (task.assistance.state === 'known_none') task.assistance.state = 'unknown';
+  } else {
+    task.assistance.state = 'assisted';
+    if (source === 'chat') task.assistance.chatHelpCount++;
+  }
+  task.updatedAt = iso();
+  return { ok: true, changed: true, assistance: clone(task.assistance) };
+}
+
+function chatContext(session, taskId) {
+  const task = currentOf(stateOf(session));
+  if (!task || task.id !== taskId) return null;
+  const safe = publicTask(task);
+  return { mode: 'learning_lab', taskId: task.id, taskVersion: task.version || 1, kpId: task.kpId,
+    problemId: task.id, problemTitle: safe.title, problemDescription: safe.prompt,
+    code: safe.currentCode, gradeFeedback: safe.result, assistance: assistanceOf(task),
+    submitted: safe.status === 'passed' || safe.status === 'independent', ruleVersion: task.ruleVersion || 'legacy-1' };
+}
+
 function publicFamily(family, lang) {
   const en = language(lang) === 'en';
   return {
@@ -81,6 +119,7 @@ function publicEvidence(evidence) {
     attempt: evidence.attempt, hintsUsed: evidence.hintsUsed,
     answerExposed: evidence.answerExposed === true,
     passed: evidence.passed, total: evidence.total,
+    ruleVersion: evidence.ruleVersion || 'legacy-1', assistanceState: evidence.assistanceState || 'unknown',
   };
 }
 
@@ -162,7 +201,7 @@ function publicTask(task, interfaceLang) {
     starterCode: problem.starterCode, publicExamples: problem.publicExamples || [],
     constraints: problem.constraints || [], currentCode: task.currentCode,
     attempts: task.attempts.length,
-    assistance: { hintsUsed: task.assistance.hintsUsed, answerExposed: task.assistance.answerExposed === true },
+    assistance: assistanceOf(task), taskVersion: task.version || 1, ruleVersion: task.ruleVersion || 'legacy-1',
     hintsUsed: task.assistance.hintsUsed,
     visibleHints: task.hints.map(hint => ({ level: hint.level, text: hint.text, at: hint.at })),
     lastResult: result, result, status: task.status,
@@ -171,12 +210,13 @@ function publicTask(task, interfaceLang) {
     nextAction: canNext(task) ? (task.purpose === 'practice' ? 'transfer' : 'retry_transfer') : null,
     independentEligible: task.purpose === 'transfer' && task.wasUnseen === true
       && task.validation?.ok === true && task.attempts.length === 0
-      && task.assistance.hintsUsed === 0 && !task.assistance.answerExposed,
+      && assistanceOf(task).state === 'known_none' && task.assistance.hintsUsed === 0 && !task.assistance.answerExposed,
     independentVerified: task.status === 'independent',
     attemptHistory: task.attempts.slice(-10).map(attempt => ({
       id: attempt.id, number: attempt.number, at: attempt.at,
       firstSubmission: attempt.firstSubmission, repeatedCode: attempt.repeatedCode,
       hintsUsed: attempt.assistance.hintsUsed, answerExposed: attempt.assistance.answerExposed,
+      assistanceState: attempt.assistance.state || 'unknown',
       correct: attempt.correct, independent: attempt.independent,
       passed: attempt.result.passed, total: attempt.result.total,
     })),
@@ -190,8 +230,9 @@ function publicHistory(task) {
     taskId: task.id, familyId: task.familyId, title: task.problem.title,
     purpose: task.purpose, lang: task.lang, status: task.status, attempts: task.attempts.length,
     hintsUsed: task.assistance.hintsUsed, answerExposed: task.assistance.answerExposed,
+    assistanceState: assistanceOf(task).state,
     outcome: task.status === 'independent' ? 'independent'
-      : complete && (task.attempts.length > 1 || task.assistance.hintsUsed > 0) ? 'corrected'
+      : complete && (task.attempts.length > 1 || assistanceOf(task).state !== 'known_none') ? 'corrected'
         : complete ? 'passed' : 'incomplete',
     passed: task.result?.passed || 0, total: task.result?.total || 0,
     createdAt: task.createdAt, completedAt: task.completedAt || null, updatedAt: task.updatedAt,
@@ -246,6 +287,7 @@ function scrubLearning(learning, opts = {}) {
         correct: evidence.correct === true, independent: evidence.independent === true,
         firstSubmission: evidence.firstSubmission === true, repeatedCode: evidence.repeatedCode === true,
         passed: evidence.passed, total: evidence.total,
+        ruleVersion: evidence.ruleVersion || 'legacy-1', assistanceState: evidence.assistanceState || 'unknown',
       }));
       return [kpId, safe];
     }));
@@ -319,11 +361,12 @@ async function createTask(session, operation, familyId, purpose) {
     const at = iso();
     return { task: {
       id: randomUUID(), familyId, kpId: family.kpId, purpose, lang: operation.lang,
+      version: 1, ruleVersion: RULE_VERSION,
       seed: String(problem.seed), templateVersion: problem.templateVersion,
       variantKey: fingerprint(problem), wasUnseen: true,
       problem: clone(problem), validation: clone(validation),
       status: 'ready', currentCode: String(problem.starterCode || ''),
-      attempts: [], hints: [], assistance: { hintsUsed: 0, answerExposed: false },
+      attempts: [], hints: [], assistance: { state: 'known_none', hintsUsed: 0, chatHelpCount: 0, answerExposed: false }, helpLedger: {},
       result: null, createdAt: at, updatedAt: at,
     } };
   } catch (_) {
@@ -359,6 +402,8 @@ function recordEvidence(session, task, attempt) {
     verified: attempt.result.verified === true, attempt: attempt.number,
     hintsUsed: attempt.assistance.hintsUsed, answerExposed: attempt.assistance.answerExposed,
     passed: attempt.result.passed, total: attempt.result.total, codeDigest: attempt.codeDigest,
+    ruleVersion: RULE_VERSION, taskVersion: task.version || 1,
+    assistanceState: attempt.assistance.state, chatHelpCount: attempt.assistance.chatHelpCount || 0,
   };
   const practice = {
     ...base, kind: 'coding_attempt', correct: attempt.correct,
@@ -400,9 +445,11 @@ async function submit(session, input = {}) {
   const at = iso();
   const codeDigest = sha(input.code);
   const correct = valid && grade.passed === grade.total;
-  const independent = correct && task.purpose === 'transfer' && task.wasUnseen === true
-    && task.validation.ok === true && task.attempts.length === 0
-    && task.assistance.hintsUsed === 0 && !task.assistance.answerExposed;
+  task.assistance = assistanceOf(task);
+  const policy = callCore('eligibility', { task: { purpose: task.purpose, wasUnseen: task.wasUnseen, validation: { ok: task.validation?.ok === true } },
+    attemptNumber: task.attempts.length + 1, result, assistance: task.assistance });
+  if (!policy.ok) return failure(session, 'invalid_grade', operation.lang);
+  const independent = policy.independent === true;
   const attempt = {
     id: randomUUID(), number: task.attempts.length + 1, at, code: input.code, codeDigest,
     firstSubmission: task.attempts.length === 0,
@@ -441,6 +488,8 @@ async function hint(session, input = {}) {
   const at = iso();
   task.hints.push({ level: task.hints.length + 1, text, at });
   task.assistance.hintsUsed = task.hints.length;
+  task.assistance.state = 'assisted';
+  task.assistance.chatHelpCount ||= 0;
   if (entry && typeof entry === 'object' && entry.revealsAnswer === true) task.assistance.answerExposed = true;
   task.updatedAt = at;
   return finishOperation(session, operation, { taskId: task.id, hintLevel: task.hints.length });
@@ -458,4 +507,4 @@ async function next(session, input = {}) {
   return finishOperation(session, operation, { taskId: made.task.id, previousTaskId: task.id });
 }
 
-module.exports = { getOverview, start, submit, hint, next, reset, scrubLearning };
+module.exports = { getOverview, start, submit, hint, next, reset, scrubLearning, recordHelp, chatContext, assistanceOf, RULE_VERSION };

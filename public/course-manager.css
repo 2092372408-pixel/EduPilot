@@ -1,0 +1,21 @@
+.course-manager { width:min(720px,calc(100vw - 32px)); max-height:calc(100dvh - 48px); margin:auto; padding:24px; border:1px solid var(--border); border-radius:18px; background:var(--panel); color:var(--text); box-shadow:0 18px 70px #17251d33; overflow:auto; }
+.course-manager::backdrop { background:#18231d66; }
+.course-manager-head { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.course-manager-head h2 { font-size:20px; }
+.course-manager-description { color:var(--text-2); line-height:1.6; margin:10px 0 18px; }
+.course-manager-search, .course-manager-form input { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:9px; background:var(--panel); color:var(--text); font:inherit; }
+.course-manager-status { min-height:24px; margin:10px 0; font-size:13px; color:var(--text-2); }
+.course-manager-status.course-manager-error { color:#a23333; }
+.course-manager-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; padding:16px 0; border-top:1px solid var(--border); }
+.course-manager-row h3 { font-size:15px; overflow-wrap:anywhere; line-height:1.5; }
+.course-manager-meta { color:var(--text-2); font-size:12px; margin-top:5px; line-height:1.6; }
+.course-manager-actions { display:flex; flex-wrap:wrap; align-items:center; gap:7px; }
+.course-manager .course-manager-danger { color:#a23333; border-color:#d8b6b6; }
+.course-manager .course-manager-danger:hover { color:#842525; background:#fbefef; border-color:#bf7777; }
+.course-manager button:disabled { opacity:.5; cursor:wait; }
+.course-manager-form { grid-column:1/-1; }
+.course-manager-form:empty { display:none; }
+.course-manager-form:not(:empty) { padding:14px; border-radius:10px; background:var(--bg); display:flex; flex-direction:column; gap:12px; line-height:1.65; }
+.course-manager-form label { display:flex; flex-direction:column; gap:7px; }
+.course-manager-empty { padding:30px 0; color:var(--text-2); text-align:center; }
+@media(max-width:520px) { .course-manager { padding:18px; } .course-manager-row { grid-template-columns:1fr; } .course-manager-actions { justify-content:flex-start; } }

@@ -1,6 +1,15 @@
 /* Diagnostic practice uses the same quiet palette and type as the learning workspace. */
 .lab-page { --lab-muted: #747b73; --lab-green: #41634b; --lab-warm: #956732; --lab-code-bg: #f8f9f6; }
 .lab-page [hidden] { display: none !important; }
+.lab-chat-help { margin-top:14px; padding:20px 24px; }
+.lab-chat-help h2 { font-size:15px; font-weight:600; }
+.lab-chat-help-note { color:var(--text-2); font-size:12px; line-height:1.75; margin:8px 0 12px; }
+.lab-chat-help form { display:flex; align-items:flex-end; gap:10px; }
+.lab-chat-help textarea { flex:1; min-width:0; resize:vertical; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--lab-code-bg); color:var(--text); font:inherit; font-size:13px; line-height:1.6; }
+.lab-chat-help-status { font-size:11px; line-height:1.6; color:var(--text-2); margin-top:7px; }
+.lab-chat-help-reply { white-space:pre-wrap; overflow-wrap:anywhere; padding:14px 16px; margin-top:12px; border-left:3px solid #a9b6a4; background:var(--lab-code-bg); font-size:13px; line-height:1.8; }
+.lab-assistance[data-state="unknown"] { color:#956732; }
+@media(max-width:600px) { .lab-chat-help { padding:18px; } .lab-chat-help form { align-items:stretch; flex-direction:column; } }
 .lab-brand-link { text-decoration: none; color: inherit; }
 .lab-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .lab-shell { width: min(1160px, 100%); margin: 0 auto; padding: 30px 32px 22px; }

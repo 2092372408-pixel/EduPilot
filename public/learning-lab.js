@@ -12,9 +12,11 @@
   const draftPrefix = 'eduowl_lab_draft:' + sessionId + ':';
   const lang = () => window.eduLanguage?.() === 'en' ? 'en' : 'zh';
   const state = {
-    overview: null, selectedFamily: 'parity', selectedExplicitly: false,
+    overview: null, selectedFamily: ['parity', 'loop-sum', 'function-return'].includes(params.get('family')) ? params.get('family') : 'parity',
+    selectedExplicitly: ['parity', 'loop-sum', 'function-return'].includes(params.get('family')),
     busy: false, loading: true, pending: null, retry: null,
     revision: 0, renderedTaskId: null, refreshAfterRequest: false, active: true,
+    helpResponse: null, helpSyncRequired: false,
   };
 
   const words = {
@@ -38,10 +40,16 @@
       recordsDetail: '保留首次独立通过新题的证据，供后续复习参考。',
       footer: '代码会实际运行检查。内置提示也可直接使用。',
       topicsLabel: '练习主题', progressLabel: '练习进度', placeholder: '# 在这里补全代码',
-      practice: '初练', transfer: '独立验证', assisted: '使用了提示', noHint: '尚未使用提示',
+      practice: '初练', transfer: '独立验证', assisted: '已使用系统帮助', noHint: '无已记录系统帮助',
+      assistanceUnknown: '帮助情况未确认', chatHelp: '聊天帮助 {n} 次', legacyHints: '旧规则记录 · 未用内置提示',
+      helpTitle: '讨论这道题', helpNote: '导师回答会记入本题的系统帮助记录。使用提示或聊天帮助后，可以换一道新题独立验证。',
+      helpQuestionLabel: '你的问题', helpPlaceholder: '例如：我应该怎样理解这个失败的输入？', askHelp: '请导师解释',
+      helpWorking: '导师正在查看这道题…', helpRecorded: '已同步本题的帮助状态。',
+      helpChanged: '题目已经切换，本次回复未显示到新题中。', helpSync: '暂时未确认帮助记录，请刷新状态后继续作答。',
+      unknownNote: '这道题的帮助情况尚未确认。可以继续练习，或换一道新题建立完整记录。',
       completed: '本题已完成', practiceNote: '先试着完成代码。遇到困难时，可以提交查看结果，或按需展开提示。',
-      transferNote: '新题首次提交、未使用提示并通过全部检查，会留下独立作答记录。使用提示后，可以再换新题验证。',
-      assistedNote: '本题已使用提示，会作为辅助练习。完成后可换一道新题，再独立验证。',
+      transferNote: '新题首次提交、没有已记录系统帮助并通过全部检查，会留下首答通过记录。求助后，可以再换新题验证。',
+      assistedNote: '本题已使用系统帮助，会作为辅助练习。完成后可换一道新题，再独立验证。',
       retryTransferNote: '这次可以继续修改代码。完成后，再用一道新的题目独立验证。',
       working: '正在检查代码…', opening: '正在准备练习…', gettingHint: '正在打开提示…',
       checked: '已检查', attempt: '第 {n} 次提交', noCode: '先补全代码，再提交检查。',
@@ -59,7 +67,7 @@
       correctedLabel: '换新题独立验证',
       finishedTitle: '这次独立完成，有迹可循', finishedText: '本次记录已保存。可以继续巩固，也可以选择另一个主题。',
       finishedLabel: '继续巩固', evidenceBadge: '首次独立通过新题', firstAttempt: '首次提交',
-      withoutHints: '未用提示', checksPassed: '{passed} 项检查通过', evidenceCount: '{n} 条记录',
+      withoutHints: '无已记录系统帮助', checksPassed: '{passed} 项检查通过', evidenceCount: '{n} 条记录',
       loadError: '暂时没有加载到练习', loadErrorDetail: '请检查连接后重试，你的已提交记录会保留。',
       uncertainError: '这次操作的结果还未确认', uncertainDetail: '代码已保留。重试会继续确认这次操作，不会重复记录一次提交。',
       restoredPending: '上次操作还没有确认完成，可以继续重试。',
@@ -89,10 +97,16 @@
       recordsDetail: 'First-attempt successes on fresh problems, saved for future review.',
       footer: 'Your code is run and checked. Built-in hints are ready to use.',
       topicsLabel: 'Practice topics', progressLabel: 'Practice progress', placeholder: '# Complete your code here',
-      practice: 'Practice', transfer: 'Independent attempt', assisted: 'Hint used', noHint: 'No hints used',
+      practice: 'Practice', transfer: 'Independent attempt', assisted: 'System help recorded', noHint: 'No recorded system help',
+      assistanceUnknown: 'Help status unconfirmed', chatHelp: 'Chat help: {n}', legacyHints: 'Earlier rules · no built-in hints',
+      helpTitle: 'Discuss this problem', helpNote: 'Tutor responses are recorded as help for this problem. After using hints or chat help, try a fresh problem independently.',
+      helpQuestionLabel: 'Your question', helpPlaceholder: 'For example: how should I interpret this failing input?', askHelp: 'Ask the tutor',
+      helpWorking: 'The tutor is reviewing this problem…', helpRecorded: 'The help status for this problem is up to date.',
+      helpChanged: 'The problem changed. This response was not shown on the new problem.', helpSync: 'Help records could not be confirmed. Refresh the status before continuing.',
+      unknownNote: 'The help history of this problem is unconfirmed. Keep practicing or start a fresh problem for a complete record.',
       completed: 'Problem completed', practiceNote: 'Try completing the code first. You can check the results or reveal a hint whenever you need one.',
-      transferNote: 'Pass all checks on your first submission without hints to record an independent attempt. If you use a hint, you can try a fresh problem afterward.',
-      assistedNote: 'A hint has been used, so this is assisted practice. Finish this problem, then try a new one independently.',
+      transferNote: 'Pass all checks on your first submission with no recorded system help to save first-attempt success. After asking for help, try a fresh problem.',
+      assistedNote: 'System help has been used, so this is assisted practice. Finish this problem, then try a new one independently.',
       retryTransferNote: 'Keep refining your code. After completing this problem, you can try a fresh one independently.',
       working: 'Checking your code…', opening: 'Preparing your practice…', gettingHint: 'Opening a hint…',
       checked: 'Checked', attempt: 'Submission {n}', noCode: 'Complete your code before submitting.',
@@ -110,7 +124,7 @@
       correctedLabel: 'Try a fresh problem',
       finishedTitle: 'An independent attempt, with evidence', finishedText: 'Your result is saved. Keep practicing or choose another topic.',
       finishedLabel: 'Keep practicing', evidenceBadge: 'First-attempt success on a new problem', firstAttempt: 'First submission',
-      withoutHints: 'No hints used', checksPassed: '{passed} checks passed', evidenceCount: '{n} records',
+      withoutHints: 'No recorded system help', checksPassed: '{passed} checks passed', evidenceCount: '{n} records',
       loadError: 'Practice could not be loaded', loadErrorDetail: 'Check your connection and retry. Your submitted work is saved.',
       uncertainError: 'This operation is not confirmed yet', uncertainDetail: 'Your code is preserved. Retrying will confirm this same operation without recording another submission.',
       restoredPending: 'Your last operation was not confirmed. You can retry it now.',
@@ -172,6 +186,9 @@
   const isPassed = task => ['passed', 'independent'].includes(task?.status) ||
     (Number(resultOf(task)?.total) > 0 && Number(resultOf(task)?.passed) === Number(resultOf(task)?.total));
   const hintsUsed = task => Number(task?.assistance?.hintsUsed ?? task?.hintsUsed ?? 0);
+  const assistanceState = task => state.helpSyncRequired ? 'unknown'
+    : hintsUsed(task) > 0 || Number(task?.assistance?.chatHelpCount) > 0 || task?.assistance?.answerExposed === true ? 'assisted'
+      : task?.assistance?.state === 'known_none' ? 'known_none' : task?.assistance?.state === 'assisted' ? 'assisted' : 'unknown';
 
   function localCopy() {
     document.querySelectorAll('[data-lab-text]').forEach(node => { node.textContent = tr(node.dataset.labText); });
@@ -179,6 +196,7 @@
     $('labTopics').setAttribute('aria-label', tr('topicsLabel'));
     $('labProgress').setAttribute('aria-label', tr('progressLabel'));
     $('labCode').placeholder = tr('placeholder');
+    $('labHelpQuestion').placeholder = tr('helpPlaceholder');
     const back = new URL('/', location.origin);
     back.searchParams.set('course', courseId);
     back.searchParams.set('lang', lang());
@@ -219,7 +237,7 @@
 
   function renderProgress(task) {
     const transfer = isTransfer(task);
-    const touched = Number(task.attempts) > 0 || hintsUsed(task) > 0;
+    const touched = Number(task.attempts) > 0 || assistanceState(task) === 'assisted';
     const current = transfer ? 2 : touched ? 1 : 0;
     $('labProgress').querySelectorAll('li').forEach((node, index) => {
       node.dataset.state = index < current || isIndependent(task) ? 'done' : index === current ? 'active' : 'upcoming';
@@ -259,7 +277,10 @@
     renderProgress(task);
     text('labPhase', tr(isTransfer(task) ? 'transfer' : 'practice'));
     $('labPhase').dataset.phase = isTransfer(task) ? 'transfer' : 'practice';
-    text('labAssistance', tr(hintsUsed(task) > 0 ? 'assisted' : 'noHint'));
+    const assistance = assistanceState(task);
+    text('labAssistance', tr(assistance === 'assisted' ? 'assisted' : assistance === 'known_none' ? 'noHint' : 'assistanceUnknown')
+      + (Number(task.assistance?.chatHelpCount) > 0 ? ' · ' + tr('chatHelp', { n: task.assistance.chatHelpCount }) : ''));
+    $('labAssistance').dataset.state = assistance;
     text('labProblemTitle', task.title || problem.title || '');
     text('labLanguageNotice', task.languageNotice || '');
     $('labLanguageNotice').hidden = !task.languageNotice;
@@ -275,10 +296,11 @@
     }));
     document.querySelector('.lab-examples').hidden = !examples.length;
     text('labTaskNote', tr(isTransfer(task)
-      ? hintsUsed(task) > 0 ? 'assistedNote' : Number(task.attempts) > 0 && !isIndependent(task) ? 'retryTransferNote' : 'transferNote'
+      ? assistance === 'unknown' ? 'unknownNote' : assistance === 'assisted' ? 'assistedNote' : Number(task.attempts) > 0 && !isIndependent(task) ? 'retryTransferNote' : 'transferNote'
       : 'practiceNote'));
     const completedCodeChanged = isPassed(task) && typeof task.currentCode === 'string' && $('labCode').value !== task.currentCode;
     if (state.renderedTaskId !== taskId(task) || completedCodeChanged) {
+      if (state.renderedTaskId !== taskId(task)) { $('labHelpQuestion').value = ''; state.helpResponse = null; }
       state.renderedTaskId = taskId(task);
       $('labCode').value = draftFor(task);
       $('labCode').scrollTop = 0;
@@ -288,6 +310,10 @@
     renderFeedback(task);
     renderHints(task);
     renderNext(task);
+    const help = state.helpResponse?.taskId === taskId(task) ? state.helpResponse : null;
+    text('labHelpReply', help?.reply || '');
+    $('labHelpReply').hidden = !help?.reply;
+    if (!state.busy) text('labHelpStatus', state.helpSyncRequired ? tr('helpSync') : help ? tr('helpRecorded') : '');
     updateControls();
   }
 
@@ -393,7 +419,8 @@
       const match = families().find(family => family.id === item.familyId);
       const title = match?.title || familyLabels[item.familyId]?.[lang()]?.[0] || tr('transfer');
       const facts = create('div', 'lab-evidence-facts');
-      facts.append(create('span', '', tr('firstAttempt')), create('span', '', tr('withoutHints')));
+      const currentRules = item.assistanceState === 'known_none' || item.assistanceSnapshot?.state === 'known_none';
+      facts.append(create('span', '', tr('firstAttempt')), create('span', '', tr(currentRules ? 'withoutHints' : 'legacyHints')));
       if (Number(item.passed) > 0) facts.appendChild(create('span', '', tr('checksPassed', { passed: item.passed })));
       let dateText = '';
       const date = new Date(item.at);
@@ -407,13 +434,15 @@
 
   function updateControls() {
     const task = selectedTask();
-    const locked = state.busy || state.loading || Boolean(state.pending) || !state.overview;
+    const locked = state.busy || state.loading || Boolean(state.pending) || state.helpSyncRequired || !state.overview;
     $('labStart').disabled = locked;
     $('labReset').disabled = locked || !task;
     $('labSubmit').disabled = locked || !task || isPassed(task) || !$('labCode').value.trim();
     $('labHint').disabled = locked || !task || task.canRequestHint === false || isPassed(task);
     $('labNext').disabled = locked || !task;
     $('labCode').readOnly = locked || !task || isPassed(task);
+    $('labHelpQuestion').disabled = locked || !task;
+    $('labAskHelp').disabled = locked || !task || !$('labHelpQuestion').value.trim();
     const label = $('labHint').querySelector('span');
     label.textContent = tr(task?.canRequestHint === false && hintsUsed(task) >= 3 ? 'noMoreHints' : hintsUsed(task) > 0 ? 'nextHint' : 'hint');
     $('labTopics').querySelectorAll('button').forEach(button => { button.disabled = locked; });
@@ -468,15 +497,15 @@
   function restorePending() {
     try {
       const value = JSON.parse(sessionStorage.getItem(pendingKey) || 'null');
-      if (value && ['start', 'reset', 'submit', 'hint', 'next'].includes(value.action)
+      if (value && ['start', 'reset', 'submit', 'hint', 'next', 'chat_help'].includes(value.action)
         && value.body?.sessionId === sessionId && typeof value.body.requestId === 'string') return value;
     } catch (_) {}
     return null;
   }
 
-  async function request(path, options) {
+  async function request(path, options, timeoutMs = 45000) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await (window.eduFetch || fetch)(path, { ...options, signal: controller.signal });
       let data;
@@ -523,6 +552,7 @@
       const data = await request('/api/learning-lab?sessionId=' + encodeURIComponent(sessionId) + '&lang=' + requestLanguage);
       if (revision !== state.revision || requestLanguage !== lang()) return;
       receive(data, false);
+      state.helpSyncRequired = false;
       state.loading = false;
       if (!state.pending) clearError();
       render();
@@ -556,6 +586,7 @@
 
   async function perform(operation) {
     if (!operation || state.busy) return;
+    if (operation.action === 'chat_help') return performHelp(operation);
     const revision = ++state.revision;
     const requestLanguage = lang();
     state.busy = true;
@@ -589,6 +620,63 @@
         state.refreshAfterRequest = false;
         await loadOverview();
       }
+      window.EduRunActivity?.refresh();
+    }
+  }
+
+  async function askHelp(event) {
+    event?.preventDefault();
+    const task = selectedTask();
+    const question = $('labHelpQuestion').value.trim();
+    if (!task || !question || state.busy || state.loading || state.pending || state.helpSyncRequired) return;
+    saveDraft();
+    await performHelp({ action: 'chat_help', body: {
+      sessionId, requestId: crypto.randomUUID(), message: question,
+      context: { mode: 'learning_lab', taskId: taskId(task) }, webMode: 'off',
+    } });
+  }
+
+  async function performHelp(operation) {
+    if (state.busy) return;
+    const targetId = operation.body.context?.taskId;
+    if (taskId(currentTask()) !== targetId) {
+      storePending(null); showError(tr('operationError'), tr('helpChanged'), loadOverview, 'refresh'); updateControls(); return;
+    }
+    const revision = ++state.revision;
+    state.busy = true; state.helpResponse = null;
+    storePending(operation); clearError(); updateControls();
+    text('labHelpStatus', tr('helpWorking'));
+    let reply = null;
+    try {
+      const data = await request('/api/chat?lang=' + lang(), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(operation.body),
+      }, 180000);
+      reply = typeof data.reply === 'string' ? data.reply : '';
+      storePending(null);
+    } catch (error) {
+      if (!error.retryable) storePending(null);
+      showError(tr(error.retryable ? 'uncertainError' : 'operationError'), error.message,
+        error.retryable ? () => performHelp(operation) : loadOverview, error.retryable ? 'retryOperation' : 'refresh');
+    } finally {
+      // Help may already have been recorded before a timeout. Always fetch the
+      // authoritative ledger, including after a failed model response.
+      try {
+        const overview = await request('/api/learning-lab?sessionId=' + encodeURIComponent(sessionId) + '&lang=' + lang());
+        if (revision === state.revision) {
+          receive(overview, false); state.helpSyncRequired = false;
+          if (taskId(overview.currentTask) === targetId) {
+            if (reply !== null) state.helpResponse = { taskId: targetId, reply };
+          } else {
+            state.helpResponse = null; storePending(null);
+            showError(tr('operationError'), tr('helpChanged'), loadOverview, 'refresh');
+          }
+        }
+      } catch (_) {
+        state.helpSyncRequired = true;
+        showError(tr('loadError'), tr('helpSync'), loadOverview, 'refresh');
+      }
+      state.busy = false; state.refreshAfterRequest = false;
+      render(); window.EduRunActivity?.refresh();
     }
   }
 
@@ -597,6 +685,8 @@
   $('labSubmit').addEventListener('click', () => act('submit'));
   $('labHint').addEventListener('click', () => act('hint'));
   $('labNext').addEventListener('click', () => act(isIndependent(selectedTask()) ? 'reset' : 'next'));
+  $('labHelpForm').addEventListener('submit', askHelp);
+  $('labHelpQuestion').addEventListener('input', updateControls);
   $('labRetry').addEventListener('click', () => { if (!state.busy && state.retry) state.retry(); });
   $('labCode').addEventListener('input', () => { saveDraft(); lineNumbers(); updateControls(); });
   $('labCode').addEventListener('scroll', () => { $('labLineNumbers').scrollTop = $('labCode').scrollTop; });
@@ -625,9 +715,18 @@
   window.addEventListener('edu:activate', event => {
     state.active = event.detail?.active !== false;
     if (!state.active) { saveDraft(); return; }
+    if (['parity', 'loop-sum', 'function-return'].includes(event.detail?.familyId) && !state.busy && !state.pending) {
+      saveDraft();
+      state.selectedFamily = event.detail.familyId;
+      state.selectedExplicitly = true;
+      // A load activation may arrive before the first overview response. Keep
+      // that read valid; receive() preserves an explicitly selected family.
+      render();
+    }
     window.applySettings?.();
     if (event.detail?.refresh || event.detail?.visibilityChanged) loadOverview();
   });
+  window.addEventListener('edu-run-updated', event => { if (event.detail?.sessionId === sessionId) loadOverview(); });
   window.addEventListener('storage', event => {
     if (event.key === 'eduowl_lang' && ['zh', 'en'].includes(event.newValue) && event.newValue !== lang()) {
       window.setEduLanguage?.(event.newValue);
@@ -635,6 +734,7 @@
   });
 
   state.pending = restorePending();
+  window.EduRunActivity?.mount($('labRunActivity'), { sessionId });
   render();
   loadOverview();
 })();

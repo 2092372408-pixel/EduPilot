@@ -150,6 +150,9 @@ function toolsForAgent(agentId, dynamic = false, opts = {}) {
     delete result.get_knowledge_point;
     delete result.read_material_image;
   }
+  if (!dynamic) {
+    for (const name of ['get_learning_task', 'issue_learning_task', 'request_learning_help', 'suggest_learning_next']) result[name] = tools[name];
+  }
   return result;
 }
 

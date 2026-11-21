@@ -307,6 +307,6 @@ module.exports = {
   // 统计/清理（报告页与后台用）
   stats: (sessionId) => store.stats(sessionId),
   clear: (uid) => store.clearUid(uid),          // 清空整个用户（跨课程）
-  clearSession: (sessionId) => store.clearSession(sessionId), // 只清本课（重置本课用）
+  clearSession: (sessionId, options) => store.clearSession(sessionId, options), // 只清本课（重置本课用）
   store,
 };

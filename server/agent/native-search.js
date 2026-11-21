@@ -6,11 +6,12 @@
 // https://docs.volcengine.com/docs/ark/web-search?lang=en
 const { providerKey } = require('./modelCapabilities');
 const execution = require('./execution');
+const harness = require('../harness/runtime');
 
 function capability(input = {}) {
-  const baseUrl = String(input.baseUrl ?? process.env.LLM_BASE_URL ?? '').replace(/\/+$/, '');
-  const model = String(input.model ?? process.env.LLM_MODEL ?? '');
-  const provider = providerKey(input.provider ?? process.env.LLM_PROVIDER, baseUrl);
+  const baseUrl = String(input.baseUrl ?? harness.configValue('LLM_BASE_URL') ?? '').replace(/\/+$/, '');
+  const model = String(input.model ?? harness.configValue('LLM_MODEL') ?? '');
+  const provider = providerKey(input.provider ?? harness.configValue('LLM_PROVIDER'), baseUrl);
   let protocol = null;
   if (provider === 'dashscope' && /^(qwen3\.[5-8]-(plus|flash|max)(-|$)|qwen-(plus|max|flash)(-|$)|qwen3-max(?:-|$))/.test(model)) protocol = 'dashscope';
   if (provider === 'openai' && /^(gpt-(?:5|6)(?:[.-]|$)|gpt-4\.1(?:-|$)|o3(?:-|$)|o4-mini(?:-|$))/.test(model) && !/nano|search-api|chat-latest/.test(model)) protocol = 'responses';
@@ -68,7 +69,7 @@ async function search(query) {
   const prompt = String(query);
   let url = cap.baseUrl + '/chat/completions';
   let body = { model: cap.model, messages: [{ role: 'system', content: policy }, { role: 'user', content: prompt }], stream: false, max_tokens: 400 };
-  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.LLM_API_KEY}` };
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${harness.configValue('LLM_API_KEY')}` };
   if (cap.protocol === 'dashscope') {
     const multimodal = /^qwen3\.[5-8]-/.test(cap.model);
     // Qwen 3.5–3.7 support multi-round retrieval; this strategy accepts only enable_source.
@@ -79,7 +80,7 @@ async function search(query) {
     headers['X-DashScope-SSE'] = 'enable';
     body = { model: cap.model, input: { messages: [{ role: 'system', content: multimodal ? [{ text: policy }] : policy }, { role: 'user', content: multimodal ? [{ text: prompt }] : prompt }] },
       parameters: { result_format: 'message', incremental_output: true, max_tokens: 400,
-        ...(process.env.LLM_DISABLE_THINKING === '1' ? { enable_thinking: false } : {}),
+        ...(harness.configValue('LLM_DISABLE_THINKING') === '1' ? { enable_thinking: false } : {}),
         enable_search: true, search_options: searchOptions } };
   } else if (cap.protocol === 'responses') {
     url = cap.baseUrl + '/responses';
@@ -91,7 +92,7 @@ async function search(query) {
   }
   const timeout = AbortSignal.timeout(60000), current = execution.currentSignal();
   const signal = current ? AbortSignal.any([current, timeout]) : timeout;
-  const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal });
+  const response = await harness.meteredFetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal }, 'native_search');
   if (!response.ok) {
     const text = await response.text();
     throw Object.assign(new Error('原生联网检索失败：' + require('./llmconfig').friendlyError(response.status, text)), { code: 'WEB_SEARCH_FAILED', status: 502 });

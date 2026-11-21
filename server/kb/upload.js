@@ -24,11 +24,11 @@ const { courseFiles } = require('./snapshots');
 const { withCourseLock } = require('./course-lock');
 const { convertToMarkdown } = require('./convert');
 const { buildCourse } = require('./import');
-const { registerCourse, unregisterCourse, getDynamicCourse, removeOrTrash } = require('./course-registry');
+const { registerCourse, unregisterCourse, getDynamicCourse, removeOrTrash, assertCourseWritable, beginCourseDeletion } = require('./course-registry');
 
 const KB_ROOT = path.join(__dirname, '..', '..', 'data', 'kb');
 const BOOKS_DIR = path.join(KB_ROOT, 'books');
-const COURSES_DIR = path.join(__dirname, '..', '..', 'data', 'courses');
+const { COURSES_DIR } = require('./course-registry');
 
 const ALLOWED_EXT = ['.md', '.markdown', '.txt', '.json', '.docx', '.pdf', '.pptx'];
 // 单文件大小上限（默认 10MB）：教材/讲义单册通常远小于此；
@@ -52,19 +52,30 @@ function sanitizeName(name) {
   return clean || 'material';
 }
 
-/** 清理动态课程的所有残留产物（books/chunks/题库缓存/注册表；删除被拦截时移入 trash） */
+/** Cleanup is retryable. A tombstone blocks any late writer before lock acquisition. */
 async function cleanupCourse(courseId) {
   courseFiles(courseId); // Validate before resolving deletion targets.
   if (!courseId.startsWith('user-')) throw new Error('只能删除素材课程');
+  beginCourseDeletion(courseId);
   return withCourseLock(courseId, async () => {
-  for (const dir of [path.join(BOOKS_DIR, courseId), path.join(KB_ROOT, 'chunks', courseId), path.join(KB_ROOT, 'versions', courseId)]) {
-    if (fs.existsSync(dir)) removeOrTrash(dir);
+  const targets = [path.join(BOOKS_DIR, courseId), path.join(KB_ROOT, 'chunks', courseId), path.join(KB_ROOT, 'versions', courseId)];
+  const temporaryRoot = path.join(KB_ROOT, '.tmp');
+  if (fs.existsSync(temporaryRoot)) {
+    for (const name of fs.readdirSync(temporaryRoot)) {
+      if (name.startsWith(courseId + '-') && /^[a-zA-Z0-9]{6}$/.test(name.slice(courseId.length + 1))) targets.push(path.join(temporaryRoot, name));
+    }
   }
-  // 题库缓存 data/courses/<id>.quizzes.json：原实现漏清，删课后会留下孤儿文件
-  const quizCache = path.join(COURSES_DIR, `${courseId}.quizzes.json`);
-  if (fs.existsSync(quizCache)) removeOrTrash(quizCache);
-  unregisterCourse(courseId);
+  targets.push(path.join(COURSES_DIR, `${courseId}.quizzes.json`));
+  let failures = 0;
+  for (const target of targets) if (fs.existsSync(target) && !removeOrTrash(target)) failures++;
+  try { unregisterCourse(courseId); } catch (_) { failures++; }
   require('./search').invalidate(courseId);
+  if (failures) {
+    const error = new Error(`课程已停止使用，仍有 ${failures} 处文件未清理，请稍后重试。`);
+    error.code = 'cleanup_pending'; error.statusCode = 409;
+    throw error;
+  }
+  return { ok: true, courseId };
   });
 }
 
@@ -97,7 +108,8 @@ async function processUpload(upload, opts = {}) {
   const appendCourseId = String(opts.courseId || '');
   let appended = false;
   let courseId = `user-${Date.now()}-${Math.floor(Math.random() * 900 + 100)}`;
-  if (appendCourseId && appendCourseId.startsWith('user-')) {
+  if (appendCourseId) {
+    assertCourseWritable(appendCourseId);
     const target = getDynamicCourse(appendCourseId);
     if (!target) throw new Error(`要追加的课程不存在: ${appendCourseId}`);
     courseId = appendCourseId;
@@ -105,6 +117,7 @@ async function processUpload(upload, opts = {}) {
   }
   courseFiles(courseId);
   return withCourseLock(courseId, async () => {
+  assertCourseWritable(courseId);
   const prev = getDynamicCourse(courseId);
   if (appended && !prev) throw new Error(`要追加的课程不存在: ${courseId}`);
   const previousFiles = courseFiles(courseId, prev);
@@ -126,6 +139,7 @@ async function processUpload(upload, opts = {}) {
     // ① ② 转换 + 规范化（AnyDoc 本地子进程，必要时回退 Python MarkItDown）
     // fallbackTitle=真实文件名：文档无一级标题时课程名/章名用文件名，而非临时文件名里的 courseId 噪音
     const { markdown, docTitle, warnings: convWarnings } = await convertToMarkdown(tmpFile, { fallbackTitle: docId, imageDir: path.join(bookDir, 'material-images'), onProgress: progress });
+    assertCourseWritable(courseId);
     if (convWarnings.length) warnings.push(...convWarnings);
     if (markdown.length > MAX_MD_CHARS) {
       throw new Error(`解析内容过大（约 ${Math.round(markdown.length / 10000)} 万字，超过 ${Math.round(MAX_MD_CHARS / 10000)} 万上限）。请拆分文件后重新上传`);
@@ -187,6 +201,7 @@ async function processUpload(upload, opts = {}) {
     fs.writeFileSync(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
     fs.rmSync(tmpFile, { force: true });
     publishedDir = courseFiles(courseId, courseMeta).directory;
+    assertCourseWritable(courseId);
     fs.mkdirSync(path.dirname(publishedDir), { recursive: true });
     for (let attempt = 0; ; attempt++) {
       try { fs.renameSync(tmpDir, publishedDir); break; }

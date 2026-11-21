@@ -21,7 +21,7 @@ const kbSearch = require('./search');
 const courseRegistry = require('./course-registry');
 const execution = require('../agent/execution');
 
-const COURSES_DIR = path.join(__dirname, '..', '..', 'data', 'courses');
+const COURSES_DIR = courseRegistry.COURSES_DIR;
 const PER_SECTION = 3;      // 每节生成的选择题数量
 const MAX_CONTEXT = 4000;   // 单节喂给模型的教材片段上限（字符）
 const PRE_CONCURRENCY = 2;  // 预生成并发（避免打满 LLM 配额）
@@ -31,6 +31,7 @@ const cachePath = (cid) => path.join(COURSES_DIR, `${cid}.quizzes.json`);
 const versionOf = (cid) => courseRegistry.getDynamicCourse(cid)?.indexVersion || null;
 
 function readCache(cid) {
+  if (courseRegistry.isCourseDeleted(cid)) return {};
   const course = courseRegistry.getDynamicCourse(cid);
   const lessons = course?.lessons || {};
   try {
@@ -42,6 +43,7 @@ function readCache(cid) {
 }
 
 function writeCache(cid, data) {
+  courseRegistry.assertCourseWritable(cid);
   const temporary = cachePath(cid) + '.' + randomUUID() + '.tmp';
   try {
     fs.mkdirSync(COURSES_DIR, { recursive: true });

@@ -30,6 +30,7 @@ let SESSION_ID = sessionIdFor(currentCourseId()); // 当前课程的会话 id（
 let courseData = null;
 let learning = null;
 let isDynamicCourse = false; // 用户上传素材课程
+let courseMutationBusy = false;
 // 联网开关（输入框左下角单键）：关=off（不联网）/ 开=on（本轮必联网）。
 // 服务端另支持 'auto'（由 Agent 判断），此处不暴露给用户，保持"一键开关"的简单心智。
 let webOn = false;
@@ -661,7 +662,7 @@ function updatePracticeLinks() {
       a.setAttribute('href', '/?course=' + encodeURIComponent(courseData.id));
       a.setAttribute('title', ui('在对话中进行三阶段测验'));
       a.onclick = event => { event.preventDefault(); sendMessage(ui('做题')); };
-    } else if (isDynamicCourse) {
+    } else if (isDynamicCourse && id !== 'knowledgeGraphLink') {
       a.classList.add('disabled-entry');
       a.setAttribute('aria-disabled', 'true');
       a.removeAttribute('href');
@@ -669,12 +670,14 @@ function updatePracticeLinks() {
     } else {
       a.classList.remove('disabled-entry');
       a.removeAttribute('aria-disabled');
-      a.setAttribute('href', page + '?course=' + encodeURIComponent(courseData.id));
+      a.setAttribute('href', page + '?course=' + encodeURIComponent(courseData.id)
+        + (id === 'knowledgeGraphLink' ? '&sessionId=' + encodeURIComponent(SESSION_ID) : ''));
       a.setAttribute('title', origTitle);
     }
   };
   apply('codingLink', '/coding.html', window.t('codingTitle'));
   apply('learningLabLink', '/learning-lab.html', ui('诊断练习：找到卡点，用一道新题确认理解'));
+  apply('knowledgeGraphLink', '/knowledge-graph.html', eduLanguage() === 'en' ? 'Personal knowledge graph' : '个人知识图谱');
   apply('choiceLink', '/choice.html', window.t('quizTitle'));
 }
 /* ============ 学习旅程：预习/学习/复习 是"教师角色"，不是可量化的刻度 ============ */
@@ -861,7 +864,7 @@ let sending = false;
 let modelReady = false;
 
 function updateBusyUI() {
-  const busy = sending || switchingLock;
+  const busy = sending || switchingLock || courseMutationBusy;
   $('sendBtn').disabled = busy || !courseData || !modelReady;
   $('sendLabel').textContent = sending ? ui("回复中…") : ui(modelReady ? '发送' : '请先配置模型');
   $('sendBtn').title = $('sendLabel').textContent;
@@ -871,6 +874,7 @@ function updateBusyUI() {
   $('newConversationBtn').disabled = busy || !courseData;
   $('renameCourseBtn').disabled = busy || !isDynamicCourse;
   $('deleteCourseBtn').disabled = busy || !isDynamicCourse;
+  if ($('manageCoursesBtn')) $('manageCoursesBtn').disabled = busy;
   $('messages').setAttribute('aria-busy', String(sending));
   document.querySelectorAll('.kp-item, #quickActions .chip, .card-explain').forEach((b) => { b.disabled = busy || !courseData || !modelReady; });
 }
@@ -1071,7 +1075,7 @@ function flashStatus(msg, ms = 2600) {
 
 async function sendMessage(text, context) {
   text = (text || $('input').value).trim();
-  if (sending || switchingLock || !courseData) return;
+  if (sending || switchingLock || courseMutationBusy || !courseData) return;
   if (!modelReady) { openLlmCard(); return; }
   // 空消息：给明确反馈，而不是"点了没反应"（原实现直接 return）
   if (!text && !pendingFiles.length) { flashStatus(ui("请先输入内容或添加附件，再点发送")); return; }
@@ -1084,6 +1088,7 @@ async function sendMessage(text, context) {
   closeSidebar();
   $('sendStatus').textContent = ui("学伴正在回复，你可以先写下一条消息");
   const requestSessionId = SESSION_ID;
+  const requestId = crypto.randomUUID();
   let uploaded = [];
   let typingBubble;
   let msgWrap;
@@ -1110,7 +1115,7 @@ async function sendMessage(text, context) {
     const res = await eduFetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: requestSessionId, message: text, attachments: uploaded.map((item) => ({ id: item.id })), context, webMode: webOn ? 'on' : 'off', thinking: thinkingChoice() }),
+      body: JSON.stringify({ sessionId: requestSessionId, requestId, message: text, attachments: uploaded.map((item) => ({ id: item.id })), context, webMode: webOn ? 'on' : 'off', thinking: thinkingChoice() }),
       signal: controller.signal,
     });
     if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
@@ -1205,6 +1210,7 @@ async function sendMessage(text, context) {
     if (reader) reader.releaseLock();
     sending = false;
     updateBusyUI();
+    window.EduRunActivity?.refresh();
     if ([document.body, $('sendBtn')].includes(document.activeElement)) $('input').focus();
   }
 }
@@ -1309,6 +1315,7 @@ async function loadCourseIntoUI(courseId) {
   $('deleteCourseBtn').title = isDynamicCourse ? ui("删除这门课（不可恢复）") : ui("内置课程不可删除");
   renderSidebar();
   renderQuickChips();
+  window.EduRunActivity?.refresh();
   refreshMistakeBadge(SESSION_ID); // 错题本入口计数（切课/进入课程时同步）
   await loadConversations();
   $('nowLabel').textContent = data.dynamic && !courseData.learningReady
@@ -1316,6 +1323,8 @@ async function loadCourseIntoUI(courseId) {
     : `${ui("正在学习：")}${courseData.title}`;
   // 会话历史（独立对话框）：新课先欢迎，回来过的课回显历史
   const hist = await loadSessionHistory();
+  const requestedKp = new URLSearchParams(location.search).get('kp');
+  if (requestedKp && findKp(requestedKp)) highlightKp(requestedKp);
   if (hist) { $('input').focus(); return; }
   const welcome = document.createElement('section');
   welcome.className = 'conversation-welcome';
@@ -1498,48 +1507,78 @@ async function newConversation() {
 
 /** 改名（动态课） */
 async function renameCourse() {
-  if (sending || switchingLock) return;
+  if (sending || switchingLock || courseMutationBusy || !courseData) return;
+  const target = { id: courseData.id, title: courseData.title };
   // 用页面内输入框替代原生 prompt（内嵌浏览器会拦截原生弹窗）
-  const ans = await showConfirm(ui("输入新的课程名称（1~60 字）："), { title: ui("课程改名"), okText: ui("保存"), input: true, inputValue: (courseData && courseData.title) || '' });
+  const ans = await showConfirm(ui("输入新的课程名称（1~60 字）："), { title: ui("课程改名"), okText: ui("保存"), input: true, inputValue: target.title });
   const title = ans.value;
   if (!title || !title.trim()) return;
   try {
-    const data = await api('/api/course/rename', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ courseId: courseData.id, title: title.trim() }),
-    });
-    if (!data.ok) throw new Error(data.error || ui("改名失败"));
-    courseData.title = data.title;
-    $('courseTitle').textContent = window.tc(courseData.title);
-    await loadCourses(courseData.id);
-    $('nowLabel').textContent = `${ui("正在学习：")}${courseData.title}` + (!courseData.learningReady ? `${ui("（素材问答 · ")}${progressText() || window.t('learned') + ' 0/X'}${ui("）")}` : '');
+    await renameCourseById(target.id, title.trim());
   } catch (e) {
     alert(ui("改名失败：") + (e.message || ui("未知错误")));
   }
 }
 
-/** 删除动态课程（不可恢复；绑定会话自动回退内置课） */
-async function deleteCourse() {
-  if (!isDynamicCourse || !courseData || sending || switchingLock) return;
-  const delAns = await showConfirm(`${ui("确定删除课程《")}${window.tc(courseData.title)}${ui("》？\n其知识库与对话将被移除，且不可恢复。")}`, { title: ui("删除课程"), okText: ui("删除") });
-  if (!delAns.ok) return;
-  let deleted = false;
+async function renameCourseById(courseId, title) {
+  if (courseMutationBusy || sending || switchingLock) throw new Error(ui('请等待当前操作完成'));
+  courseMutationBusy = true; updateBusyUI();
   try {
-    const data = await api('/api/course/delete', {
+    const data = await api('/api/course/rename', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ courseId: courseData.id }),
+      body: JSON.stringify({ courseId, title }),
     });
-    if (!data.ok) throw new Error(data.error || ui("删除失败"));
-    deleted = true;
-    await switchCourse('python-intro'); // 回内置课（失败也有 switchCourse 内部自愈提示）
-  } catch (e) {
-    // 删除已成功但回跳内置课失败 → 不再误报"删除失败"，提示后刷新自愈
-    if (deleted) {
-      alert(ui("课程已删除。返回内置课程的页面刷新失败：") + (e.message || ui("未知错误")) + ui("\n即将刷新页面…"));
-      location.reload();
-    } else {
-      alert(ui("删除失败：") + (e.message || ui("未知错误")));
+    if (!data.ok) throw new Error(data.error || ui('改名失败'));
+    if (courseData?.id === courseId) {
+      courseData.title = data.title;
+      $('courseTitle').textContent = window.tc(data.title);
+      $('nowLabel').textContent = `${ui('正在学习：')}${data.title}`;
     }
+    await loadCourses(courseData?.id);
+    window.dispatchEvent(new CustomEvent('edu-course-renamed', { detail: { courseId, title: data.title } }));
+    return data;
+  } finally { courseMutationBusy = false; updateBusyUI(); }
+}
+
+/** Shared by the current-course button and inactive rows in course management. */
+async function removeCourseById(courseId) {
+  if (courseMutationBusy || sending || switchingLock) throw new Error(ui('请等待当前操作完成'));
+  courseMutationBusy = true; updateBusyUI();
+  try {
+    const response = await eduFetch('/api/course/delete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ courseId }),
+    });
+    const data = await response.json();
+    if (!data.ok && !data.removed) throw new Error(data.error || `HTTP ${response.status}`);
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('eduowl_conversation:') && key.endsWith('@' + courseId)) localStorage.removeItem(key);
+    }
+    localStorage.removeItem('eduowl_webmode:' + courseId);
+    if (courseData?.id === courseId) await switchCourse('python-intro');
+    if (localStorage.getItem('eduowl_course') === courseId) setCurrentCourse('python-intro');
+    await loadCourses(courseData?.id || 'python-intro');
+    window.dispatchEvent(new CustomEvent('edu-course-deleted', { detail: { courseId } }));
+    return data;
+  } finally { courseMutationBusy = false; updateBusyUI(); }
+}
+
+/** Delete exactly the course shown when the confirmation was opened. */
+async function deleteCourse() {
+  if (!isDynamicCourse || !courseData || sending || switchingLock || courseMutationBusy) return;
+  const target = { id: courseData.id, title: courseData.title };
+  const description = eduLanguage() === 'en'
+    ? `Delete “${target.title}”?\nThis removes its material, conversations, learning records and knowledge links for all profiles in this installation. Other courses are kept. This cannot be undone.`
+    : `确定删除课程《${target.title}》？\n这会移除本机各学习档案中这门课的教材、对话、学习记录和相关知识关联。其他课程不受影响。此操作无法撤销。`;
+  const delAns = await showConfirm(description, { title: ui("删除课程"), okText: ui("删除") });
+  if (!delAns.ok) return;
+  try {
+    const data = await removeCourseById(target.id);
+    if (!data.ok) await showConfirm(eduLanguage() === 'en'
+      ? 'The course was removed, but cleanup is incomplete. Open Manage courses and select Retry cleanup.'
+      : '课程已停用，部分清理未完成。请打开“管理课程”并点击“重试清理”。', { title: ui('删除课程'), okText: ui('知道了') });
+  } catch (e) {
+    await showConfirm(ui('删除失败：') + (e.message || ui('未知错误')), { title: ui('删除课程'), okText: ui('知道了') });
   }
 }
 
@@ -1897,7 +1936,12 @@ async function init() {
 
   // 当前课程（URL ?course= 优先，其次上次记忆，默认内置）
   SESSION_ID = sessionIdFor(currentCourseId());
-  await loadCourses(currentCourseId());
+  const availableCourses = await loadCourses(currentCourseId());
+  if (availableCourses.length && !availableCourses.some(item => item.id === currentCourseId())) {
+    setCurrentCourse('python-intro');
+    SESSION_ID = sessionIdFor('python-intro');
+    $('courseSelect').value = 'python-intro';
+  }
   try {
     await loadCourseIntoUI(currentCourseId());
   } catch (e) {
@@ -1985,6 +2029,38 @@ $('addCourseBtn').addEventListener('click', () => {
 // 改名 / 删除（仅动态课可用）
 $('renameCourseBtn').addEventListener('click', renameCourse);
 $('deleteCourseBtn').addEventListener('click', deleteCourse);
+window.EduCourseManager?.init({
+  language: eduLanguage,
+  current: () => courseData?.id,
+  isBusy: () => sending || switchingLock || courseMutationBusy,
+  list: () => api('/api/courses?lang=' + eduLanguage()),
+  open: switchCourse,
+  rename: renameCourseById,
+  remove: removeCourseById,
+});
+if (window.EduRunActivity) {
+  const runHost = document.createElement('div');
+  runHost.id = 'chatRunActivity';
+  document.querySelector('.side-head')?.append(runHost);
+  window.EduRunActivity.mount(runHost, { getSessionId: () => SESSION_ID });
+}
+window.addEventListener('edu-run-updated', async event => {
+  if (event.detail?.sessionId !== SESSION_ID) return;
+  await refreshSidebarProgress();
+  await loadConversations();
+  if (event.detail.action === 'resume' && event.detail.kind === 'chat' && !sending && !switchingLock) {
+    $('messages').replaceChildren(); await loadSessionHistory();
+  }
+});
+window.addEventListener('edu:select-topic', event => {
+  const kpId = event.detail?.kpId;
+  if (!courseData || !kpId || !findKp(kpId)) return;
+  highlightKp(kpId);
+  const topic = [...document.querySelectorAll('.kp-item')].find(node => node.dataset.kpId === kpId);
+  const chapter = topic?.closest('details');
+  if (chapter) chapter.open = true;
+  topic?.scrollIntoView?.({ block: 'nearest' });
+});
 
 // 重置会话 = 仅删除当前课程的会话（对话/进度/记忆），回到该课全新开始
 $('resetBtn').addEventListener('click', async () => {

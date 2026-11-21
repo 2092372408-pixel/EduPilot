@@ -9,7 +9,9 @@
   <script src="/settings.js"></script>
   <link rel="stylesheet" href="/style.css?v=49" />
   <link rel="stylesheet" href="/learning-lab.css?v=1" />
+  <link rel="stylesheet" href="/run-activity.css?v=1" />
   <script src="/app-navigation.js?v=3" defer></script>
+  <script src="/run-activity.js?v=1" defer></script>
   <script src="/learning-lab.js?v=1" defer></script>
 </head>
 <body class="lab-page">
@@ -133,6 +135,18 @@
               </section>
             </div>
 
+            <section class="lab-chat-help lab-panel" aria-labelledby="labHelpTitle">
+              <h2 id="labHelpTitle" data-lab-text="helpTitle">讨论这道题</h2>
+              <p class="lab-chat-help-note" data-lab-text="helpNote">导师回答会记入本题的系统帮助记录。使用提示或聊天帮助后，可以换一道新题独立验证。</p>
+              <form id="labHelpForm">
+                <label class="sr-only" for="labHelpQuestion" data-lab-text="helpQuestionLabel">你的问题</label>
+                <textarea id="labHelpQuestion" rows="2" maxlength="2000" aria-describedby="labHelpStatus"></textarea>
+                <button class="lab-btn lab-btn-quiet" id="labAskHelp" type="submit" data-lab-text="askHelp">请导师解释</button>
+              </form>
+              <p id="labHelpStatus" class="lab-chat-help-status" role="status" aria-live="polite"></p>
+              <div id="labHelpReply" class="lab-chat-help-reply" hidden></div>
+            </section>
+
             <div class="lab-feedback-grid">
               <section class="lab-feedback lab-panel" id="labFeedback" aria-labelledby="labFeedbackTitle" hidden>
                 <div class="lab-feedback-heading">
@@ -166,6 +180,7 @@
             <div class="lab-evidence-cards" id="labEvidenceCards"></div>
           </section>
 
+          <div id="labRunActivity"></div>
           <footer class="lab-footnote">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v4H7zm-2 6h14v10H5zm4 4h6m-6 3h4"/></svg>
             <span data-lab-text="footer">代码会实际运行检查。内置提示也可直接使用。</span>
