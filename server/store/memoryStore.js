@@ -621,20 +621,27 @@ function clearUid(uidKey) {
  * 只清该课程的对话原文、课程作用域的事实与进度块；
  * **保留**跨课程的学生画像（偏好/目标）与其他课程的记忆——它们的归属是 uid，不该被本课重置牵连。
  */
-function clearSession(sessionId) {
+function clearSession(sessionId, { strict = false } = {}) {
   const d = init();
-  if (!d) return 0;
+  if (!d) {
+    if (strict) throw Object.assign(new Error('课程记忆暂时无法清理，请重试。'), { code: 'memory_cleanup_unavailable' });
+    return 0;
+  }
   const { uid, courseScope } = scopeOf(sessionId);
   const sid = String(sessionId || '');
-  let n = 0;
   try {
-    n += d.prepare('DELETE FROM recall_messages WHERE session_id=?').run(sid).changes;
-    if (courseScope !== uid) {
-      n += d.prepare('DELETE FROM archival WHERE scope=?').run(courseScope).changes;
-      n += d.prepare('DELETE FROM core_blocks WHERE scope=?').run(courseScope).changes;
-    }
-  } catch (_) { /* ignore */ }
-  return n;
+    return d.transaction(() => {
+      let n = d.prepare('DELETE FROM recall_messages WHERE session_id=?').run(sid).changes;
+      if (courseScope !== uid) {
+        n += d.prepare('DELETE FROM archival WHERE scope=?').run(courseScope).changes;
+        n += d.prepare('DELETE FROM core_blocks WHERE scope=?').run(courseScope).changes;
+      }
+      return n;
+    })();
+  } catch (error) {
+    if (strict) throw error;
+    return 0;
+  }
 }
 
 module.exports = {

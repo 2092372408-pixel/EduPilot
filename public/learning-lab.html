@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EduPilot · 诊断练习</title>
+  <script src="/ui-en.js"></script>
+  <script src="/i18n.js"></script>
+  <script src="/settings.js"></script>
+  <link rel="stylesheet" href="/style.css?v=49" />
+  <link rel="stylesheet" href="/learning-lab.css?v=1" />
+  <link rel="stylesheet" href="/run-activity.css?v=1" />
+  <script src="/app-navigation.js?v=3" defer></script>
+  <script src="/run-activity.js?v=1" defer></script>
+  <script src="/learning-lab.js?v=1" defer></script>
+</head>
+<body class="lab-page">
+  <div class="app">
+    <header class="topbar">
+      <a class="brand lab-brand-link" href="/">
+        <div class="logo"><img src="/logo-mark.png" alt="EduPilot" width="42" height="42" /></div>
+        <div><h1>EduPilot</h1><p class="sub" data-lab-text="brandSub">把理解变成独立完成</p></div>
+      </a>
+      <div class="top-right">
+        <a class="tb-btn" id="labBackLink" href="/">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 5-7 7 7 7M5 12h14"/></svg>
+          <span data-lab-text="back">返回对话</span>
+        </a>
+      </div>
+    </header>
+
+    <main class="lab-scroll" id="labMain">
+      <div class="lab-shell">
+        <header class="lab-heading">
+          <div>
+            <p class="lab-eyebrow" data-lab-text="course">PYTHON 编程入门</p>
+            <h1 data-lab-text="title">诊断练习</h1>
+            <p class="lab-subtitle" data-lab-text="subtitle">找到卡点，再用一道新题确认理解。</p>
+          </div>
+          <div class="lab-availability">
+            <span class="lab-status-dot" aria-hidden="true"></span>
+            <span data-lab-text="available">这组练习可直接使用</span>
+          </div>
+        </header>
+
+        <div class="lab-notice" id="labError" role="alert" hidden>
+          <div><strong id="labErrorTitle"></strong><p id="labErrorText"></p></div>
+          <button class="lab-btn lab-btn-quiet" id="labRetry" type="button" data-lab-text="retry">重试</button>
+        </div>
+        <p class="sr-only" id="labAnnouncement" role="status" aria-live="polite"></p>
+
+        <section class="lab-unsupported lab-panel" id="labUnsupported" hidden>
+          <div class="lab-empty-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v18H6.5A2.5 2.5 0 0 1 4 18.5zm0 13A2.5 2.5 0 0 1 6.5 16H20M8 7h8M8 11h5"/></svg></div>
+          <h2 data-lab-text="unsupportedTitle">从 Python 基础开始</h2>
+          <p data-lab-text="unsupportedText">诊断练习目前支持 Python 编程入门的分支、循环和函数。练习记录会保存在这门课程中。</p>
+          <a class="lab-btn lab-btn-primary" id="labPythonLink" href="/learning-lab.html?course=python-intro" data-lab-text="openPython">进入 Python 诊断练习</a>
+        </section>
+
+        <section id="labContent" aria-busy="true">
+          <nav class="lab-topics" id="labTopics" aria-label="练习主题"></nav>
+
+          <div class="lab-loading lab-panel" id="labLoading" role="status">
+            <span class="lab-spinner" aria-hidden="true"></span><span data-lab-text="loading">正在恢复练习…</span>
+          </div>
+
+          <section class="lab-welcome lab-panel" id="labWelcome" hidden>
+            <div class="lab-welcome-copy">
+              <span class="lab-section-label" data-lab-text="startLabel">从一小段代码开始</span>
+              <h2 id="labWelcomeTitle"></h2>
+              <p id="labWelcomeDescription"></p>
+              <button class="lab-btn lab-btn-primary" id="labStart" type="button">
+                <span data-lab-text="start">开始练习</span>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+              </button>
+            </div>
+            <ol class="lab-welcome-steps">
+              <li><span>01</span><div><strong data-lab-text="welcomeStep1">先自己试一试</strong><p data-lab-text="welcomeStep1Detail">用一段短代码完成明确的小任务。</p></div></li>
+              <li><span>02</span><div><strong data-lab-text="welcomeStep2">找到具体卡点</strong><p data-lab-text="welcomeStep2Detail">看真实运行结果，按需要获取提示。</p></div></li>
+              <li><span>03</span><div><strong data-lab-text="welcomeStep3">再独立完成新题</strong><p data-lab-text="welcomeStep3Detail">换一个问题，把理解变成新的作答证据。</p></div></li>
+            </ol>
+          </section>
+
+          <section id="labWorkspace" hidden>
+            <div class="lab-stepbar">
+              <ol class="lab-progress" id="labProgress" aria-label="练习进度">
+                <li data-step="practice"><span class="lab-step-number">1</span><span data-lab-text="stepPractice">先做练习</span></li>
+                <li data-step="diagnose"><span class="lab-step-number">2</span><span data-lab-text="stepDiagnose">定位卡点</span></li>
+                <li data-step="transfer"><span class="lab-step-number">3</span><span data-lab-text="stepTransfer">独立验证</span></li>
+              </ol>
+              <button class="lab-text-button" id="labReset" type="button" data-lab-text="restart">换一道练习</button>
+            </div>
+
+            <div class="lab-work-grid">
+              <section class="lab-problem lab-panel" aria-labelledby="labProblemTitle">
+                <div class="lab-problem-top">
+                  <span class="lab-pill" id="labPhase"></span>
+                  <span class="lab-assistance" id="labAssistance"></span>
+                </div>
+                <h2 id="labProblemTitle"></h2>
+                <p class="lab-language-notice" id="labLanguageNotice" hidden></p>
+                <p class="lab-prompt" id="labPrompt"></p>
+                <ul class="lab-constraints" id="labConstraints"></ul>
+                <div class="lab-examples">
+                  <h3 data-lab-text="examples">看看这两个例子</h3>
+                  <div id="labExamples"></div>
+                </div>
+                <p class="lab-task-note" id="labTaskNote"></p>
+              </section>
+
+              <section class="lab-editor-panel lab-panel" aria-labelledby="labEditorLabel">
+                <div class="lab-editor-head">
+                  <label for="labCode" id="labEditorLabel" data-lab-text="yourCode">你的代码</label>
+                  <span class="lab-editor-language"><span aria-hidden="true"></span>Python</span>
+                </div>
+                <div class="lab-code-wrap">
+                  <div class="lab-line-numbers" id="labLineNumbers" aria-hidden="true">1</div>
+                  <textarea id="labCode" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-describedby="labCodeHelp labEditorAccess" placeholder="# 在这里补全代码"></textarea>
+                </div>
+                <p class="sr-only" id="labEditorAccess" data-lab-text="editorAccess">按 Tab 插入缩进；按 Shift + Tab 离开代码编辑区。</p>
+                <div class="lab-editor-footer">
+                  <span class="lab-save-note" id="labSaveNote" data-lab-text="draftSaved">草稿自动保存在此设备</span>
+                  <span class="lab-shortcut" id="labCodeHelp" data-lab-text="shortcut">Tab 缩进 · Ctrl / ⌘ + Enter 提交</span>
+                </div>
+                <div class="lab-actions">
+                  <button class="lab-btn lab-btn-primary" id="labSubmit" type="button">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 10 7-10 7z"/></svg>
+                    <span data-lab-text="submit">提交检查</span>
+                  </button>
+                  <button class="lab-btn lab-btn-quiet" id="labHint" type="button">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6m-5 3h4M8.2 13.3a6 6 0 1 1 7.6 0c-1 .8-1.8 1.6-1.8 2.7h-4c0-1.1-.8-1.9-1.8-2.7Z"/></svg>
+                    <span data-lab-text="hint">给我一点提示</span>
+                  </button>
+                  <span class="lab-submit-status" id="labSubmitStatus" role="status"></span>
+                </div>
+              </section>
+            </div>
+
+            <section class="lab-chat-help lab-panel" aria-labelledby="labHelpTitle">
+              <h2 id="labHelpTitle" data-lab-text="helpTitle">讨论这道题</h2>
+              <p class="lab-chat-help-note" data-lab-text="helpNote">导师回答会记入本题的系统帮助记录。使用提示或聊天帮助后，可以换一道新题独立验证。</p>
+              <form id="labHelpForm">
+                <label class="sr-only" for="labHelpQuestion" data-lab-text="helpQuestionLabel">你的问题</label>
+                <textarea id="labHelpQuestion" rows="2" maxlength="2000" aria-describedby="labHelpStatus"></textarea>
+                <button class="lab-btn lab-btn-quiet" id="labAskHelp" type="submit" data-lab-text="askHelp">请导师解释</button>
+              </form>
+              <p id="labHelpStatus" class="lab-chat-help-status" role="status" aria-live="polite"></p>
+              <div id="labHelpReply" class="lab-chat-help-reply" hidden></div>
+            </section>
+
+            <div class="lab-feedback-grid">
+              <section class="lab-feedback lab-panel" id="labFeedback" aria-labelledby="labFeedbackTitle" hidden>
+                <div class="lab-feedback-heading">
+                  <span class="lab-result-icon" id="labResultIcon" aria-hidden="true"></span>
+                  <div><h2 id="labFeedbackTitle"></h2><p id="labFeedbackSubtitle"></p></div>
+                  <span class="lab-result-count" id="labResultCount"></span>
+                </div>
+                <p class="lab-diagnosis" id="labDiagnosis"></p>
+                <div id="labFailureEvidence"></div>
+                <details class="lab-check-details" id="labCheckDetails">
+                  <summary data-lab-text="allChecks">查看各项检查</summary>
+                  <ul id="labChecks"></ul>
+                </details>
+              </section>
+
+              <section class="lab-hints lab-panel" id="labHints" aria-labelledby="labHintsTitle" hidden>
+                <div class="lab-section-heading"><h2 id="labHintsTitle" data-lab-text="hintsTitle">一步一步来</h2><span id="labHintCount"></span></div>
+                <ol id="labHintList"></ol>
+                <p class="lab-hint-note" id="labHintNote"></p>
+              </section>
+            </div>
+
+            <section class="lab-next-card" id="labNextCard" hidden>
+              <div><h2 id="labNextTitle"></h2><p id="labNextText"></p></div>
+              <button class="lab-btn lab-btn-primary" id="labNext" type="button"><span id="labNextLabel"></span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button>
+            </section>
+          </section>
+
+          <section class="lab-records" id="labRecords" hidden>
+            <div class="lab-records-heading"><div><h2 data-lab-text="records">独立作答记录</h2><p data-lab-text="recordsDetail">保留首次独立通过新题的证据，供后续复习参考。</p></div><span class="lab-record-count" id="labRecordCount"></span></div>
+            <div class="lab-evidence-cards" id="labEvidenceCards"></div>
+          </section>
+
+          <div id="labRunActivity"></div>
+          <footer class="lab-footnote">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v4H7zm-2 6h14v10H5zm4 4h6m-6 3h4"/></svg>
+            <span data-lab-text="footer">代码会实际运行检查。内置提示也可直接使用。</span>
+          </footer>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

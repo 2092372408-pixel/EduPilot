@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EduPilot · 个人知识图谱</title>
+  <script src="/ui-en.js"></script>
+  <script src="/i18n.js"></script>
+  <script src="/settings.js"></script>
+  <link rel="stylesheet" href="/style.css?v=49" />
+  <link rel="stylesheet" href="/knowledge-graph.css?v=1" />
+  <script src="/app-navigation.js?v=4" defer></script>
+  <script src="/knowledge-graph.js?v=1" defer></script>
+</head>
+<body class="kg-page">
+  <div class="app">
+    <header class="topbar">
+      <a class="brand kg-brand" href="/">
+        <div class="logo"><img src="/logo-mark.png" alt="EduPilot" width="42" height="42" /></div>
+        <div><h1>EduPilot</h1><p class="sub" data-kg="brand">连接知识，找到下一步</p></div>
+      </a>
+      <div class="top-right"><a class="tb-btn" id="kgBack" href="/" data-kg="back">返回对话</a></div>
+    </header>
+    <main class="kg-scroll">
+      <div class="kg-shell">
+        <header class="kg-heading">
+          <div><p class="kg-eyebrow" data-kg="eyebrow">YOUR LEARNING MAP</p><h1 data-kg="title">个人知识图谱</h1><p data-kg="subtitle">把课程、知识点与自己的理解连起来。</p></div>
+          <button type="button" id="kgRefresh" class="kg-btn" data-kg="refresh">刷新学习记录</button>
+        </header>
+        <div class="kg-error" id="kgError" role="alert" hidden></div>
+        <p id="kgAnnouncement" role="status" aria-live="polite" class="sr-only"></p>
+        <section id="kgLoading" class="kg-panel kg-loading" role="status" data-kg="loading">正在整理你的知识关联…</section>
+        <section id="kgContent" hidden>
+          <div class="kg-stats" id="kgStats"></div>
+          <section class="kg-suggestions" aria-labelledby="kgSuggestedTitle">
+            <div class="kg-section-title"><h2 id="kgSuggestedTitle" data-kg="suggestions">接下来可以学什么</h2><p data-kg="suggestionsNote">依据已有作答与复习记录推荐</p></div>
+            <div id="kgRecommendations" class="kg-recommendations"></div>
+          </section>
+          <div class="kg-toolbar kg-panel">
+            <label class="kg-search"><span data-kg="search">搜索知识点</span><input type="search" id="kgSearch" autocomplete="off" maxlength="180" /></label>
+            <label><span data-kg="course">课程</span><select id="kgCourse"></select></label>
+            <label><span data-kg="status">学习状态</span><select id="kgStatus"><option value="all" data-kg="allStatus">全部状态</option><option value="not_started" data-kg="not_started">未开始</option><option value="practicing" data-kg="practicing">学习中</option><option value="review_passed" data-kg="review_passed">复习验证通过</option><option value="review_due" data-kg="review_due">待复习</option></select></label>
+            <div class="kg-view-switch" aria-label="View"><button type="button" id="kgGraphTab" aria-pressed="true" data-kg="graph">图谱</button><button type="button" id="kgListTab" aria-pressed="false" data-kg="list">列表</button></div>
+          </div>
+          <div class="kg-workspace">
+            <section class="kg-panel kg-map-panel" aria-label="Knowledge map">
+              <div class="kg-map-head"><p id="kgVisibleCount"></p><div class="kg-zoom"><button type="button" id="kgZoomOut" aria-label="Zoom out">−</button><button type="button" id="kgZoomReset">100%</button><button type="button" id="kgZoomIn" aria-label="Zoom in">+</button></div></div>
+              <div id="kgGraphViewport" class="kg-viewport" tabindex="0"><svg id="kgGraph" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="kgSvgTitle"><title id="kgSvgTitle">知识图谱</title></svg></div>
+              <div id="kgList" class="kg-list" hidden></div>
+              <div class="kg-legend"><span><i class="kg-dot kg-not_started"></i><span data-kg="not_started">未开始</span></span><span><i class="kg-dot kg-practicing"></i><span data-kg="practicing">学习中</span></span><span><i class="kg-dot kg-review_passed"></i><span data-kg="review_passed">复习验证通过</span></span><span><i class="kg-dot kg-review_due"></i><span data-kg="review_due">待复习</span></span></div>
+              <p class="kg-map-note" data-kg="mapNote">细线表示课程结构；箭头表示建议先学；虚线表示待确认关联。选择知识点查看依据。</p>
+            </section>
+            <aside class="kg-panel kg-detail" aria-live="polite">
+              <div id="kgDetailEmpty" class="kg-detail-empty"><div class="kg-empty-mark" aria-hidden="true">○—○</div><h2 data-kg="selectTitle">从一个知识点开始</h2><p data-kg="selectText">选择图中的知识点，查看学习记录、相关内容，或记下自己的理解。</p></div>
+              <div id="kgDetailContent" hidden>
+                <p class="kg-breadcrumb" id="kgBreadcrumb"></p><h2 id="kgNodeTitle"></h2><span class="kg-status-badge" id="kgNodeStatus"></span><p class="kg-node-summary" id="kgNodeSummary"></p>
+                <ul class="kg-key-points" id="kgKeyPoints"></ul>
+                <div class="kg-detail-actions"><a class="kg-btn kg-primary" id="kgLearnLink" href="/" data-kg="learn">回到课程学习</a><a class="kg-btn" id="kgPracticeLink" href="/learning-lab.html" data-kg="practice">做一道诊断练习</a></div>
+                <section class="kg-detail-section"><h3 data-kg="evidence">学习依据</h3><p id="kgNodeEvidence"></p><p class="kg-muted" data-kg="evidenceNote">首答通过记录与复习验证分别保留；笔记和关联不会改变学习成绩。</p></section>
+                <section class="kg-detail-section"><h3 data-kg="connections">知识关联</h3><div id="kgConnections"></div>
+                  <form id="kgLinkForm" class="kg-form"><label for="kgLinkTarget" data-kg="connectTo">关联到</label><select id="kgLinkTarget" required></select><label for="kgRelation" data-kg="relation">关系</label><select id="kgRelation"><option value="related" data-kg="related">内容相关</option><option value="prerequisite" data-kg="prerequisite">建议先学当前知识点</option><option value="applies_to" data-kg="applies_to">当前知识用于目标知识</option></select><label for="kgLinkNote" data-kg="whyConnect">关联理由</label><input id="kgLinkNote" maxlength="500" /><button type="submit" class="kg-btn" data-kg="saveLink">保存关联</button></form>
+                </section>
+                <section class="kg-detail-section"><h3 data-kg="myNote">我的理解</h3><form id="kgNoteForm" class="kg-form"><label for="kgNote" class="sr-only" data-kg="myNote">我的理解</label><textarea id="kgNote" rows="4" maxlength="2000"></textarea><div class="kg-note-bottom"><span id="kgNoteCount">0 / 2000</span><button type="submit" class="kg-btn" data-kg="saveNote">保存笔记</button></div></form></section>
+                <section class="kg-detail-section"><h3 data-kg="source">内容来源</h3><div id="kgSources"></div></section>
+              </div>
+            </aside>
+          </div>
+          <p class="kg-footer" id="kgNotice"></p>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

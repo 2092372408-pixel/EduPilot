@@ -80,7 +80,7 @@ function metadata(row) {
   };
 }
 
-async function create({ sessionId, filename, mime, data }) {
+async function create({ sessionId, filename, mime, data }, { assertCurrent } = {}) {
   const name = safeName(filename);
   const ext = extOf(name);
   const kind = IMAGE_EXT.has(ext) ? 'image' : DOCUMENT_EXT.has(ext) ? 'document' : null;
@@ -89,28 +89,52 @@ async function create({ sessionId, filename, mime, data }) {
   if (data.length > MAX_BYTES) throw new Error(`附件过大：超过 ${MAX_MB}MB 上限`);
 
   const db = init();
+  const scope = scopeOf(sessionId);
+  const registry = require('../kb/course-registry');
+  const generation = sessionStore.scopeVersion(sessionId).generation;
+  const assertWritable = () => {
+    if (scope.courseId !== 'python-intro' && !registry.getDynamicCourse(scope.courseId)) {
+      throw Object.assign(new Error('课程已删除或不存在，不能再上传附件。'), { code: 'course_deleted', status: 410 });
+    }
+    if (sessionStore.scopeVersion(sessionId).generation !== generation) {
+      throw Object.assign(new Error('学习记录已重置，请重新上传附件。'), { code: 'stale_generation', status: 409 });
+    }
+    assertCurrent?.();
+  };
+  assertWritable();
   const id = `att-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
   const storagePath = path.join(ATTACHMENT_DIR, `${id}${ext}`);
   // MIME 以扩展名白名单为准，避免客户端伪造类型后把任意 data URL 交给模型。
   const normalizedMime = MIME_BY_EXT[ext] || String(mime || '').split(';')[0].trim() || 'application/octet-stream';
   const hash = crypto.createHash('sha256').update(data).digest('hex');
   let extractedText = null;
+  let registered = false;
+  const now = Date.now();
   try {
+    assertWritable();
     fs.writeFileSync(storagePath, data, { flag: 'wx' });
+    // Register the file before asynchronous parsing so a concurrent course
+    // deletion can discover it. The attachment ID is returned only on success.
+    db.prepare(`INSERT INTO attachments
+      (id,session_id,uid,course_id,original_name,mime,kind,size,sha256,storage_path,extracted_text,created_at,expires_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(id, String(sessionId || 'default'), scope.uid, scope.courseId, name, normalizedMime, kind, data.length, hash, storagePath, null, now, null);
+    registered = true;
     if (kind === 'document') {
       const converted = await convertToMarkdown(storagePath, { fallbackTitle: name.replace(/\.[^.]+$/, '') });
       extractedText = String(converted.markdown || '').slice(0, 120000);
       if (!extractedText.trim()) throw new Error('附件未提取出可用文字');
     }
-    const scope = scopeOf(sessionId);
-    const now = Date.now();
-    db.prepare(`INSERT INTO attachments
-      (id,session_id,uid,course_id,original_name,mime,kind,size,sha256,storage_path,extracted_text,created_at,expires_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(id, String(sessionId || 'default'), scope.uid, scope.courseId, name, normalizedMime, kind, data.length, hash, storagePath, extractedText, now, null);
+    assertWritable();
+    const updated = db.prepare('UPDATE attachments SET extracted_text=? WHERE id=? AND session_id=?')
+      .run(extractedText, id, String(sessionId || 'default'));
+    if (!updated.changes) throw Object.assign(new Error('附件所属对话已删除，请重新打开课程。'), { code: 'scope_deleted', status: 410 });
     return { ...metadata({ id, original_name: name, mime: normalizedMime, kind, size: data.length, extracted_text: extractedText, created_at: now }), extractedText: extractedText ? extractedText.slice(0, 16000) : null };
   } catch (e) {
-    try { fs.rmSync(storagePath, { force: true }); } catch (_) {}
+    try {
+      fs.rmSync(storagePath, { force: true });
+      if (registered) db.prepare('DELETE FROM attachments WHERE id=?').run(id);
+    } catch (_) { /* Retain registered metadata so strict course cleanup can retry. */ }
     throw e;
   }
 }
@@ -131,12 +155,15 @@ function toContentPart(row) {
   return { type: 'image_url', image_url: { url: `data:${row.mime};base64,${data}` } };
 }
 
-function clearSession(sessionId) {
+function clearSession(sessionId, { strict = false } = {}) {
   const db = init();
   const rows = db.prepare('SELECT storage_path FROM attachments WHERE session_id=?').all(String(sessionId || 'default'));
   for (const row of rows) {
-    try { fs.rmSync(row.storage_path, { force: true }); } catch (_) {}
+    try { fs.rmSync(row.storage_path, { force: true }); }
+    catch (error) { if (strict) throw error; }
   }
+  // In strict cleanup, retain metadata until every file is gone. A retry can
+  // safely remove already missing files and still discover the failed ones.
   return db.prepare('DELETE FROM attachments WHERE session_id=?').run(String(sessionId || 'default')).changes;
 }
 

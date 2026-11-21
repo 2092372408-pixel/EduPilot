@@ -5,43 +5,52 @@
     {
       element: '#courseSelect', sidebar: true,
       title: '先选择一门课程',
-      text: '这里切换课程。接入模型后可学习内置 Python 课程，也能上传自己的教材。每门课分别保存对话和学习进度。',
-    },
-    {
-      element: () => document.querySelector('#chapterList .kp-item') || $('courseSelect'), sidebar: true,
-      title: '从一个知识点开始',
-      text: '点击目录里的知识点，就会开始对应的预习或讲解。教程只展示位置，不会替你开始学习或改变进度。',
-    },
-    {
-      element: '#journeySteps', sidebar: true,
-      title: '按三个阶段逐步学习',
-      text: '先预习了解内容，再看讲解并完成随堂检测，最后通过复习检测，知识点才会标为已验证掌握。预习自测可自愿选择。',
+      text: '选择内置 Python 课程或自己导入的课程，再从目录进入预习、学习与复习。每门课分别保存对话和进度，通过复习检测后才会标为已验证掌握。',
     },
     {
       element: '#input', sidebar: false,
       title: '在这里向学伴提问',
-      text: '输入问题后按 Enter 发送，Shift + Enter 换行。“附件”辅助当前提问；导入整门课程要用下一步的“上传”。',
+      text: '输入问题后按 Enter 发送，Shift + Enter 换行。“附件”辅助当前提问；导入整门课程请用侧栏的“上传”。',
+    },
+    {
+      element: '#learningLabLink', sidebar: true,
+      title: '用一道新题检验理解',
+      text: '诊断练习目前支持内置 Python 课程的分支、循环和函数。先尝试、按需获取提示并订正，再独立完成一道新题；提示使用与独立作答分别记录。',
+      action: '打开 Python 诊断练习', activate: () => window.EduNavigation.navigate('/learning-lab.html?course=python-intro'),
+    },
+    {
+      element: '#knowledgeGraphLink', sidebar: true,
+      title: '把知识和自己的理解连起来',
+      text: '图谱汇集课程知识点与学习记录。可以添加知识关联、记录自己的理解，也能从待复习和薄弱知识点回到课程继续学习。',
+      action: '打开知识图谱', target: 'knowledgeGraphLink',
+    },
+    {
+      element: '#chatRunActivity summary', sidebar: true,
+      title: '知道学习任务进行到了哪一步',
+      text: '活动记录显示当前对话的处理进度、完成情况与中断原因。可继续的任务会显示“继续执行”按钮，由你决定何时接着完成。',
+      action: '查看学习活动', activate: () => window.openLearningActivity(),
     },
     {
       element: '#addCourseBtn', sidebar: true,
       title: '把自己的教材导入课程',
-      text: '从这里上传中英文 PDF、Word、PPT、Markdown、TXT 或 JSON。解析和默认向量化在本机完成；AI 生成讲义与题目并审核后，课程即可学习。',
+      text: '上传 PDF、Word、PPT、Markdown、TXT 或 JSON，创建新课程或给已有课程补充材料。导入后按章节开始学习；讲解与题目按需生成。',
+    },
+    {
+      element: '.course-manage > summary', sidebar: true,
+      title: '课程多了，也能有条理地管理',
+      text: '打开课程管理，可查找、改名或单独删除上传的课程，不必先切换到那门课。删除前会说明范围并请你确认；内置 Python 课程始终保留。',
+      action: '管理全部课程', target: 'manageCoursesBtn',
     },
     {
       element: '#settingsBtn', sidebar: false,
       title: '模型、语言和字号都在设置里',
-      text: '开始学习前，请在“AI 模型”中配置供应商、模型和 API Key。AI 对话、教材生成与审核会使用模型额度；浏览已有记录和本教程不会调用模型。',
+      text: '需要 AI 讲解、问答或出题时，在“AI 模型”中配置供应商、模型和 API Key。相关请求会使用你的模型额度；查看已有记录和本教程无需调用模型。',
       action: '打开模型配置', target: 'llmChip',
     },
     {
-      element: '#mistakeEntry', sidebar: true,
-      title: '回到错题本巩固薄弱点',
-      text: '答错的题会自动收录到这里，可重新练习。有进行中的测验或到期复习时，目录上方也会出现对应提醒。',
-    },
-    {
-      element: '#reportLink', sidebar: false,
+      element: '#reportLink', sidebar: true,
       title: '查看报告，继续学习',
-      text: '这里查看课程进度、复习安排和错题记录。下次打开可接着学；顶部书本图标“教程”可以随时重看这份引导。',
+      text: '报告汇总课程进度、复习安排和作答记录，错题也可从侧栏再次练习。下次打开继续学习；顶部“教程”可随时重看这份引导。',
       action: '查看学习报告', target: 'reportLink',
     },
   ];
@@ -102,7 +111,7 @@
         if (step.action) {
           const action = document.createElement('button');
           action.type = 'button'; action.className = 'tutorial-action'; action.textContent = ui(step.action);
-          action.addEventListener('click', () => { tour.destroy(); $(step.target).click(); });
+          action.addEventListener('click', () => { tour.destroy(); if (step.activate) step.activate(); else $(step.target).click(); });
           popover.description.append(action);
         }
       },
@@ -116,6 +125,7 @@
   function showPending() { if (pending) open(); }
   window.EduOnboarding = {
     start(uid) {
+      // Preserve dismissals across upgrades; the updated guide remains replayable.
       storageKey = 'eduowl_onboarding:v2:' + uid;
       pending = localStorage.getItem(storageKey) !== 'seen';
       $('tutorialBtn').disabled = false;

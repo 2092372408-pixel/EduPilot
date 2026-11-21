@@ -36,6 +36,7 @@ const courseRegistry = require('../kb/course-registry');
 const { trimMessages } = require('../agent/context');
 const { modelRequest } = require('../agent/provider-request');
 const execution = require('../agent/execution');
+const harness = require('../harness/runtime');
 // Per-run image bytes stay outside persisted session/tool logs.
 const materialImages = new WeakMap();
 const { buildPracticeContext } = require('../agent/practice-context');
@@ -68,34 +69,34 @@ function makeUsageHandler() {
 
 /** 创建对话模型（OpenAI 兼容协议：DeepSeek / 百炼 Qwen 等） */
 function createChatModel(getReasoning = () => []) {
-  const base = (process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
-  const model = process.env.LLM_MODEL || 'deepseek-flash';
+  const base = (harness.configValue('LLM_BASE_URL') || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
+  const model = harness.configValue('LLM_MODEL') || 'deepseek-flash';
   const request = modelRequest({ baseUrl: base, model, enabled: execution.currentThinking() });
   const maxTokens = request.thinking.enabled ? 4096 : 1500;
   // Older SDK versions select max_completion_tokens only for these model IDs.
   const sdkCompletionLimit = /^o\d|^gpt-5(?!-chat)/.test(model);
   return new ChatOpenAI({
-    apiKey: process.env.LLM_API_KEY,
+    apiKey: harness.configValue('LLM_API_KEY'),
     model,
-    maxRetries: 1,
+    maxRetries: 0,
     ...(request.omitTemperature ? {} : { temperature: 0.6 }),
     maxTokens: request.completionLimit && !sdkCompletionLimit ? -1 : maxTokens,
     streamUsage: request.streamUsage,
     configuration: { baseURL: base, timeout: 45000, maxRetries: 0,
-      ...(request.replayReasoning ? { fetch: (url, init) => {
+      fetch: (url, init) => {
         // The SDK receives reasoning_content but omits it when serializing messages.
         const body = JSON.parse(init.body);
-        const reasoning = getReasoning();
+        const reasoning = request.replayReasoning ? getReasoning() : [];
         let assistant = 0;
-        for (const message of body.messages) {
+        for (const message of request.replayReasoning ? body.messages : []) {
           if (message.role !== 'assistant') continue;
           const content = reasoning[assistant++];
           if (typeof content === 'string' || (request.id === 'deepseek' && body.tools?.length)) {
             message.reasoning_content = content || '';
           }
         }
-        return fetch(url, { ...init, body: JSON.stringify(body) });
-      } } : {}),
+        return harness.meteredFetch(url, { ...init, body: JSON.stringify(body) }, 'langgraph');
+      },
     },
     callbacks: [makeUsageHandler()], // token 用量核算
     modelKwargs: {
@@ -155,8 +156,9 @@ function wrapTool(name, orig, session) {
       // 同步/异步兼容：部分工具 run 是同步函数（无 .catch 方法），必须用 try/catch 包裹
       let result;
       try {
-        result = await orig.run(callInput, { learning: session.learning, courseId: session.activeCourseId || 'python-intro', sessionId: session.id, session });
+        result = await harness.executeTool(name, callInput, session, (draft) => orig.run(callInput, { learning: draft.learning, courseId: draft.activeCourseId || 'python-intro', sessionId: draft.id, session: draft }));
       } catch (e) {
+        if (harness.isControlError(e)) throw e;
         execution.throwIfAborted();
         // 工具异常不应静默：记录日志并返回错误对象（模型可感知），避免"工具不可用"的错觉
         console.error(`[graph] 工具 ${name} 执行异常:`, e.message, JSON.stringify(callInput).slice(0, 120));
@@ -558,7 +560,7 @@ async function run(opts, cbs = {}) {
 
 /** 当前引擎是否可用（api 模式 + 已安装依赖） */
 function isAvailable() {
-  return !!process.env.LLM_API_KEY && process.env.ENGINE === 'langgraph';
+  return !!harness.configValue('LLM_API_KEY') && harness.configValue('ENGINE') === 'langgraph';
 }
 
 module.exports = { run, isAvailable, createChatModel, toolsDescription };

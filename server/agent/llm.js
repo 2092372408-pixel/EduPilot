@@ -33,6 +33,7 @@ const { trimMessages } = require('./context');
 const llmConfig = require('./llmconfig');
 const { modelRequest } = require('./provider-request');
 const execution = require('./execution');
+const harness = require('../harness/runtime');
 const { buildPracticeContext } = require('./practice-context');
 
 const MAX_REACT_STEPS = 5; // ReAct 最大循环步数（防死循环/防无限工具调用）
@@ -45,7 +46,7 @@ async function fetchWithTimeout(url, options, ms = API_TIMEOUT_MS) {
   const signal = execution.currentSignal();
   const timeout = AbortSignal.timeout(ms);
   try {
-    return await fetch(url, { ...options, signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+    return await harness.meteredFetch(url, { ...options, signal: signal ? AbortSignal.any([signal, timeout]) : timeout }, 'chat_or_auxiliary');
   } catch (e) {
     execution.throwIfAborted();
     if (timeout.aborted) {
@@ -69,8 +70,8 @@ async function readChunkWithTimeout(reader) {
 }
 
 function detectMode() {
-  if (process.env.EDUPILOT_TEST_MODE === '1' && process.env.LLM_MODE === 'mock') return 'mock';
-  return String(process.env.LLM_API_KEY || '').trim() ? 'api' : 'unconfigured';
+  if (process.env.EDUPILOT_TEST_MODE === '1' && harness.configValue('LLM_MODE') === 'mock') return 'mock';
+  return String(harness.configValue('LLM_API_KEY') || '').trim() ? 'api' : 'unconfigured';
 }
 
 function assertConfigured() {
@@ -86,12 +87,12 @@ function assertConfigured() {
 function runtimeInfo() {
   const mode = detectMode();
   // 引擎名反映真实分流（core.js：ENGINE!=='legacy' 即走 LangGraph）
-  const engine = process.env.ENGINE === 'legacy' ? 'ReAct' : 'LangGraph';
+  const engine = harness.configValue('ENGINE') === 'legacy' ? 'ReAct' : 'LangGraph';
   // 未配置时保留只读浏览，通过设置接入模型后开始对话。
   const needsSetup = mode === 'unconfigured';
-  const model = process.env.LLM_MODEL || 'deepseek-flash';
-  const baseUrl = (process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
-  const provider = process.env.LLM_PROVIDER || llmConfig.inferProviderId(baseUrl);
+  const model = harness.configValue('LLM_MODEL') || 'deepseek-flash';
+  const baseUrl = (harness.configValue('LLM_BASE_URL') || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
+  const provider = harness.configValue('LLM_PROVIDER') || llmConfig.inferProviderId(baseUrl);
   return {
     mode,
     engine,
@@ -110,9 +111,9 @@ function runtimeInfo() {
 
 function visionCapability() {
   return llmConfig.capability({
-    provider: process.env.LLM_PROVIDER,
-    baseUrl: process.env.LLM_BASE_URL,
-    model: process.env.LLM_MODEL,
+    provider: harness.configValue('LLM_PROVIDER'),
+    baseUrl: harness.configValue('LLM_BASE_URL'),
+    model: harness.configValue('LLM_MODEL'),
   });
 }
 
@@ -129,15 +130,15 @@ function buildRequest(messages, { stream = false, maxTokens, json = false, tempe
       ? messages.map(message => message.role === 'system' ? { ...message, content: message.content + '\n\n' + language } : message)
       : [{ role: 'system', content: language }, ...messages];
   }
-  const baseUrl = process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1';
-  const model = process.env.LLM_MODEL || 'deepseek-flash';
+  const baseUrl = harness.configValue('LLM_BASE_URL') || 'https://api.deepseek.com/v1';
+  const model = harness.configValue('LLM_MODEL') || 'deepseek-flash';
   const request = modelRequest({ baseUrl, model, enabled: json ? false : thinking });
   const tokenField = request.completionLimit ? 'max_completion_tokens' : 'max_tokens';
   return {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.LLM_API_KEY}`,
+      Authorization: `Bearer ${harness.configValue('LLM_API_KEY')}`,
     },
     body: JSON.stringify({
       model,
@@ -154,7 +155,7 @@ function buildRequest(messages, { stream = false, maxTokens, json = false, tempe
 
 /** 检索改写、校验等辅助调用保留预算给实际输出。 */
 async function callApi(messages, options = {}) {
-  const base = (process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
+  const base = (harness.configValue('LLM_BASE_URL') || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
   const res = await fetchWithTimeout(`${base}/chat/completions`, buildRequest(messages, { ...options, thinking: false }));
   if (!res.ok) {
     const text = await res.text();
@@ -180,7 +181,7 @@ async function callApi(messages, options = {}) {
  * 带整体超时 + 首包超时，防止上游挂起。
  */
 async function callApiStream(messages, onDelta) {
-  const base = (process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
+  const base = (harness.configValue('LLM_BASE_URL') || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
   const res = await fetchWithTimeout(`${base}/chat/completions`, buildRequest(messages, { stream: true }));
   if (!res.ok) {
     const text = await res.text();
@@ -395,10 +396,11 @@ async function reactLoop(messages, ctx, { agentTools = tools, agentName = 'Agent
       if (action.action === 'check_answer' && checkedThisTurn) {
         result = { error: '本轮已判分，请直接点评并展示下一题或总结；学生只回答了一题' };
       } else {
-        result = await tool.run(action.args || {}, { learning: ctx.learning, courseId: ctx.activeCourseId, sessionId: ctx.id, session: ctx });
+        result = await harness.executeTool(action.action, action.args || {}, ctx, (draft) => tool.run(action.args || {}, { learning: draft.learning, courseId: draft.activeCourseId, sessionId: draft.id, session: draft }));
         if (action.action === 'check_answer' && !result.error) checkedThisTurn = true;
       }
     } catch (e) {
+      if (harness.isControlError(e)) throw e;
       execution.throwIfAborted();
       result = { error: `工具执行异常：${e.message}` };
     }

@@ -25,6 +25,10 @@ const profileStore = require('./store/profiles'); // 用户档案（本地身份
 const runner = require('./coding/runner');
 const problemsModule = require('./coding/problems');
 const grader = require('./coding/grader');
+const learningLab = require('./agent/learning-lab');
+const harness = require('./harness/runtime');
+const knowledge = require('./knowledge');
+const courseLifecycle = require('./course-lifecycle');
 const { course, findKnowledgePoint } = require('./data/course');
 const courseEn = require('./data/course_en');
 const kbUpload = require('./kb/upload');
@@ -231,6 +235,7 @@ function serveStatic(req, res, urlPath) {
 
 const locale = require('./locale');
 function llmRequestFailure(error) {
+  if (/^(?:HARNESS_|stale_|course_|scope_|run_|request_|action_|budget_|deadline_|cancelled|invalid_session)/.test(error.code || '')) return error;
   const key = String(process.env.LLM_API_KEY || '').trim();
   const detail = String(error.message || '模型请求失败');
   const safe = key ? detail.split(key).join('[redacted]') : detail;
@@ -244,6 +249,27 @@ function llmRequestFailure(error) {
   return Object.assign(new Error(message), {
     code: error.code === 'LLM_NOT_CONFIGURED' || webError ? error.code : 'LLM_REQUEST_FAILED',
     status: error.code === 'LLM_NOT_CONFIGURED' ? 503 : webError ? (error.status || 502) : 502,
+  });
+}
+
+function requestIdentity(value) {
+  if (value == null) return crypto.randomUUID();
+  if (typeof value !== 'string' || !/^[a-zA-Z0-9:_-]{8,120}$/.test(value)) {
+    throw Object.assign(new Error('请求标识无效，请重新操作。'), { status: 400, code: 'invalid_request' });
+  }
+  return value;
+}
+
+function graphInputs(sessionId, lang) {
+  const current = agent.getSession(sessionId);
+  const scope = agent.learningScopeId(sessionId);
+  const owner = scope.includes('@') ? scope.slice(0, scope.indexOf('@')) : scope;
+  const all = [lang === 'en' ? courseEn.course : course,
+    ...courseRegistry.listDynamicCourses().map(meta => courseRegistry.dynamicCourseView(meta))];
+  return all.map(view => {
+    const saved = agent.sessions.get(owner + '@' + view.id)
+      || (!scope.includes('@') && current.activeCourseId === view.id ? current : null);
+    return { course: view, learning: saved?.learning ? { kps: structuredClone(saved.learning.kps), currentKpId: saved.learning.currentKpId } : null };
   });
 }
 const server = http.createServer((req, res) => locale.runRequest(req, async () => {
@@ -273,7 +299,7 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       const attachments = Array.isArray(body.attachments) ? body.attachments : [];
       if (!message && !attachments.length) { sendJSON(res, 400, { error: '消息不能为空' }); return; }
       let result;
-      try { result = await agent.run(sessionId, message, { webMode: body.webMode, attachments, context: body.context, thinking: body.thinking }); }
+      try { result = await agent.run(sessionId, message, { requestId: requestIdentity(body.requestId), webMode: body.webMode, attachments, context: body.context, thinking: body.thinking }); }
       catch (error) { throw llmRequestFailure(error); }
       sendJSON(res, 200, { sessionId, ...result });
       return;
@@ -315,6 +341,7 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       try {
         sendEvent('step', { id: 'received', label: locale.translate('消息已接收，准备学习上下文') });
         const result = await agent.runStream(sessionId, message, {
+          requestId: requestIdentity(body.requestId),
           signal: controller.signal,
           onStep: (step) => sendEvent('step', { ...step, label: locale.translate(step.label) }),
           onTool: (tc) => sendEvent('tool', tc),
@@ -334,7 +361,7 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
         // 错误也通过 SSE 事件下发，前端可明确提示，而不是断连后让前端卡在等待
         console.error('[stream error]', failure.message);
         logger.error('sse_error', `[${sessionId}] 流式处理异常: ${failure.message}`, { sessionId, message: message.slice(0, 60) });
-        sendEvent('error', { code: failure.code, message: locale.translate(failure.message.slice(0, 300)) });
+        sendEvent('error', { code: failure.code, message: locale.translate(failure.message.slice(0, 300)), runId: failure.runId, harness: failure.harness });
       } finally {
         streamDone = true;
         res.removeListener('close', onClose);
@@ -411,7 +438,7 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       if (!title || title.length > 60) { sendJSON(res, 400, { error: '课程名称需为 1~60 字' }); return; }
       const dyn = courseRegistry.getDynamicCourse(courseId);
       if (!dyn) { sendJSON(res, 404, { error: `课程不存在: ${courseId}` }); return; }
-      const meta = courseRegistry.renameCourse(courseId, title);
+      const meta = await courseLifecycle.renameCourse(courseId, title);
       logger.info('course_rename', `课程改名: ${courseId} → ${title}`);
       sendJSON(res, 200, { ok: true, courseId, title: meta.title });
       return;
@@ -422,12 +449,12 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       const body = await readBody(req);
       const courseId = String(body.courseId || '');
       if (!courseRegistry.isDynamicCourseId(courseId)) { sendJSON(res, 400, { error: '内置课程不可删除' }); return; }
-      const dyn = courseRegistry.getDynamicCourse(courseId);
-      if (!dyn) { sendJSON(res, 404, { error: `课程不存在: ${courseId}` }); return; }
-      await kbUpload.cleanupCourse(courseId);
-      agent.deleteDynamicCourse(courseId);
-      logger.info('course_delete', `删除动态课程: ${courseId}《${dyn.title}》`);
-      sendJSON(res, 200, { ok: true, courseId });
+      const result = await courseLifecycle.deleteCourse(courseId, {
+        cancelRuns: id => harness.invalidateCourse(id),
+        deleteRecords: id => agent.deleteDynamicCourse(id),
+      });
+      logger.info('course_delete', `课程删除: ${courseId} ${result.ok ? '完成' : '等待清理'}`);
+      sendJSON(res, result.ok ? 200 : 503, result);
       return;
     }
 
@@ -439,12 +466,74 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
         source: 'upload', chapterCount: c.chapterCount, chunkCount: c.chunkCount, createdAt: c.createdAt,
       }));
       sendJSON(res, 200, {
+        pendingDeletions: courseLifecycle.listPendingDeletions(),
         courses: [
           { id: builtinCourse.id, title: builtinCourse.title, description: builtinCourse.description, source: 'builtin', chapterCount: builtinCourse.chapters.length },
           ...dynamic,
         ],
       });
       return;
+    }
+
+    if (p === '/api/knowledge-graph' || p.startsWith('/api/knowledge-graph/')) {
+      const body = req.method === 'GET' ? {} : await readBody(req);
+      const sessionId = String(body.sessionId || url.searchParams.get('sessionId') || 'default');
+      const lang = (url.searchParams.get('lang') || body.lang || (locale.english() ? 'en' : 'zh')) === 'en' ? 'en' : 'zh';
+      const session = agent.getSession(sessionId);
+      const generation = session.scopeGeneration;
+      const courses = graphInputs(sessionId, lang);
+      const assertCurrent = () => {
+        if (sessionStore.scopeVersion(sessionId).generation !== generation) throw Object.assign(new Error('学习记录已重置，请刷新。'), { status: 409, code: 'stale_generation' });
+        for (const entry of courses) if (courseRegistry.isCourseDeleted?.(entry.course.id)) throw Object.assign(new Error('课程已删除，请刷新知识图谱。'), { status: 410, code: 'course_deleted' });
+      };
+      if (p === '/api/knowledge-graph' && req.method === 'GET') {
+        const result = await knowledge.buildPersonalGraph({ sessionId, courses, lang });
+        assertCurrent();
+        sendJSON(res, 200, result); return;
+      }
+      let result;
+      if (p === '/api/knowledge-graph/links' && req.method === 'POST') {
+        result = await knowledge.upsertLink({ ...body, sessionId, courses, assertCurrent });
+      } else if (p.startsWith('/api/knowledge-graph/links/') && req.method === 'DELETE') {
+        result = await knowledge.deleteLink({ sessionId, linkId: decodeURIComponent(p.slice('/api/knowledge-graph/links/'.length)), assertCurrent });
+      } else if (p === '/api/knowledge-graph/notes' && req.method === 'PUT') {
+        result = await knowledge.upsertNote({ ...body, sessionId, courses, assertCurrent });
+      } else { sendJSON(res, 405, { error: '不支持的知识图谱操作' }); return; }
+      sendJSON(res, 200, result); return;
+    }
+
+    if (p === '/api/runs' || p.startsWith('/api/runs/')) {
+      const body = req.method === 'GET' ? {} : await readBody(req);
+      const sessionId = String(body.sessionId || url.searchParams.get('sessionId') || 'default');
+      agent.getSession(sessionId);
+      if (p === '/api/runs' && req.method === 'GET') {
+        sendJSON(res, 200, { runs: harness.listRuns(sessionId) }); return;
+      }
+      const parts = p.slice('/api/runs/'.length).split('/');
+      const runId = parts[0];
+      if (req.method === 'GET' && (!parts[1] || parts[1] === 'events')) {
+        sendJSON(res, 200, { run: harness.getRun(runId, sessionId) }); return;
+      }
+      if (req.method === 'POST' && parts[1] === 'cancel') {
+        sendJSON(res, 200, harness.cancelRun(runId, sessionId)); return;
+      }
+      if (req.method === 'POST' && parts[1] === 'resume') {
+        const options = harness.resumeOptions(runId, sessionId);
+        if (options.existing) {
+          const reply = { ok: true, ...(options.result || {}), harness: options.existing };
+          const status = options.existing.status === 'running' ? 202
+            : options.existing.kind === 'lab' && !reply.ok
+              ? (['stale_task', 'request_conflict'].includes(reply.errorCode) ? 409 : 400) : 200;
+          sendJSON(res, status, reply); return;
+        }
+        const result = options.kind === 'lab'
+          ? await agent.runLabAction(options.sessionId, options.input.action, options.input.options, options)
+          : await agent.run(options.sessionId, options.input.message, { ...options.input, requestId: options.triggerId, helpRequestId: options.requestId, resumeOf: options.resumeOf });
+        const status = options.kind === 'lab' && !result.ok
+          ? (['stale_task', 'request_conflict'].includes(result.errorCode) ? 409 : 400) : 200;
+        sendJSON(res, status, result); return;
+      }
+      sendJSON(res, 405, { error: '不支持的运行操作' }); return;
     }
 
     if (p === '/api/kb/upload' && req.method === 'POST') {
@@ -486,9 +575,10 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
         else sendJSON(res, 200, { ok: true, ...result });
       } catch (e) {
         logger.error('kb_upload', `上传失败: ${e.message}`, { filename });
-        // readRawBody 超限时挂了 status=413，别丢掉它；其余业务错误（格式不支持/解析失败）仍为 400
-        if (sendEvent) { sendEvent('error', { error: e.message }); res.end(); }
-        else sendJSON(res, e.status || 400, { error: e.message });
+        const status = e.status || e.statusCode || 400;
+        const failure = { ok: false, error: e.message, status, ...(e.code ? { code: e.code, errorCode: e.code } : {}) };
+        if (sendEvent) { sendEvent('error', failure); res.end(); }
+        else sendJSON(res, status, failure);
       } finally {
         clearInterval(heartbeat);
       }
@@ -501,17 +591,23 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       const filename = url.searchParams.get('filename') || safeDecode(req.headers['x-filename']);
       if (!filename) { sendJSON(res, 400, { error: '缺少 filename（query 参数或 X-Filename 请求头）' }); return; }
       try {
+        const session = agent.getSession(sessionId);
+        const generation = session.scopeGeneration;
+        const assertCurrent = () => {
+          if (courseRegistry.isCourseDeleted?.(session.activeCourseId)) throw Object.assign(new Error('课程已删除，不能再上传附件。'), { code: 'course_deleted', status: 410 });
+          if (sessionStore.scopeVersion(sessionId).generation !== generation) throw Object.assign(new Error('学习记录已重置，请重新上传附件。'), { code: 'stale_generation', status: 409 });
+        };
         const data = await readRawBody(req, attachmentStore.MAX_BYTES);
         const attachment = await attachmentStore.create({
           sessionId,
           filename,
           mime: req.headers['content-type'],
           data,
-        });
+        }, { assertCurrent });
         sendJSON(res, 200, { ok: true, attachment });
       } catch (e) {
         logger.error('attachment_upload', `聊天附件上传失败: ${e.message}`, { sessionId, filename });
-        sendJSON(res, e.status || 400, { error: e.message });
+        sendJSON(res, e.status || e.statusCode || 400, { ok: false, error: e.message, ...(e.code ? { code: e.code, errorCode: e.code } : {}) });
       }
       return;
     }
@@ -739,6 +835,41 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       return;
     }
 
+    if (p === '/api/learning-lab' || p.startsWith('/api/learning-lab/')) {
+      const action = p === '/api/learning-lab' ? 'overview' : p.slice('/api/learning-lab/'.length);
+      const operations = { start: learningLab.start, submit: learningLab.submit, hint: learningLab.hint, next: learningLab.next, reset: learningLab.reset };
+      if (action !== 'overview' && !Object.hasOwn(operations, action)) {
+        sendJSON(res, 404, { ok: false, errorCode: 'not_found', error: '练习操作不存在' }); return;
+      }
+      if (req.method !== (action === 'overview' ? 'GET' : 'POST')) {
+        res.setHeader('Allow', action === 'overview' ? 'GET' : 'POST');
+        sendJSON(res, 405, { ok: false, errorCode: 'method_not_allowed', error: '请求方式不支持' }); return;
+      }
+      const body = action === 'overview' ? {} : await readBody(req);
+      const sessionId = action === 'overview' ? url.searchParams.get('sessionId') : body.sessionId;
+      const lang = (url.searchParams.get('lang') || body.lang || (locale.english() ? 'en' : 'zh')) === 'en' ? 'en' : 'zh';
+      if (typeof sessionId !== 'string' || !sessionId.trim() || sessionId.length > 200 || /[\s\u0000-\u001f\u007f]/.test(sessionId)) {
+        sendJSON(res, 400, { ok: false, errorCode: 'invalid_request', error: lang === 'en' ? 'A valid learning session is required.' : '缺少有效的学习会话' }); return;
+      }
+      // Validate course lifecycle before the feature-support check so a deleted
+      // course always produces the same explicit 410 across learning views.
+      agent.getSession(sessionId);
+      const courseKey = sessionId.includes('@') ? sessionId.slice(sessionId.indexOf('@') + 1).split('~')[0] : null;
+      if (courseKey && courseKey !== course.id) {
+        sendJSON(res, 400, { ok: false, supported: false, errorCode: 'unsupported_course', error: lang === 'en' ? 'Diagnostic practice currently supports the built-in Python course.' : '诊断练习目前支持内置 Python 课程' }); return;
+      }
+      if (action !== 'overview' && (typeof body.requestId !== 'string' || !/^[a-zA-Z0-9:_-]{8,120}$/.test(body.requestId))) {
+        sendJSON(res, 400, { ok: false, errorCode: 'invalid_request', error: lang === 'en' ? 'A valid request ID is required. Please retry.' : '缺少有效的请求标识，请重试' }); return;
+      }
+      if (action === 'submit' && (typeof body.code !== 'string' || !body.code.trim() || body.code.length > 20000)) {
+        sendJSON(res, 400, { ok: false, errorCode: 'invalid_request', error: lang === 'en' ? 'Enter code within the 20,000 character limit.' : '请输入代码，最多支持 20000 个字符' }); return;
+      }
+      const result = await agent.runLabAction(sessionId, action, { lang, familyId: body.familyId, taskId: body.taskId, requestId: body.requestId, code: body.code });
+      const status = result.ok ? 200 : ['stale_task', 'request_conflict'].includes(result.errorCode) ? 409 : 400;
+      sendJSON(res, status, result);
+      return;
+    }
+
     if (p === '/api/coding/problems') {
       // 某单元的编程题列表（公开字段，不含测试检查表达式）
       const kpId = String(url.searchParams.get('kpId') || '');
@@ -855,7 +986,7 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
     // 静态资源
     serveStatic(req, res, p);
   } catch (e) {
-    if (!res.destroyed && !res.headersSent) sendJSON(res, e.status || 500, { error: e.message, ...(e.code ? { code: e.code } : {}) });
+    if (!res.destroyed && !res.headersSent) sendJSON(res, e.status || e.statusCode || 500, { ok: false, error: e.message, ...(e.code ? { code: e.code, errorCode: e.code } : {}), ...(e.runId ? { runId: e.runId, harness: e.harness } : {}) });
   } finally {
     activeRequests--;
   }

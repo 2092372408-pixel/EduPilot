@@ -165,6 +165,47 @@ function toolsQuickTable(subset) {
 }
 
 const tools = {
+  get_learning_task: {
+    name: 'get_learning_task', description: '读取当前诊断练习、真实提交结果和帮助记录；不修改成绩。', args: '{}',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    run(input, ctx) { return require('./learning-lab').getOverview(ctx.session || { id: ctx.sessionId, activeCourseId: ctx.courseId, learning: ctx.learning }, { lang: require('../locale').english() ? 'en' : 'zh' }); },
+  },
+  issue_learning_task: {
+    name: 'issue_learning_task', description: '学生明确请求诊断编程练习时，从受控题族发一道通过验收的题。已有未完成练习时返回原题。让学生在诊断练习页提交，不替学生作答。',
+    args: '{familyId:"parity|loop-sum|function-return"}',
+    parameters: { type: 'object', properties: { familyId: { type: 'string', enum: ['parity', 'loop-sum', 'function-return'] } }, required: ['familyId'], additionalProperties: false },
+    async run(input, ctx) {
+      const lab = require('./learning-lab');
+      const session = ctx.session || { id: ctx.sessionId, activeCourseId: ctx.courseId, learning: ctx.learning };
+      const requested = session.messages?.filter(item => item.role === 'user').at(-1)?.content || '';
+      if (!/练习|出题|诊断|做题|测试|practice|exercise|diagnos|test|quiz/i.test(requested)) return { error: '请先确认学生希望开始练习。', code: 'user_intent_required' };
+      const current = lab.getOverview(session);
+      if (current.currentTask && !['passed', 'independent'].includes(current.currentTask.status)) return { ...current, message: '当前题目仍在作答，请继续这道题。' };
+      const run = require('../harness/runtime').current();
+      const result = await lab.start(session, { familyId: input.familyId, requestId: 'agent:' + (run?.id || require('crypto').randomUUID()), lang: require('../locale').english() ? 'en' : 'zh' });
+      if (result.ok) require('../harness/runtime').finishReason('waiting_for_student');
+      return { ...result, practiceUrl: '/learning-lab.html?course=python-intro' };
+    },
+  },
+  request_learning_help: {
+    name: 'request_learning_help', description: '学生请求当前诊断题帮助时获取分级提示；帮助会记入题目。不得替学生提交代码。', args: '{taskId:"..."}',
+    parameters: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'], additionalProperties: false },
+    run(input, ctx) {
+      const session = ctx.session || { id: ctx.sessionId, activeCourseId: ctx.courseId, learning: ctx.learning };
+      const requested = session.messages?.filter(item => item.role === 'user').at(-1)?.content || '';
+      if (!/帮助|提示|不会|不懂|怎么|为什么|解释|help|hint|explain|why|how/i.test(requested)) return { error: '学生尚未请求帮助。', code: 'user_intent_required' };
+      const run = require('../harness/runtime').current();
+      return require('./learning-lab').hint(session, { taskId: input.taskId, requestId: 'agent-help:' + (run?.id || require('crypto').randomUUID()), lang: require('../locale').english() ? 'en' : 'zh' });
+    },
+  },
+  suggest_learning_next: {
+    name: 'suggest_learning_next', description: '依据当前练习状态建议继续作答或进入新题；不自动切换正在作答的题目。', args: '{}',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    run(input, ctx) {
+      const state = tools.get_learning_task.run({}, ctx);
+      return { supported: state.supported, task: state.currentTask, nextAction: state.currentTask?.nextAction || 'continue', practiceUrl: '/learning-lab.html?course=python-intro' };
+    },
+  },
   get_course_overview: {
     name: 'get_course_overview',
     description: '获取当前课程大纲：章节与知识点清单（含各知识点当前阶段）。学生问"课程大纲/这门课学什么/有哪些章节/从哪开始学"时使用',
@@ -515,12 +556,17 @@ const tools = {
           phaseLabel: PHASE_LABEL[rec.phase],
           assessment: rec.assessment || null,
           practice: { correct: rec.quizCorrect || 0, total: rec.quizTotal || 0 },
+          diagnosticPractice: {
+            independentTransfers: (rec.transferEvidence || []).filter(item => item.verified && item.kind === 'independent_transfer').length,
+            lastIndependentAt: (rec.transferEvidence || []).filter(item => item.verified && item.kind === 'independent_transfer').at(-1)?.at || null,
+            recentAttempts: (rec.practiceEvidence || []).slice(-3).map(({ correct, attempt, hintsUsed, independent, at }) => ({ correct, attempt, hintsUsed, independent, at })),
+          },
         };
       });
       return {
         overall: progress,
         knowledgePoints: kps,
-        note: '汇报方式：按"已经预习过 / 正在学 / 已掌握 / 还没开始 / 该复习了"来叙述，并结合学生当前所处阶段给出下一步引导（不要给百分比）',
+        note: '按阶段汇报，不给掌握百分比。diagnosticPractice 独立记录：看过提示或重复提交后通过只能说明已订正；independentTransfers 只表示在记录时间首次提交通过新变式、未使用系统内提示，不能推断没借助外部工具，也不替代复习测验或证明长期掌握。仍按 assessment 与当前阶段引导下一步。',
       };
     },
   },

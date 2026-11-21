@@ -14,6 +14,7 @@
 
 const { AsyncLocalStorage } = require('async_hooks');
 const logger = require('../store/logger');
+const harness = require('../harness/runtime');
 
 /**
  * 会话上下文（AsyncLocalStorage）：让深层调用（llm → usage.record）无需层层透传 sessionId
@@ -50,7 +51,7 @@ function priceOf(model, promptTokens) {
   let p = prices()[model] || prices()[name];
   // 百炼中国内地在线零售价（2026-10-26）；海外端点/未知档位不套用该报价。
   // https://help.aliyun.com/zh/model-studio/model-pricing
-  if (!p && name === 'qwen3.5-plus' && /^https:\/\/dashscope\.aliyuncs\.com\//i.test(process.env.LLM_BASE_URL || '')) {
+  if (!p && name === 'qwen3.5-plus' && /^https:\/\/dashscope\.aliyuncs\.com\//i.test(harness.configValue('LLM_BASE_URL') || '')) {
     const tier = promptTokens <= 128000 ? [0.8, 4.8] : promptTokens <= 256000 ? [2, 12] : promptTokens <= 1000000 ? [4, 24] : null;
     if (tier) p = { in: tier[0], out: tier[1], currency: 'CNY' };
   }
@@ -103,7 +104,7 @@ function costOf(model, promptTokens, completionTokens) {
  */
 function record(sessionId, info = {}) {
   const u = bucket(sessionId);
-  const model = process.env.LLM_MODEL || 'deepseek-chat';
+  const model = harness.configValue('LLM_MODEL') || 'deepseek-chat';
   let promptTok = 0;
   let completionTok = 0;
   if (info.usage && Number.isFinite(info.usage.prompt_tokens)) {

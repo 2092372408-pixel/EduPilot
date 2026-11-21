@@ -35,6 +35,9 @@ const logger = require('../store/logger');
 const locale = require('../locale');
 const webConfig = require('./webconfig');
 const { buildPracticeContext } = require('./practice-context');
+const learningLab = require('./learning-lab');
+const harness = require('../harness/runtime');
+const { randomUUID } = require('crypto');
 
 /** 引擎选择：默认 LangGraph（supervisor 图，原生 function calling）；
  *  显式设置 ENGINE=legacy 时回退到自研 ReAct 文本协议。两条引擎共享同一套工具/状态/知识库。 */
@@ -135,10 +138,25 @@ function parseSessionCourseKey(sessionId) {
 }
 
 function getSession(sessionId) {
+  sessionId = String(sessionId || 'default');
+  if (sessionId.length > 200 || /[\s\x00-\x1f\x7f]/.test(sessionId)) {
+    throw Object.assign(new Error('无效的学习会话'), { code: 'invalid_session', status: 400 });
+  }
+  const encodedCourse = sessionId.includes('@') ? sessionId.slice(sessionId.lastIndexOf('@') + 1).split('~')[0] : null;
+  if (encodedCourse && encodedCourse !== course.id && !courseRegistry.getDynamicCourse(encodedCourse)) {
+    throw Object.assign(new Error('课程已删除或不存在，请返回课程列表。'), { code: 'course_deleted', status: 410 });
+  }
+  if (sessions.has(sessionId) && courseRegistry.isCourseDeleted?.(sessions.get(sessionId).activeCourseId)) {
+    throw Object.assign(new Error('课程已删除，请返回课程列表。'), { code: 'course_deleted', status: 410 });
+  }
   if (!sessions.has(sessionId)) {
     const courseKey = parseSessionCourseKey(sessionId);
+    const scope = learningScopeId(sessionId);
+    if (scope !== sessionId) getSession(scope);
+    const version = sessionStore.scopeVersion(scope);
     const session = {
       id: sessionId,
+      scopeGeneration: version.generation, scopeRevision: version.revision,
       activeCourseId: courseKey,                  // 会话绑定的课程（解析自 id 或显式切换）
       messages: [],                               // 对话历史（记忆）——按课程独立
       learning: buildLearningForCourse(courseKey), // 内置=完整状态机；动态=节级状态机（学习进度）
@@ -147,7 +165,10 @@ function getSession(sessionId) {
       createdAt: new Date().toISOString(),
     };
     sessions.set(sessionId, session);
-    sessionStore.save(session); // 新建即落盘（重启后能列出）
+    bindLearningScope(session);
+    // A new chat must not change the shared learning revision.
+    if (learningScopeId(sessionId) === sessionId) sessionStore.save(session);
+    else sessionStore.saveConversation(session);
   }
   const session = sessions.get(sessionId);
   bindLearningScope(session);
@@ -165,7 +186,7 @@ function bindLearningScope(session) {
   if (scopeId === session.id) return;
   const canonical = getSession(scopeId);
   session.learningScopeId = scopeId;
-  for (const key of ['learning', 'exam']) {
+  for (const key of ['learning', 'exam', 'scopeRevision', 'scopeGeneration']) {
     Object.defineProperty(session, key, {
       enumerable: true, configurable: true,
       get: () => canonical[key],
@@ -189,7 +210,6 @@ function createConversation(scopeId) {
   const scope = learningScopeId(scopeId);
   getSession(scope);
   const session = getSession(`${scope}~${require('crypto').randomUUID()}`);
-  sessionStore.save(session);
   return { id: session.id };
 }
 
@@ -258,23 +278,20 @@ function ensureKpsInSync(session) {
 /** 删除会话（重置该课程对话/进度/记忆；前端"重置会话"用） */
 function removeSession(sessionId) {
   const scopeId = learningScopeId(sessionId);
+  harness.invalidateScope?.(scopeId);
+  sessionStore.invalidateScope(scopeId);
   const ids = [...sessions.keys()].filter(id => learningScopeId(id) === scopeId);
   for (const id of ids) removeConversation(id);
 }
 
 function removeConversation(sessionId) {
-  sessions.delete(sessionId);
+  // Keep the persisted session as the cleanup discovery record until every
+  // dependency succeeds. A pending deletion can then be retried after restart.
+  attachmentStore.clearSession(sessionId, { strict: true });
+  memoryEngine.clearSession(sessionId, { strict: true });
+  usageEngine.clear(sessionId);
   sessionStore.remove(sessionId);
-  attachmentStore.clearSession(sessionId);
-  // 三层记忆也要清：否则"重置"后 conversation_search 仍能搜到已删对话、
-  // 常驻记忆块与事实仍在（与确认框承诺的"清空对话与进度"不符）。
-  // 注意只清**本课**（列表/事实/进度块），保留跨课程的学生画像与其他课程记忆。
-  try {
-    memoryEngine.clearSession(sessionId);
-    usageEngine.clear(sessionId);
-  } catch (e) {
-    console.warn('[memory] 重置时清理记忆失败（已忽略）:', e.message);
-  }
+  sessions.delete(sessionId);
 }
 
 /** 设置会话的联网模式偏好（首页"是否联网"选择；off / on / auto），并落盘 */
@@ -282,24 +299,25 @@ function setWebMode(sessionId, webMode) {
   const mode = ['off', 'on', 'auto'].includes(webMode) ? webMode : 'auto';
   const s = getSession(sessionId);
   s.webMode = mode;
-  sessionStore.save(s);
+  sessionStore.saveConversation(s);
   return mode;
 }
 
-/** 删除动态课程后的会话回退：所有绑定该课程的会话回退 python-intro（文件清理由 upload.cleanupCourse 完成） */
-function deleteDynamicCourse(courseId) {
-  for (const s of sessions.values()) {
-    const hadSavedCourse = !!s.courseLearning && Object.hasOwn(s.courseLearning, courseId);
-    if (hadSavedCourse) delete s.courseLearning[courseId];
-    if (s.activeCourseId === courseId) {
-      attachmentStore.clearSession(s.id);
-      s.activeCourseId = course.id;
-      s.learning = s.courseLearning?.[course.id] || ((s.learningBackup && Object.keys(s.learningBackup.kps || {}).length)
-        ? s.learningBackup
-        : createLearningState(course));
+/** Purge deleted-course scopes; stale tabs receive 410 rather than a Python fallback. */
+async function deleteDynamicCourse(courseId) {
+  harness.invalidateCourse?.(courseId);
+  const scopes = new Set([...sessions.values()].filter(s => s.activeCourseId === courseId
+    || s.id.split('~')[0].endsWith('@' + courseId)).map(s => learningScopeId(s.id)));
+  for (const scope of scopes) await withSessionLock(scope, () => removeSession(scope));
+  for (const s of [...sessions.values()]) {
+    if (!s.courseLearning || !Object.hasOwn(s.courseLearning, courseId)) continue;
+    await withSessionLock(s.id, () => {
+      delete s.courseLearning[courseId];
       sessionStore.save(s);
-    } else if (hadSavedCourse) sessionStore.save(s);
+    });
   }
+  require('../knowledge').removeCourse(courseId);
+  return { removedScopes: scopes.size };
 }
 
 /**
@@ -617,7 +635,8 @@ async function markDynamicLearning(session, toolCalls, opts = {}) {
   }
   if (touched.size) {
     learning.currentKpId = [...touched][0];
-    sessionStore.save(session);
+    if (harness.current()) persistTurn(session, 'dynamic-learning:' + session.turnCount);
+    else sessionStore.save(session);
   }
 }
 
@@ -797,6 +816,18 @@ function recognizeIntent(text, learning, opts = {}) {
  * 导致 currentKpId 未设置 → 后续出题/判分链路断掉。
  * 当"用户指定了新知识点"或"尚无当前知识点"时，代码代调 update_progress。
  */
+// Trusted orchestration shares the same budget, private drafts and commits as
+// model-selected tools. Its actor comes from this host, never model arguments.
+async function invokeCoreTool(name, input, ctx = {}) {
+  const run = harness.current();
+  if (!run) return tools[name].run(input, ctx);
+  const session = ctx.session || getSession(run.sessionId);
+  return harness.executeTool(name, input, session, draft => tools[name].run(input, {
+    ...ctx, learning: draft.learning, session: draft,
+    courseId: draft.activeCourseId || course.id, sessionId: draft.id,
+  }), { actor: 'system' });
+}
+
 function toolContext(session) {
   execution.throwIfAborted();
   return { learning: session.learning, courseId: session.activeCourseId || course.id, sessionId: session.id };
@@ -811,13 +842,13 @@ async function ensureLearningContext(learning, turn, intent, matched, ctx) {
   if (!kpId) return;
   const action = { preview: 'preview', learn: 'learn', review: 'review' }[intent];
   // 每次都尝试推进（幂等，且 update_progress 内部保证"只进不退"）——避免同一个知识点想进阶却不动
-  const out = await tools.update_progress.run({ kpId, action }, ctx);
+  const out = await invokeCoreTool('update_progress', { kpId, action }, ctx);
   turn.toolCalls.push({ name: 'update_progress', input: { kpId, action }, output: out });
   // 严格梯级门禁：前置检测未完成 → 代码直接发起那一步的检测，把"跳步"变成"先补这一步"
   if (out && out.gated) {
     // 取"最前置的缺项"：未预习的点想直接复习 → 先做预习自测，而不是随堂练习
     const g = nextGate(learning.kps[kpId]) || { need: out.need, label: out.label };
-    const pre = await tools.generate_quiz.run({ kpId, mode: g.need }, ctx);
+    const pre = await invokeCoreTool('generate_quiz', { kpId, mode: g.need }, ctx);
     turn.toolCalls.push({ name: 'generate_quiz', input: { kpId, mode: g.need }, output: pre });
     turn.gate = { kpId, need: g.need, label: g.label || out.label, message: out.message, quiz: pre };
   }
@@ -842,7 +873,7 @@ async function ensureAnswerChecked(learning, turn, intent, ctx) {
   const fullMatch = curQ && curQ.options && curQ.options.some((o) => raw === o);
   if (!letter && !fullMatch) return null;
   const userAnswer = letter || raw;
-  const result = await tools.check_answer.run(
+  const result = await invokeCoreTool('check_answer',
     { kpId: quiz.kpId, question: curQ.q, userAnswer },
     ctx
   );
@@ -969,6 +1000,10 @@ function isCodingPracticeRequest(text) {
   return /(?:编程题|代码题|编程挑战)|(?:写代码|编程).{0,8}(?:练习|实践)|(?:练习|实践).{0,8}(?:写代码|编程)|\b(?:coding|programming)\s+(?:exercise|challenge|practice|problem)s?\b/i.test(text || '')
     && !/讲解|解释|提示|报错|为什么|怎么做|\b(?:explain|hint|debug|why)\b/i.test(text || '')
     && !/(?:不要|不用|别|无需).{0,5}(?:编程|代码)|\b(?:no|without)\s+(?:coding|programming)\b/i.test(text || '');
+}
+
+function isDiagnosticPracticeRequest(text) {
+  return /诊断.{0,15}(?:练习|题|分支|循环|函数)|(?:分支|循环|函数).{0,15}诊断|\bdiagnostic\s+(?:(?:coding|programming)\s+)?(?:practice|exercise|task|test)s?\b/i.test(text || '');
 }
 
 async function buildPracticePayload(session, intent, opts = {}) {
@@ -1122,7 +1157,9 @@ async function presentPreparedCard(session, card, turn, onTool) {
   if (!card) return null;
   const types = new Set(card.items.map(item => item.type));
   const input = { kind: types.size > 1 ? 'both' : types.has('coding') ? 'coding' : 'choice', kpId: card.kpId };
-  const output = await tools.present_practice.run(input, { ...toolContext(session), session, preparedCard: card });
+  const output = await invokeCoreTool('present_practice', input, { ...toolContext(session), session, preparedCard: card });
+  // A prepared question is durable before its tool event can reach the browser.
+  if (harness.current()) persistTurn(session, 'prepared-card:' + session.turnCount);
   const call = { name: 'present_practice', input, output };
   turn.toolCalls.push(call);
   if (onTool) onTool(call);
@@ -1176,7 +1213,7 @@ async function ensureQuizCardForReply(session, reply, existingCard) {
   const mode = (rec.phase === PHASES.REVIEWING && !rec.checks?.learn) ? 'learn'
     : (gate && gate.need) || 'learn';
   try {
-    const gq = await tools.generate_quiz.run({ kpId, mode }, toolContext(session));
+    const gq = await invokeCoreTool('generate_quiz', { kpId, mode }, toolContext(session));
     if (!gq || gq.error || gq.gated) return null;
     return await buildOfficialQuizCard(session);
   } catch (_) {
@@ -1251,12 +1288,12 @@ function replySources(toolCalls, webResult) {
  */
 async function ensureReadonlyQuery(learning, turn, intent, ctx) {
   if (intent === 'course_overview' || (intent === 'chat' && turn.agent?.id === 'coordinator')) {
-    const out = tools.get_course_overview.run({}, ctx);
+    const out = await invokeCoreTool('get_course_overview', {}, ctx);
     turn.toolCalls.push({ name: 'get_course_overview', input: {}, output: out });
     return { name: 'get_course_overview', output: out };
   }
   if (intent === 'progress') {
-    const out = tools.get_learning_progress.run({}, ctx);
+    const out = await invokeCoreTool('get_learning_progress', {}, ctx);
     turn.toolCalls.push({ name: 'get_learning_progress', input: {}, output: out });
     return { name: 'get_learning_progress', output: out };
   }
@@ -1270,7 +1307,7 @@ async function ensureKnowledgePrefetch(learning, turn, intent, matched, ctx) {
   if (turn.plainChat) return null;
   if (intent === 'chat' && isTextbookQuery(turn.userMessage) && turn.agent?.id === 'general') {
     const input = { query: turn.userMessage, topK: 3 };
-    const out = await tools.search_knowledge_base.run(input, ctx);
+    const out = await invokeCoreTool('search_knowledge_base', input, ctx);
     turn.toolCalls.push({ name: 'search_knowledge_base', input, output: out });
     return out;
   }
@@ -1279,14 +1316,14 @@ async function ensureKnowledgePrefetch(learning, turn, intent, matched, ctx) {
     if (!['chat', 'preview', 'learn', 'review'].includes(intent) || /^(你好|谢谢|hi|hello|thanks)[!！。\s]*$/i.test(turn.userMessage.trim())) return null;
     const kpId = matched?.kp.id || fallbackKpId(learning);
     if (intent !== 'chat' && kpId) {
-      const out = tools.get_knowledge_point.run({ kpId }, ctx);
+      const out = await invokeCoreTool('get_knowledge_point', { kpId }, ctx);
       if (!out.error) {
         turn.toolCalls.push({ name: 'get_knowledge_point', input: { kpId }, output: out });
         return out;
       }
     }
     const input = { query: turn.userMessage, topK: 3, ...(matched && intent !== 'chat' ? { kpId: matched.kp.id } : {}) };
-    const out = await tools.search_knowledge_base.run(input, ctx);
+    const out = await invokeCoreTool('search_knowledge_base', input, ctx);
     turn.toolCalls.push({ name: 'search_knowledge_base', input, output: out });
     return out;
   }
@@ -1295,7 +1332,7 @@ async function ensureKnowledgePrefetch(learning, turn, intent, matched, ctx) {
   const kpId = (matched && matched.kp && matched.kp.id) || fallbackKpId(learning);
   if (!kpId || !learning.kps || !learning.kps[kpId]) return null;
   if (!findKnowledgePoint(kpId)) return null; // 素材课的节 key 不在内置课程里 → 没有标准讲义，跳过（靠检索讲解）
-  const out = tools.get_knowledge_point.run({ kpId }, { learning });
+  const out = await invokeCoreTool('get_knowledge_point', { kpId }, { learning });
   if (!out || out.error) return null;
   turn.toolCalls.push({ name: 'get_knowledge_point', input: { kpId }, output: out });
   return out;
@@ -1323,12 +1360,12 @@ async function ensureQuizPrepared(learning, turn, intent, matched, ctx) {
   const restart = mode === 'learn' && isExplicitLearnRetake(turn.userMessage);
   if (inProgress && quiz.kpId === kpId && quiz.mode === mode && !restart) return null;
   const input = { kpId, mode, ...(restart ? { restart: true } : {}) };
-  const gq = await tools.generate_quiz.run(input, { ...ctx, explicitRetake: restart });
+  const gq = await invokeCoreTool('generate_quiz', input, { ...ctx, explicitRetake: restart });
   turn.toolCalls.push({ name: 'generate_quiz', input, output: gq });
   // 严格梯级门禁：前置检测未完成 → 退回那一步的检测（想直接练/想考 → 先补这一步）
   if (gq && gq.gated) {
     const g = nextGate(learning.kps[kpId]) || { need: gq.need, label: gq.label };
-    const pre = await tools.generate_quiz.run({ kpId, mode: g.need }, ctx);
+    const pre = await invokeCoreTool('generate_quiz', { kpId, mode: g.need }, ctx);
     turn.toolCalls.push({ name: 'generate_quiz', input: { kpId, mode: g.need }, output: pre });
     turn.gate = { kpId, need: g.need, label: g.label || gq.label, message: gq.message, quiz: pre };
     return pre;
@@ -1350,7 +1387,7 @@ async function orchestrateMock(learning, turn, intent, userMessage, matched, cur
     if (!targetKpId) targetKpId = (getAllKnowledgePoints().find(({ kp: k }) => learning.kps[k.id].phase === PHASES.NOT_STARTED) || {}).kp?.id || curKpId;
     if (targetKpId) {
       const before = learning.kps[targetKpId].phase;
-      const tr = await tools.update_progress.run({ action: 'preview', kpId: targetKpId }, { learning });
+      const tr = await invokeCoreTool('update_progress', { action: 'preview', kpId: targetKpId }, { learning });
       turn.toolCalls.push({ name: 'update_progress', input: { action: 'preview', kpId: targetKpId }, output: tr });
       if (before !== tr.phase) turn.phaseChanged.push({ kpId: targetKpId, from: before, to: tr.phase });
     }
@@ -1358,7 +1395,7 @@ async function orchestrateMock(learning, turn, intent, userMessage, matched, cur
     if (!targetKpId) targetKpId = (getAllKnowledgePoints().find(({ kp: k }) => learning.kps[k.id].phase === PHASES.NOT_STARTED || learning.kps[k.id].phase === PHASES.PREVIEW) || {}).kp?.id || null;
     if (targetKpId) {
       const before = learning.kps[targetKpId].phase;
-      const tr = await tools.update_progress.run({ action: 'learn', kpId: targetKpId }, { learning });
+      const tr = await invokeCoreTool('update_progress', { action: 'learn', kpId: targetKpId }, { learning });
       turn.toolCalls.push({ name: 'update_progress', input: { action: 'learn', kpId: targetKpId }, output: tr });
       if (before !== tr.phase) turn.phaseChanged.push({ kpId: targetKpId, from: before, to: tr.phase });
     }
@@ -1371,11 +1408,11 @@ async function orchestrateMock(learning, turn, intent, userMessage, matched, cur
     if (targetKpId) {
       const mode = intent === 'review_quiz' ? 'review' : /预习|\bpreview\b/i.test(userMessage) ? 'preview' : 'learn';
       const before = learning.kps[targetKpId].phase;
-      const tr = await tools.update_progress.run({ action: intent === 'review_quiz' ? 'review' : 'learn', kpId: targetKpId }, { learning });
+      const tr = await invokeCoreTool('update_progress', { action: intent === 'review_quiz' ? 'review' : 'learn', kpId: targetKpId }, { learning });
       turn.toolCalls.push({ name: 'update_progress', input: { action: tr.action, kpId: targetKpId }, output: tr });
       if (before !== tr.phase) turn.phaseChanged.push({ kpId: targetKpId, from: before, to: tr.phase });
       const restart = mode === 'learn' && isExplicitLearnRetake(userMessage);
-      toolResult = await tools.generate_quiz.run({ kpId: targetKpId, mode, ...(restart ? { restart: true } : {}) }, { learning, explicitRetake: restart });
+      toolResult = await invokeCoreTool('generate_quiz', { kpId: targetKpId, mode, ...(restart ? { restart: true } : {}) }, { learning, explicitRetake: restart });
       turn.toolCalls.push({ name: 'generate_quiz', input: { kpId: targetKpId, mode }, output: toolResult });
     }
   } else if (intent === 'answer') {
@@ -1383,7 +1420,7 @@ async function orchestrateMock(learning, turn, intent, userMessage, matched, cur
     const quiz = activeQuizOf(learning);
     const q = quiz.questions[learning.currentQuizIndex];
     const beforePhase = learning.kps[quiz.kpId].phase;
-    toolResult = await tools.check_answer.run(
+    toolResult = await invokeCoreTool('check_answer',
       { kpId: quiz.kpId, question: q.q, userAnswer: userMessage.trim() },
       { learning }
     );
@@ -1394,7 +1431,7 @@ async function orchestrateMock(learning, turn, intent, userMessage, matched, cur
     if (!targetKpId) targetKpId = (getAllKnowledgePoints().find(({ kp: k }) => learning.kps[k.id].phase === PHASES.LEARNING) || {}).kp?.id || curKpId;
     if (targetKpId) {
       const before = learning.kps[targetKpId].phase;
-      const tr = await tools.update_progress.run({ action: 'review', kpId: targetKpId }, { learning });
+      const tr = await invokeCoreTool('update_progress', { action: 'review', kpId: targetKpId }, { learning });
       turn.toolCalls.push({ name: 'update_progress', input: { action: 'review', kpId: targetKpId }, output: tr });
       if (before !== tr.phase) turn.phaseChanged.push({ kpId: targetKpId, from: before, to: tr.phase });
     }
@@ -1410,7 +1447,7 @@ async function orchestrateMock(learning, turn, intent, userMessage, matched, cur
   if (gatedCall && !turn.gate) {
     const gateKpId = gatedCall.output.kpId || targetKpId;
     const g = (learning.kps[gateKpId] && nextGate(learning.kps[gateKpId])) || { need: gatedCall.output.need, label: gatedCall.output.label };
-    const pre = await tools.generate_quiz.run({ kpId: gateKpId, mode: g.need }, { learning });
+    const pre = await invokeCoreTool('generate_quiz', { kpId: gateKpId, mode: g.need }, { learning });
     turn.toolCalls.push({ name: 'generate_quiz', input: { kpId: gateKpId, mode: g.need }, output: pre });
     turn.gate = { kpId: gateKpId, need: g.need, label: g.label || gatedCall.output.label, message: gatedCall.output.message, quiz: pre };
     toolResult = pre;
@@ -1449,6 +1486,9 @@ function withSessionLock(sessionId, fn) {
  * GROUNDING_CHECK=off 可关。
  */
 function annotateGroundingAsync(session, turn, reply) {
+  // Runtime-bound requests already perform publication checks; detached audit
+  // work cannot outlive the run's deadline or disappear from its budget.
+  if (harness.current()) return;
   if (!groundingEngine.ENABLED) return;
   let sources;
   try { sources = groundingEngine.sourcesFromToolCalls(turn.toolCalls); } catch (_) { return; }
@@ -1477,21 +1517,94 @@ async function run(sessionId, userMessage, opts = {}) {
   return runTurn(sessionId, userMessage, opts, runInner);
 }
 
+function publishLearning(session, draft) {
+  if (session.learning && draft.learning) {
+    for (const key of Object.keys(session.learning)) delete session.learning[key];
+    Object.assign(session.learning, draft.learning);
+  } else session.learning = draft.learning;
+  session.exam = draft.exam;
+  session.scopeRevision = draft.scopeRevision;
+  session.scopeGeneration = draft.scopeGeneration;
+}
+
+function persistTurn(session, key) {
+  const version = { scopeRevision: session.scopeRevision, scopeGeneration: session.scopeGeneration };
+  try {
+    return harness.commitBusiness({ key, tool: 'save_learning', input: { revision: version.scopeRevision }, result: { saved: true } }, () => sessionStore.save(session));
+  } catch (error) {
+    const saved = sessionStore.read(learningScopeId(session.id));
+    if (saved) publishLearning(session, saved);
+    throw error;
+  }
+}
+
+/** Student operations compute against a private draft and publish only after commit. */
+function runLabAction(sessionId, action, input = {}, options = {}) {
+  return withSessionLock(sessionId, async () => {
+    const session = getSession(sessionId);
+    if (action === 'overview') return learningLab.getOverview(session, input);
+    const operations = { start: learningLab.start, submit: learningLab.submit, hint: learningLab.hint, next: learningLab.next, reset: learningLab.reset };
+    if (!Object.hasOwn(operations, action)) throw Object.assign(new Error('练习操作不存在'), { status: 404 });
+    const result = await harness.withRun({ sessionId, courseId: session.activeCourseId, kind: 'lab',
+      triggerId: options.triggerId || input.requestId, resumeOf: options.resumeOf,
+      input: { action, options: input }, signal: options.signal }, async () => {
+      harness.reserve('tool', 0, action);
+      const draft = { ...session, learning: structuredClone(session.learning), exam: structuredClone(session.exam) };
+      const output = await operations[action](draft, input);
+      execution.throwIfAborted();
+      if (output.ok && !output.duplicate) {
+        harness.commitBusiness({ key: 'student:' + input.requestId, tool: 'lab_' + action, input, result: output }, () => sessionStore.save(draft));
+        publishLearning(session, draft);
+      }
+      harness.finishReason(output.ok ? 'waiting_for_student' : output.errorCode || 'validation_failed');
+      return output;
+    });
+    // Replays return the current task, with the original operation receipt.
+    return result.harness?.replayed ? { ...result, ...learningLab.getOverview(session, input), ok: result.ok, duplicate: true } : result;
+  });
+}
+
+function prepareLearningHelp(session, opts, triggerId) {
+  const task = learningLab.getOverview(session).currentTask;
+  const explicit = opts.context?.mode === 'learning_lab';
+  if (explicit && (!task || opts.context.taskId !== task.taskId)) {
+    throw Object.assign(new Error('题目已切换，请从当前题目重新打开讨论。'), { code: 'stale_task', status: 409 });
+  }
+  if (!task) return opts;
+  if (!['passed', 'independent'].includes(task.status)) {
+    const draft = { ...session, learning: structuredClone(session.learning), exam: structuredClone(session.exam) };
+    const help = learningLab.recordHelp(draft, { taskId: task.taskId, requestId: triggerId, source: explicit ? 'chat' : 'unknown' });
+    if (help.changed) {
+      harness.commitBusiness({ key: 'help:' + triggerId, tool: 'record_help', input: { taskId: task.taskId, explicit }, result: help }, () => sessionStore.save(draft));
+      publishLearning(session, draft);
+    }
+  }
+  return explicit ? { ...opts, context: learningLab.chatContext(session, task.taskId) } : opts;
+}
+
 function runTurn(sessionId, userMessage, opts, inner) {
   llm.assertConfigured();
-  return withSessionLock(sessionId, () => execution.runWithSignal(opts.signal, () => usageEngine.runWithSession(sessionId, async () => {
+  return withSessionLock(sessionId, () => {
+    const session = getSession(sessionId);
+    const triggerId = opts.requestId || randomUUID();
+    const input = { message: userMessage, webMode: opts.webMode, context: opts.context, attachments: opts.attachments, thinking: opts.thinking };
+    return harness.withRun({ sessionId, courseId: session.activeCourseId, kind: 'chat', triggerId,
+      input, signal: opts.signal, resumeOf: opts.resumeOf }, () => execution.runWithSignal(harness.currentSignal(), () => usageEngine.runWithSession(sessionId, async () => {
     // A request cancelled while queued must not start a new turn.
     execution.throwIfAborted();
+    opts = prepareLearningHelp(session, opts, opts.helpRequestId || triggerId);
     const state = {};
     try {
       const result = await inner(sessionId, userMessage, opts, state);
       execution.throwIfAborted();
+      if (learningLab.getOverview(session).currentTask || result.card) harness.finishReason('waiting_for_student');
+      result.learningLab = learningLab.getOverview(session, { lang: locale.english() ? 'en' : 'zh' });
       return result;
     } catch (error) {
-      const cancelled = !!opts.signal?.aborted;
+      const cancelled = !!harness.currentSignal()?.aborted;
       if (!cancelled && !state.turn) throw error;
       const status = cancelled ? 'cancelled' : 'failed';
-      const session = getSession(sessionId);
+      if (courseRegistry.isCourseDeleted?.(session.activeCourseId)) throw error;
       const turn = state.turn;
       if (turn) {
         // Keep completed grading/tool effects, but never leave an unanswered user message.
@@ -1509,13 +1622,17 @@ function runTurn(sessionId, userMessage, opts, inner) {
           status, intent: turn.intent, agent: turn.agent,
           toolCalls: turn.toolCalls.concat(session._graphCalls || []), phaseChanged: turn.phaseChanged, replyLen: 0 });
         session.turnLog = session.turnLog.slice(-50);
-        sessionStore.save(session);
+        // Already committed tool effects are kept; a cancellation cannot commit new learning.
+        const saved = sessionStore.read(learningScopeId(session.id));
+        if (saved) publishLearning(session, saved);
+        sessionStore.saveConversation(session);
         logger.info('turn_' + status, `[${sessionId}] ${cancelled ? '请求已取消' : '回复未完成'}`, { sessionId, intent: turn.intent });
       }
-      if (cancelled) opts.signal.throwIfAborted();
+      if (cancelled) harness.currentSignal().throwIfAborted();
       throw error;
     }
   }), opts.thinking));
+  });
 }
 
 function quizIntroduction(intent, card, context, checkResult, quizPrepared) {
@@ -1569,7 +1686,8 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
 
   // ---- 1. 意图识别 ----
   turn.hasAttachments = !!preparedAttachments.refs.length;
-  const intent = buildPracticeContext(context) ? 'chat' : recognizeIntent(userMessage, learning, { courseId, hasAttachments: turn.hasAttachments });
+  const diagnosticRequest = !isDynamicCourse && isDiagnosticPracticeRequest(userMessage);
+  const intent = buildPracticeContext(context) || diagnosticRequest ? 'chat' : recognizeIntent(userMessage, learning, { courseId, hasAttachments: turn.hasAttachments });
   turn.intent = intent;
 
   // ---- 1.5 联网模式（先算，路由需要它） ----
@@ -1649,7 +1767,7 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
   // 互动卡片必须在"生成之前"就定好，并把 cardWillRender 告诉模型：
   // 出题意图下卡片会由系统渲染，若模型不知情，它会按出题惯例把题目和选项再复述一遍，
   // 于是同一道题在对话里出现两次（文字一次 + 卡片一次）。提示词据此要求只做引导、不复述题目。
-  const prepareCard = isMock || turn.gate?.quiz || context?.mode === 'mistake' || isCodingPracticeRequest(userMessage) || ['quiz', 'review_quiz', 'answer'].includes(intent);
+  const prepareCard = context?.mode !== 'learning_lab' && !diagnosticRequest && (isMock || turn.gate?.quiz || context?.mode === 'mistake' || isCodingPracticeRequest(userMessage) || ['quiz', 'review_quiz', 'answer'].includes(intent));
   const card = prepareCard && !quizPrepared?.error ? await presentPreparedCard(session, await buildPracticePayload(session, intent, { matched, userMessage, context, gate: turn.gate }), turn, onTool) : null;
   // learn/practice 的卡片是"按薄弱点挑的题"，此前只告诉模型"卡片已发出"却不给它题目内容，
   // 于是模型会自己另编一道题写进正文（正文一题、卡片一题，学生看到两张不同的卷子）。
@@ -1658,7 +1776,7 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
   if (card && !quizPrepared) quizPrepared = cardToQuizPrepared(card);
 
   const evidenceRequired = groundingEngine.requiresTextbookEvidence({ userMessage, intent, dynamic: isDynamicCourse,
-    hasAttachments: turn.hasAttachments, practice: !!buildPracticeContext(context), offTopic: turn.offTopicSubject, external: !!webResult?.sources?.length });
+    hasAttachments: turn.hasAttachments, practice: diagnosticRequest || !!buildPracticeContext(context), offTopic: turn.offTopicSubject, external: !!webResult?.sources?.length });
 
   // ---- 3. LLM 生成（引擎分流：LangGraph 图 / legacy ReAct；mock 走演示引擎） ----
   // 用 scope.runWithWebScope 包裹：让 MCP 工具层（bridge）知道本轮是否允许联网，
@@ -1691,9 +1809,10 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
   else annotateGroundingAsync(session, turn, reply);
   if (verified?.grounding.verdict === 'unverified' && !checkResult && !turn.toolCalls.some(call =>
     ['check_answer', 'generate_quiz', 'present_practice'].includes(call.name) && !call.output?.error)) {
-    // Preserve completed grading/cards; undo unverified teaching activity only.
+    // A publication check cannot erase an already committed task or help ledger.
+    const confirmed = sessionStore.read(learningScopeId(session.id));
     for (const key of Object.keys(learning)) delete learning[key];
-    Object.assign(learning, learningBeforeReply);
+    Object.assign(learning, confirmed?.learning || learningBeforeReply);
     turn.phaseChanged = [];
     gen.phaseChanges = [];
   }
@@ -1759,7 +1878,7 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
   });
   if (session.turnLog.length > 50) session.turnLog = session.turnLog.slice(-50);
   state.log = session.turnLog.at(-1);
-  sessionStore.save(session); // 持久化：轨迹入库后再写回 SQLite（含本轮轨迹）
+  persistTurn(session, 'turn:' + session.turnCount); // Learning and checkpoint commit together.
 
   // 运行日志留存：本轮关键信息（含工具错误/被拒），前端断开也可追溯
   const errTools = turn.toolCalls.filter((t) => (t.output && t.output.error) || t.rejected);
@@ -1771,10 +1890,10 @@ async function runInner(sessionId, userMessage, { onTool, webMode, context, atta
   // 记忆维护（真实模式）：三层记忆统一入口——卡点→core 进度块、
   // 摘要（recall 压缩产物）、事实提取→archival。失败不影响主流程。
   execution.throwIfAborted();
-  if (!isMock) await memoryEngine.upkeep(session, turn, userMessage, null);
+  if (!isMock) await harness.optionalMaintenance('memory', () => memoryEngine.upkeep(session, turn, userMessage, null));
   execution.throwIfAborted();
-  // upkeep 可能更新 summary；再落一次盘，避免本轮摘要要等到下一轮才持久化。
-  sessionStore.save(session);
+  // Summary updates cannot overwrite independently committed learning state.
+  sessionStore.saveConversation(session);
 
   return {
     reply,
@@ -1835,7 +1954,8 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, onStep,
 
   // ---- 1. 意图识别 ----
   turn.hasAttachments = !!preparedAttachments.refs.length;
-  const intent = buildPracticeContext(context) ? 'chat' : recognizeIntent(userMessage, learning, { courseId, hasAttachments: turn.hasAttachments });
+  const diagnosticRequest = !isDynamicCourse && isDiagnosticPracticeRequest(userMessage);
+  const intent = buildPracticeContext(context) || diagnosticRequest ? 'chat' : recognizeIntent(userMessage, learning, { courseId, hasAttachments: turn.hasAttachments });
   turn.intent = intent;
 
   // ---- 1.5 联网模式（先算，路由需要它） ----
@@ -1909,7 +2029,7 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, onStep,
 
   // 互动卡片在生成前定好：出题意图下卡片会由系统渲染，模型须知情，
   // 否则会把题目/选项再复述一遍，同一题为出现两次（文字一次 + 卡片一次）。
-  const prepareCard = isMock || turn.gate?.quiz || context?.mode === 'mistake' || isCodingPracticeRequest(userMessage) || ['quiz', 'review_quiz', 'answer'].includes(intent);
+  const prepareCard = context?.mode !== 'learning_lab' && !diagnosticRequest && (isMock || turn.gate?.quiz || context?.mode === 'mistake' || isCodingPracticeRequest(userMessage) || ['quiz', 'review_quiz', 'answer'].includes(intent));
   const card = prepareCard && !quizPrepared?.error ? await presentPreparedCard(session, await buildPracticePayload(session, intent, { matched, userMessage, context, gate: turn.gate }), turn, onTool) : null;
   // learn/practice 的卡片是"按薄弱点挑的题"，此前只告诉模型"卡片已发出"却不给它题目内容，
   // 于是模型会自己另编一道题写进正文（正文一题、卡片一题，学生看到两张不同的卷子）。
@@ -1918,7 +2038,7 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, onStep,
   if (card && !quizPrepared) quizPrepared = cardToQuizPrepared(card);
 
   const evidenceRequired = groundingEngine.requiresTextbookEvidence({ userMessage, intent, dynamic: isDynamicCourse,
-    hasAttachments: turn.hasAttachments, practice: !!buildPracticeContext(context), offTopic: turn.offTopicSubject, external: !!webResult?.sources?.length });
+    hasAttachments: turn.hasAttachments, practice: diagnosticRequest || !!buildPracticeContext(context), offTopic: turn.offTopicSubject, external: !!webResult?.sources?.length });
   // Model tokens cannot be withdrawn after SSE delivery. Hold only material-bound answers.
   const publishDelta = onDelta;
   const holdDeltas = evidenceRequired || (!turn.plainChat && ['chat', 'learn', 'preview', 'review'].includes(intent) && !turn.hasAttachments && !buildPracticeContext(context));
@@ -1965,9 +2085,10 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, onStep,
   else annotateGroundingAsync(session, turn, reply);
   if (verified?.grounding.verdict === 'unverified' && !checkResult && !turn.toolCalls.some(call =>
     ['check_answer', 'generate_quiz', 'present_practice'].includes(call.name) && !call.output?.error)) {
-    // Preserve completed grading/cards; undo unverified teaching activity only.
+    // A publication check cannot erase an already committed task or help ledger.
+    const confirmed = sessionStore.read(learningScopeId(session.id));
     for (const key of Object.keys(learning)) delete learning[key];
-    Object.assign(learning, learningBeforeReply);
+    Object.assign(learning, confirmed?.learning || learningBeforeReply);
     turn.phaseChanged = [];
     gen.phaseChanges = [];
   }
@@ -2030,7 +2151,7 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, onStep,
   });
   if (session.turnLog.length > 50) session.turnLog = session.turnLog.slice(-50);
   state.log = session.turnLog.at(-1);
-  sessionStore.save(session); // 持久化：轨迹入库后再写回 SQLite（含本轮轨迹）
+  persistTurn(session, 'turn:' + session.turnCount); // Learning and checkpoint commit together.
 
   // 运行日志留存：本轮关键信息（含工具错误/被拒），前端断开也可追溯
   const errTools = turn.toolCalls.filter((t) => (t.output && t.output.error) || t.rejected);
@@ -2043,10 +2164,10 @@ async function runStreamInner(sessionId, userMessage, { onTool, onDelta, onStep,
   // 摘要（recall 压缩产物）、事实提取→archival。失败不影响主流程。
   execution.throwIfAborted();
   if (onStep) onStep({ id: 'saved', label: '保存本次学习记录' });
-  if (!isMock) await memoryEngine.upkeep(session, turn, userMessage, context);
+  if (!isMock) await harness.optionalMaintenance('memory', () => memoryEngine.upkeep(session, turn, userMessage, context));
   execution.throwIfAborted();
-  // upkeep 可能更新 summary；再落一次盘，避免本轮摘要要等到下一轮才持久化。
-  sessionStore.save(session);
+  // Summary updates cannot overwrite independently committed learning state.
+  sessionStore.saveConversation(session);
 
   return {
     reply,
@@ -2085,6 +2206,7 @@ function getSessionInfo(sessionId) {
       .reduce((total, item) => total + (Number(item.turnCount) || item.turnLog?.length || 0), 0),
     messages: s.messages,
     learning: {
+      learningLab: s.learning.learningLab ? learningLab.getOverview(s, { lang: locale.english() ? 'en' : 'zh' }) : null,
       currentKpId: s.learning.currentKpId,
       currentQuizIndex: s.learning.currentQuizIndex,
       currentQuiz: s.learning.currentQuiz
@@ -2096,7 +2218,9 @@ function getSessionInfo(sessionId) {
       kps: Object.fromEntries(
         Object.entries(s.learning.kps).map(([id, rec]) => [
           id,
-          { phase: rec.phase, phaseLabel: PHASE_LABEL[rec.phase], mastery: computeMastery(rec), masteryEstimate: estimateMastery(rec), checks: rec.checks || null, assessment: rec.assessment || null, quizCorrect: rec.quizCorrect, quizTotal: rec.quizTotal, quizHistory: rec.quizHistory || [], painPoints: (rec.painPoints || []).slice(-5), lastActivity: rec.lastActivity || null, review: rec.review || null, legacyProgress: rec.legacyProgress || null },
+          { phase: rec.phase, phaseLabel: PHASE_LABEL[rec.phase], mastery: computeMastery(rec), masteryEstimate: estimateMastery(rec), checks: rec.checks || null, assessment: rec.assessment || null, quizCorrect: rec.quizCorrect, quizTotal: rec.quizTotal, quizHistory: rec.quizHistory || [], painPoints: (rec.painPoints || []).slice(-5), lastActivity: rec.lastActivity || null, review: rec.review || null, legacyProgress: rec.legacyProgress || null,
+            transferEvidence: (rec.transferEvidence || []).map(({ id, taskId, familyId, at, kind, verified, attempt, hintsUsed, answerExposed, passed, total }) => ({ id, taskId, familyId, at, kind, verified, attempt, hintsUsed, answerExposed, passed, total })),
+          },
         ])
       ),
     },
@@ -2107,6 +2231,7 @@ function getSessionInfo(sessionId) {
 }
 
 module.exports = {
+  runLabAction,
   learningScopeId, listConversations, createConversation, withSessionLock,
   run, runStream, getSession, getSessionInfo, listSessions, sessions,
   recognizeIntent, switchCourse, getActiveCourse, removeSession, deleteDynamicCourse, setWebMode,

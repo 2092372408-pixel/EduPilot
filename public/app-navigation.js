@@ -2,6 +2,8 @@
 (function () {
   const views = {
     coding: { path: '/coding.html', title: '代码实践', link: 'codingLink' },
+    lab: { path: '/learning-lab.html', title: '诊断练习', link: 'learningLabLink' },
+    knowledge: { path: '/knowledge-graph.html', title: '知识图谱', link: 'knowledgeGraphLink' },
     choice: { path: '/choice.html', title: '选择题', link: 'choiceLink' },
     report: { path: '/report.html', title: '学习报告', link: 'reportLink' },
     upload: { path: '/upload.html', title: '上传学习素材' },
@@ -40,7 +42,7 @@
     let active = null;
     const course = () => typeof courseData !== 'undefined' && courseData?.id || localStorage.getItem('eduowl_course') || 'python-intro';
     const language = () => window.eduLanguage?.() || 'zh';
-    const message = (frame, activeView, refresh) => frame.contentWindow?.postMessage({ type: 'edupilot:activate', active: activeView, refresh, language: language() }, location.origin);
+    const message = (frame, activeView, refresh, selection = {}) => frame.contentWindow?.postMessage({ type: 'edupilot:activate', active: activeView, refresh, language: language(), ...selection }, location.origin);
 
     function renderLabels() {
       const selected = active && views[active.name];
@@ -64,10 +66,7 @@
       if (!target) return false;
       const name = Object.keys(views).find(key => views[key].path === target.pathname) || (views[target.searchParams.get('view')] ? target.searchParams.get('view') : null);
       const targetCourse = target.searchParams.get('course') || active?.course || course();
-      if (active?.name === name && active.course === targetCourse) {
-        if (name === 'report') message(active.frame, true, true);
-        return true;
-      }
+      const selection = name === 'lab' && target.searchParams.has('family') ? { familyId: target.searchParams.get('family') } : {};
       if (!name && targetCourse !== course() && typeof switchCourse === 'function') {
         const previousUrl = location.href;
         const previousState = history.state;
@@ -92,7 +91,7 @@
           url.searchParams.set('embedded', '1');
           frame.src = url.href;
           frame.addEventListener('load', () => {
-            message(frame, active?.frame === frame, false);
+            message(frame, active?.frame === frame, false, active?.frame === frame ? active.selection : {});
             if (active?.frame === frame && ['coding', 'choice'].includes(name)) {
               const kpId = typeof learning !== 'undefined' && learning?.currentKpId || (typeof courseData !== 'undefined' && courseData?.chapters?.[0]?.knowledgePoints?.[0]?.id);
               if (kpId) window.EduNavigation.selectTopic(kpId);
@@ -102,8 +101,8 @@
           document.getElementById('featureFrames').appendChild(frame);
         }
         frame.hidden = false;
-        active = { name, frame, course: targetCourse };
-        if (!fresh) message(frame, true, name === 'report');
+        active = { name, frame, course: targetCourse, selection };
+        if (!fresh) message(frame, true, ['report', 'knowledge', 'lab'].includes(name), selection);
       }
       chatPanel.hidden = Boolean(active);
       host.hidden = !active;
@@ -113,12 +112,21 @@
       const url = new URL(location.href);
       url.pathname = '/';
       url.searchParams.delete('embedded');
+      url.searchParams.delete('family');
+      url.searchParams.delete('kp');
       if (name) { url.searchParams.set('view', name); url.searchParams.set('course', targetCourse); }
-      else { url.searchParams.delete('view'); url.searchParams.delete('course'); }
+      else {
+        url.searchParams.delete('view');
+        url.searchParams.set('course', targetCourse);
+        if (target.searchParams.has('kp')) url.searchParams.set('kp', target.searchParams.get('kp'));
+      }
+      if (selection.familyId) url.searchParams.set('family', selection.familyId);
       if (!pop && url.href !== location.href) history[replace ? 'replaceState' : 'pushState']({ view: name }, '', url);
       if (!active) {
-        if (typeof refreshSidebarProgress === 'function') refreshSidebarProgress();
+        if (typeof refreshSidebarProgress === 'function') await refreshSidebarProgress();
         if (typeof refreshMistakeBadge === 'function') refreshMistakeBadge();
+        const kpId = target.searchParams.get('kp');
+        if (kpId) window.dispatchEvent(new CustomEvent('edu:select-topic', { detail: { kpId } }));
       }
       return true;
     }
@@ -144,6 +152,24 @@
     document.getElementById('featureBackBtn').addEventListener('click', () => navigate('/'));
     window.addEventListener('popstate', () => navigate(location.href, { pop: true }));
     window.addEventListener('edu-language-change', () => window.EduNavigation.refreshLanguage());
+    window.addEventListener('edu-course-deleted', event => {
+      const courseId = event.detail?.courseId;
+      if (!courseId) return;
+      const removedActive = active?.course === courseId;
+      for (const [key, frame] of frames) {
+        if (new URL(frame.src).searchParams.get('course') !== courseId) continue;
+        message(frame, false, false);
+        frame.remove();
+        frames.delete(key);
+      }
+      if (removedActive) {
+        active = null;
+        navigate('/?course=' + encodeURIComponent(course()), { replace: true });
+      } else if (active?.name === 'knowledge') message(active.frame, true, true);
+    });
+    window.addEventListener('edu-course-renamed', () => {
+      if (active?.name === 'knowledge') message(active.frame, true, true);
+    });
     window.addEventListener('message', event => {
       if (event.origin !== location.origin || event.source !== active?.frame.contentWindow || event.data?.type !== 'edupilot:navigate') return;
       if (internal(event.data.href)) navigate(event.data.href);

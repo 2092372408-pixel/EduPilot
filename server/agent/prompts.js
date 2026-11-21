@@ -8,6 +8,7 @@
 
 const { course, getAllKnowledgePoints } = require('../data/course');
 const { toolsDescription, toolsQuickTable } = require('./tools');
+const DIAGNOSTIC_EVIDENCE_RULE = '诊断练习的记录必须按证据解释：提示、聊天帮助或重复提交后的通过仅表示已订正；只有服务端记录为 known_none 的未见新变式首次验证通过，才能描述为本次系统内独立作答，unknown 不能当作没有帮助。不能推断没有外部帮助，也不证明长期掌握；课程阶段仍依据正式复习测验。若当前工具集提供诊断工具：学生明确请求诊断练习时，先用 get_learning_task 读取当前任务，再按分支 parity、循环 loop-sum、函数 function-return 调用 issue_learning_task；已有未完成任务时继续原题，使用结果中的 practiceUrl 引导学生进入诊断练习页。请求帮助时可以调用 request_learning_help，结束后等待学生在页面提交；不能替学生提交代码、记录分数、制造独立证据，不能用旧选择题卡代替诊断任务。不虚构次数、原因、题目或成绩。';
 const GENERAL_ANSWER_RULE = '【本轮回答要求】直接解答学生当前的教育问题，不局限于 Python。不为讲解效果编造精确的实验产量、测量值或统计数字。若学生问实际数值却没有提供必要测量条件，本轮只说明无法确定、列出所缺条件并询问，不要自行设定参数、给数值范围或展开估算。仅当学生明确请求估算/假设示例时才进行明确标注的假设计算。';
 
 /** 本角色可用的 MCP 工具名（提示词里按需渲染：未接入时整行不出现，避免模型臆造工具名） */
@@ -39,6 +40,7 @@ function buildSystemPrompt() {
 
   return [
     `你是一位耐心、专业的教育智能体「EduPilot」，服务对象是初学者。`,
+    DIAGNOSTIC_EVIDENCE_RULE,
     ``,
     `## 你的职责`,
     `按照「预习 → 学习 → 复习」三个环节帮助学生掌握知识点：`,
@@ -202,6 +204,7 @@ function buildAgentSystemPrompt(agentCfg, agentTools, opts = {}) {
 
   return [
     `你是一个教育智能体「EduPilot」中的「${agentCfg.name}」，服务对象是初学者。`,
+    DIAGNOSTIC_EVIDENCE_RULE,
     ``,
     `## 你的角色（人格）`,
     agentCfg.person,

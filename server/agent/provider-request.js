@@ -17,7 +17,7 @@ function modelRequest({ baseUrl, model, enabled } = {}) {
   const id = providerKey(undefined, baseUrl);
   const rule = rules[id];
   const format = rule?.[0].test(model) ? rule[1] : null;
-  const defaultEnabled = id === 'dashscope' && /^qwen3\./.test(model) && process.env.LLM_DISABLE_THINKING !== '1';
+  const defaultEnabled = id === 'dashscope' && /^qwen3\./.test(model) && require('../harness/runtime').configValue('LLM_DISABLE_THINKING') !== '1';
   const thinking = typeof enabled === 'boolean' ? enabled : defaultEnabled;
   const hostedKimi = id === 'siliconflow' && model === 'Pro/moonshotai/Kimi-K2.6';
   const params = id === 'dashscope' ? { enable_search: false }

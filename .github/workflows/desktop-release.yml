@@ -1,15 +1,113 @@
 name: Desktop packages
 
 on:
+  create:
   push:
     tags: ['v*']
+    branches: ['release/v*']
+  pull_request:
+    branches: [master]
+    paths:
+      - package.json
+      - package-lock.json
+      - desktop/**
+      - server/**
+      - public/**
+      - tools/check-desktop-package.js
+      - .github/workflows/desktop-release.yml
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the verified stable version after all installers pass'
+        type: boolean
+        default: false
+
+# A new branch may produce both create and push events. Keep the first run and
+# serialize a retry; the preflight treats an already published version as a no-op.
+concurrency:
+  group: desktop-packages-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  preflight:
+    if: >-
+      github.event_name != 'create' ||
+      (github.event.ref_type == 'branch' && startsWith(github.event.ref, 'release/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+      tag: ${{ steps.identity.outputs.tag }}
+      commit: ${{ steps.identity.outputs.commit }}
+      publish: ${{ steps.identity.outputs.publish }}
+      build: ${{ steps.identity.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check publication boundary
+        run: npm run check:publication
+      - name: Validate stable version, reviewed commit and immutable release identity
+        id: identity
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const { execFileSync } = require('node:child_process');
+            const product = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+            const desktop = JSON.parse(fs.readFileSync('desktop/app/package.json', 'utf8'));
+            const version = product.version;
+            if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) throw Error('Only a stable three-part version may be released.');
+            if ([lock.version, lock.packages[''].version, desktop.version].some(value => value !== version)) throw Error('Package versions differ.');
+            const tag = 'v' + version;
+            const ref = context.ref;
+            const releaseBranch = ref.startsWith('refs/heads/release/');
+            const tagEvent = ref.startsWith('refs/tags/');
+            if (releaseBranch && ref !== 'refs/heads/release/' + tag) throw Error('Release branch/version mismatch.');
+            if (tagEvent && ref !== 'refs/tags/' + tag) throw Error('Tag/version mismatch.');
+            // A pull request may only produce review artifacts, even if its
+            // source branch or an input resembles an explicit release request.
+            const publish = context.eventName !== 'pull_request' &&
+              (releaseBranch || tagEvent || context.payload.inputs?.publish === 'true' || context.payload.inputs?.publish === true);
+            const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+            if (publish) {
+              if (!fs.existsSync('docs/releases/' + tag + '.md')) throw Error('User-facing release notes are missing.');
+              const defaultBranch = context.payload.repository.default_branch;
+              execFileSync('git', ['fetch', '--no-tags', 'origin', defaultBranch], { stdio: 'inherit' });
+              const reviewed = 'refs/remotes/origin/' + defaultBranch;
+              execFileSync('git', ['merge-base', '--is-ancestor', commit, reviewed]);
+              // GITHUB_TOKEN cannot release a commit with workflow changes that
+              // are not present on the default branch. Merge the reviewed PR first.
+              execFileSync('git', ['diff', '--quiet', commit, reviewed, '--', '.github/workflows']);
+              try {
+                const existing = await github.rest.repos.getCommit({ ...context.repo, ref: tag });
+                if (existing.data.sha !== commit) throw Error('The tag already points to a different commit; it will not be moved.');
+              } catch (error) { if (error.status !== 404) throw error; }
+              const releases = await github.paginate(github.rest.repos.listReleases, { ...context.repo, per_page: 100 });
+              const matches = releases.filter(release => release.tag_name === tag);
+              if (matches.length > 1) throw Error('Multiple releases use this tag. Resolve them before publishing.');
+              const release = matches[0];
+              if (release && release.target_commitish !== commit) throw Error('An existing release has a different target commit.');
+              if (release && !release.draft) {
+                core.notice(tag + ' is already published. Existing assets and tag are unchanged.');
+                core.setOutput('build', 'false');
+              } else core.setOutput('build', 'true');
+            } else core.setOutput('build', 'true');
+            core.setOutput('version', version);
+            core.setOutput('tag', tag);
+            core.setOutput('commit', commit);
+            core.setOutput('publish', String(publish));
+
   package:
+    needs: preflight
+    if: needs.preflight.outputs.build == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -27,8 +125,11 @@ jobs:
             arch: arm64
             executable: dist/mac-arm64/EduPilot.app/Contents/MacOS/EduPilot
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.commit }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -41,10 +142,10 @@ jobs:
           npm ci --ignore-scripts
           node node_modules/electron/install.js
           python -m pip install uv==0.11.15
-      - name: Check source publication boundary and release identity
+      - name: Check source publication boundary and release target
         run: |
           npm run check:publication
-          node -e "if(process.arch!=='${{ matrix.arch }}')throw Error('Wrong runner architecture');if(process.env.GITHUB_REF_TYPE==='tag'&&process.env.GITHUB_REF_NAME!=='v'+require('./package.json').version)throw Error('Tag/version mismatch')"
+          node -e "if(process.arch!=='${{ matrix.arch }}')throw Error('Wrong runner architecture')"
       - name: Assemble clean backend and portable Python
         run: |
           npm run desktop:prepare
@@ -52,13 +153,14 @@ jobs:
       - name: Build native installer
         env:
           ELECTRON_BUILDER_COMPRESSION_LEVEL: 5
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ github.event_name != 'pull_request' && secrets.CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ github.event_name != 'pull_request' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ github.event_name != 'pull_request' && secrets.APPLE_TEAM_ID || '' }}
         run: npx electron-builder --config desktop/builder.cjs --${{ matrix.platform }} --${{ matrix.arch }} --publish never
-      - name: Verify packaged native window, recovery and data persistence
+      - name: Verify packaged window, Python learning features, recovery and persistence
+        timeout-minutes: 10
         run: node tools/check-desktop-package.js --native "${{ matrix.executable }}"
       - name: Check packaged product sources
         shell: bash
@@ -79,22 +181,122 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: package
+    needs: [preflight, package]
+    if: github.event_name != 'pull_request' && needs.preflight.outputs.publish == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    concurrency:
+      group: edupilot-publish-${{ needs.preflight.outputs.tag }}
+      cancel-in-progress: false
+    env:
+      RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+      RELEASE_COMMIT: ${{ needs.preflight.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.commit }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - uses: actions/download-artifact@v4
         with:
           path: packages
           merge-multiple: true
           pattern: EduPilot-*
-      - name: Generate checksums
-        working-directory: packages
-        run: sha256sum *.exe *.dmg *.zip > SHA256SUMS.txt
-      - uses: softprops/action-gh-release@v2
+      - name: Require all five installers and generate their checksums
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const { createHash } = require('node:crypto');
+          const version = process.env.RELEASE_VERSION;
+          const names = [`EduPilot-${version}-Windows-x64-Setup.exe`,
+            ...['x64', 'arm64'].flatMap(arch => ['dmg', 'zip'].map(ext => `EduPilot-${version}-macOS-${arch}.${ext}`))].sort();
+          const actual = fs.readdirSync('packages').sort();
+          if (JSON.stringify(actual) !== JSON.stringify(names)) throw Error('The full installer set is missing or has unexpected files.');
+          (async () => {
+            const rows = [];
+            for (const name of names) {
+              const file = path.join('packages', name), size = fs.statSync(file).size;
+              if (size <= 0) throw Error('Empty installer: ' + name);
+              const hash = createHash('sha256');
+              for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
+              rows.push({ name, size, sha256: hash.digest('hex') });
+            }
+            const checksums = rows.map(row => row.sha256 + '  ' + row.name).join('\n') + '\n';
+            fs.writeFileSync('packages/SHA256SUMS.txt', checksums);
+            rows.push({ name: 'SHA256SUMS.txt', size: Buffer.byteLength(checksums), sha256: createHash('sha256').update(checksums).digest('hex') });
+            fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'edupilot-release-assets.json'), JSON.stringify(rows));
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          NODE
+      - name: Recheck immutable tag and allow only a draft for the same commit
+        id: publication
+        uses: actions/github-script@v7
         with:
-          name: EduPilot ${{ github.ref_name }}
-          body_path: docs/releases/${{ github.ref_name }}.md
+          script: |
+            const tag = process.env.RELEASE_TAG, commit = process.env.RELEASE_COMMIT;
+            try {
+              const existing = await github.rest.repos.getCommit({ ...context.repo, ref: tag });
+              if (existing.data.sha !== commit) throw Error('The existing tag must never be moved.');
+            } catch (error) { if (error.status !== 404) throw error; }
+            const releases = await github.paginate(github.rest.repos.listReleases, { ...context.repo, per_page: 100 });
+            const matches = releases.filter(release => release.tag_name === tag);
+            if (matches.length > 1) throw Error('Multiple releases use this tag.');
+            const release = matches[0];
+            if (release && release.target_commitish !== commit) throw Error('The existing release targets another commit.');
+            core.setOutput('ready', String(!release || release.draft));
+            if (release && !release.draft) core.notice('This version was already published; no release assets were modified.');
+      - name: Upload installers to an unpublished draft
+        if: steps.publication.outputs.ready == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.preflight.outputs.tag }}
+          target_commitish: ${{ needs.preflight.outputs.commit }}
+          name: EduPilot ${{ needs.preflight.outputs.tag }}
+          body_path: docs/releases/${{ needs.preflight.outputs.tag }}.md
           draft: true
+          prerelease: false
+          make_latest: false
+          fail_on_unmatched_files: true
           files: packages/*
+      - name: Verify uploaded assets before publishing the latest stable release
+        if: steps.publication.outputs.ready == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const path = require('node:path');
+            const tag = process.env.RELEASE_TAG, commit = process.env.RELEASE_COMMIT;
+            const expected = JSON.parse(fs.readFileSync(path.join(process.env.RUNNER_TEMP, 'edupilot-release-assets.json'), 'utf8'));
+            const releases = await github.paginate(github.rest.repos.listReleases, { ...context.repo, per_page: 100 });
+            const matches = releases.filter(release => release.tag_name === tag);
+            if (matches.length !== 1) throw Error('Expected exactly one release draft.');
+            const release = matches[0];
+            if (!release.draft || release.target_commitish !== commit) throw Error('Only this commit\'s unpublished draft may be published.');
+            let assets;
+            for (let attempt = 0; attempt < 4; attempt++) {
+              assets = await github.paginate(github.rest.repos.listReleaseAssets, { ...context.repo, release_id: release.id, per_page: 100 });
+              if (assets.length === expected.length && assets.every(asset => asset.state === 'uploaded' && asset.digest)) break;
+              if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            if (assets.length !== expected.length) throw Error('Uploaded asset count differs from the verified installer set.');
+            for (const file of expected) {
+              const found = assets.filter(asset => asset.name === file.name);
+              if (found.length !== 1 || found[0].state !== 'uploaded' || found[0].size !== file.size) throw Error('Incomplete uploaded asset: ' + file.name);
+              if (found[0].digest !== 'sha256:' + file.sha256) throw Error('Uploaded checksum is missing or mismatched: ' + file.name);
+            }
+            try {
+              const existing = await github.rest.repos.getCommit({ ...context.repo, ref: tag });
+              if (existing.data.sha !== commit) throw Error('The tag changed while the release was being assembled.');
+            } catch (error) { if (error.status !== 404) throw error; }
+            const published = await github.rest.repos.updateRelease({ ...context.repo, release_id: release.id,
+              tag_name: tag, target_commitish: commit, draft: false, prerelease: false, make_latest: 'true' });
+            if (published.data.draft || published.data.prerelease) throw Error('GitHub did not publish a stable release.');
+            const tagged = await github.rest.repos.getCommit({ ...context.repo, ref: tag });
+            if (tagged.data.sha !== commit) throw Error('Published tag does not match the verified source commit.');
+            const latest = await github.rest.repos.getLatestRelease(context.repo);
+            if (latest.data.id !== release.id) throw Error('The verified release was not marked latest.');
+            core.notice('Published ' + tag + ' with five verified installers and SHA256SUMS.txt.');

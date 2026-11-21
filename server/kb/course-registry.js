@@ -11,8 +11,28 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const COURSES_DIR = path.join(__dirname, '..', '..', 'data', 'courses');
-const TRASH_DIR = path.join(__dirname, '..', '..', 'data', 'trash');
+const COURSES_DIR = process.env.EDUOWL_COURSES_DIR || path.join(__dirname, '..', '..', 'data', 'courses');
+const DELETED_DIR = path.join(COURSES_DIR, '.deleted');
+
+function assertDynamicCourseId(courseId) {
+  if (typeof courseId !== 'string' || !/^user-[a-zA-Z0-9_-]{1,120}$/.test(courseId)) {
+    const error = new Error('无效的素材课程标识');
+    error.code = 'invalid_course'; error.statusCode = 400;
+    throw error;
+  }
+  return courseId;
+}
+
+function atomicJSON(target, data) {
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const temporary = target + '.' + crypto.randomUUID() + '.tmp';
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(temporary, target);
+  } finally {
+    if (fs.existsSync(temporary)) fs.rmSync(temporary, { force: true });
+  }
+}
 
 /**
  * 节/章的学习状态稳定 key（基于 docId+章题+节题 hash，与章节顺序无关，
@@ -51,30 +71,94 @@ function dynamicCourseView(dyn) {
   };
 }
 
-/**
- * 安全删除文件/目录：rm 被环境拦截（沙箱 trash 失败）时降级为 rename 到 data/trash
- * （同盘原子 rename 不触发删除钩子）。返回 true 表示已彻底删除/移入回收。
- */
+/** Remove an approved course path. Permission failures remain failures. */
 function removeOrTrash(target) {
   try {
     fs.rmSync(target, { recursive: true, force: true });
     return true;
-  } catch (_) {
-    try {
-      fs.mkdirSync(TRASH_DIR, { recursive: true });
-      const dest = path.join(TRASH_DIR, `${path.basename(target)}-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
-      fs.renameSync(target, dest);
-      console.warn(`[course-registry] rm 被拦截，已移入回收: ${dest}`);
-      return true;
-    } catch (e2) {
-      console.error('[course-registry] 删除失败且移入回收失败:', target, e2.message);
-      return false;
-    }
+  } catch (error) {
+    console.error('[course-registry] 清理文件失败:', error.code || error.message);
+    return false;
   }
 }
 
 /** 内存注册表：courseId → meta（懒加载） */
 let _map = null;
+let _deletions = null;
+
+function deletionMap() {
+  if (_deletions) return _deletions;
+  _deletions = new Map();
+  if (!fs.existsSync(DELETED_DIR)) return _deletions;
+  for (const filename of fs.readdirSync(DELETED_DIR)) {
+    if (!/^user-[a-zA-Z0-9_-]{1,120}\.json$/.test(filename)) continue;
+    const id = filename.slice(0, -5);
+    try {
+      const value = JSON.parse(fs.readFileSync(path.join(DELETED_DIR, filename), 'utf8'));
+      _deletions.set(id, { ...value, id });
+    } catch (_) {
+      // A corrupt tombstone must never make a deleted course live again.
+      _deletions.set(id, { id, status: 'pending', error: '删除记录需要重新核对' });
+    }
+  }
+  return _deletions;
+}
+
+function getCourseDeletion(courseId) {
+  const value = deletionMap().get(String(courseId));
+  return value ? { ...value } : null;
+}
+
+function isCourseDeleted(courseId) { return deletionMap().has(String(courseId)); }
+function isCourseDeleting(courseId) {
+  const value = deletionMap().get(String(courseId));
+  return !!value && value.status !== 'complete';
+}
+
+function assertCourseWritable(courseId) {
+  assertDynamicCourseId(courseId);
+  if (isCourseDeleted(courseId)) {
+    const error = new Error('这门课程已删除或正在清理，请刷新课程列表。');
+    error.code = 'course_deleted'; error.statusCode = 410;
+    throw error;
+  }
+}
+
+/** A durable tombstone is written before waiting for running uploads or tools. */
+function beginCourseDeletion(courseId) {
+  assertDynamicCourseId(courseId);
+  const existing = getCourseDeletion(courseId);
+  if (existing) return existing;
+  const meta = ensureLoaded().get(courseId);
+  if (!meta) {
+    const error = new Error('课程不存在');
+    error.code = 'course_not_found'; error.statusCode = 404;
+    throw error;
+  }
+  const record = { id: courseId, title: meta.title, status: 'deleting', requestedAt: new Date().toISOString() };
+  atomicJSON(path.join(DELETED_DIR, `${courseId}.json`), record);
+  deletionMap().set(courseId, record);
+  _map.delete(courseId);
+  return { ...record };
+}
+
+function markCourseDeletion(courseId, status, error) {
+  assertDynamicCourseId(courseId);
+  if (!['pending', 'complete'].includes(status)) throw new Error('无效的删除状态');
+  const previous = getCourseDeletion(courseId);
+  if (!previous) throw new Error('缺少课程删除记录');
+  const record = { ...previous, status, updatedAt: new Date().toISOString() };
+  if (status === 'complete') {
+    delete record.title; delete record.error;
+  } else record.error = String(error || '部分文件尚未完成清理，请重试').slice(0, 300);
+  atomicJSON(path.join(DELETED_DIR, `${courseId}.json`), record);
+  deletionMap().set(courseId, record);
+  return { ...record };
+}
+
+function listPendingDeletions() {
+  return [...deletionMap().values()].filter(row => row.status !== 'complete').map(row => ({ ...row }));
+}
 
 function ensureLoaded() {
   if (_map) return _map;
@@ -84,7 +168,7 @@ function ensureLoaded() {
     if (!f.endsWith('.json')) continue;
     try {
       const meta = JSON.parse(fs.readFileSync(path.join(COURSES_DIR, f), 'utf8'));
-      if (meta && meta.id) _map.set(meta.id, meta);
+      if (meta && /^user-[a-zA-Z0-9_-]{1,120}$/.test(meta.id) && !isCourseDeleted(meta.id)) _map.set(meta.id, meta);
     } catch (e) {
       console.error(`[course-registry] 跳过损坏注册文件 ${f}: ${e.message}`);
     }
@@ -95,39 +179,33 @@ function ensureLoaded() {
 
 /** 注册（覆盖写盘） */
 function registerCourse(meta) {
+  assertCourseWritable(meta?.id);
   const map = ensureLoaded();
-  fs.mkdirSync(COURSES_DIR, { recursive: true });
   const target = path.join(COURSES_DIR, `${meta.id}.json`);
-  const temporary = target + '.' + crypto.randomUUID() + '.tmp';
-  try {
-    fs.writeFileSync(temporary, JSON.stringify(meta, null, 2), 'utf8');
-    fs.renameSync(temporary, target);
-  } finally {
-    if (fs.existsSync(temporary)) fs.rmSync(temporary);
-  }
+  atomicJSON(target, meta);
   map.set(meta.id, meta);
   return meta;
 }
 
-/** 注销（删文件 + 内存；删除被拦截时移入 trash，保证课程立即不可见） */
+/** Unregister metadata after tombstoning. Cleanup failures remain retryable. */
 function unregisterCourse(courseId) {
+  beginCourseDeletion(courseId);
   const map = ensureLoaded();
   map.delete(courseId);
   const f = path.join(COURSES_DIR, `${courseId}.json`);
-  if (fs.existsSync(f)) removeOrTrash(f);
+  if (fs.existsSync(f) && !removeOrTrash(f)) throw new Error('课程记录文件尚未完成清理');
 }
 
 /** 改名（内存 + 写盘），返回更新后的 meta */
 function renameCourse(courseId, newTitle) {
+  assertCourseWritable(courseId);
   const meta = getDynamicCourse(courseId);
   if (!meta) return null;
   const t = String(newTitle || '').trim().slice(0, 60);
   if (!t) return meta;
-  meta.title = t;
-  meta.description = `用户上传素材《${t}》（${meta.bookCount || 1} 篇 / ${meta.chapterCount || 0} 章 / ${meta.chunkCount || 0} 块内容）`;
-  fs.mkdirSync(COURSES_DIR, { recursive: true });
-  fs.writeFileSync(path.join(COURSES_DIR, `${courseId}.json`), JSON.stringify(meta, null, 2), 'utf8');
-  return meta;
+  const updated = { ...meta, title: t, updatedAt: new Date().toISOString(),
+    description: `用户上传素材《${t}》（${meta.bookCount || 1} 篇 / ${meta.chapterCount || 0} 章 / ${meta.chunkCount || 0} 块内容）` };
+  return registerCourse(updated);
 }
 
 /** 动态课程列表（按创建时间倒序） */
@@ -137,6 +215,7 @@ function listDynamicCourses() {
 
 /** 查单个动态课程 */
 function getDynamicCourse(courseId) {
+  if (isCourseDeleted(courseId)) return null;
   return ensureLoaded().get(courseId) || null;
 }
 
@@ -147,6 +226,15 @@ function isDynamicCourseId(courseId) {
 
 module.exports = {
   COURSES_DIR,
+  DELETED_DIR,
+  assertDynamicCourseId,
+  assertCourseWritable,
+  beginCourseDeletion,
+  markCourseDeletion,
+  getCourseDeletion,
+  isCourseDeleted,
+  isCourseDeleting,
+  listPendingDeletions,
   registerCourse,
   unregisterCourse,
   renameCourse,

@@ -655,10 +655,23 @@ a.disabled-entry { opacity: .45; pointer-events: none; cursor: not-allowed; text
 .learning-page .now-learning { font-size: var(--note-font-size); color: var(--text); }
 .learning-page .now-learning .icon { display: none; }
 .learning-page .messages { padding: 24px max(32px, calc((100% - 800px) / 2)); gap: 24px; scroll-behavior: auto; }
-.learning-page .messages.is-empty { justify-content: center; }
-.conversation-welcome { padding: 24px 0 56px; }
+.learning-page .messages.is-empty { justify-content: flex-start; }
+.conversation-welcome { flex-shrink: 0; margin-block: auto; padding: 24px 0; }
 .conversation-welcome h2 { font-size: 28px; font-weight: 500; letter-spacing: -.6px; line-height: 1.4; margin-bottom: 14px; }
 .conversation-welcome p { font-size: var(--ui-font-size); color: var(--text-2); line-height: 1.8; }
+.conversation-welcome .welcome-version { margin-bottom: 8px; color: var(--primary); font-size: var(--note-font-size); font-weight: 600; }
+.welcome-features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 24px; }
+.welcome-feature { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: transparent; color: var(--text); font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+.welcome-feature strong { font-size: var(--ui-font-size); font-weight: 600; }
+.welcome-feature span { color: var(--text-2); font-size: var(--note-font-size); line-height: 1.65; }
+.welcome-feature:hover { border-color: #889583; background: var(--bg); }
+.welcome-feature:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+@media (max-width: 560px) {
+  .conversation-welcome { padding: 12px 0; }
+  .conversation-welcome h2 { font-size: 24px; margin-bottom: 8px; }
+  .welcome-features { grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 18px; }
+  .welcome-feature { padding: 12px 14px; }
+}
 .learning-page .msg { max-width: 100%; flex-shrink: 0; animation: none; }
 .learning-page .msg.bot { gap: 0; }
 .learning-page .msg.bot .avatar { display: none; }

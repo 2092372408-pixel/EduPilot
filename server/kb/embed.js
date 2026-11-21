@@ -18,6 +18,7 @@ require('../env');
 
 const path = require('path');
 const { spawn } = require('child_process');
+const harness = require('../harness/runtime');
 
 const EMBED_PROVIDER = (process.env.EMBED_PROVIDER || 'local').toLowerCase();
 
@@ -184,12 +185,12 @@ async function embedApi(texts, cfg, onProgress) {
   try {
   for (let i = 0; i < texts.length; i += 10) {
     const batch = texts.slice(i, i + 10);
-    const res = await fetch(`${base}/embeddings`, {
+    const res = await harness.meteredFetch(`${base}/embeddings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({ model, input: batch }),
       signal: AbortSignal.timeout(LOCAL_TIMEOUT_MS),
-    });
+    }, 'embedding');
     if (!res.ok) {
       console.error('[embed] API 失败:', res.status, (await res.text()).slice(0, 120));
       return null;
@@ -210,6 +211,7 @@ async function embedApi(texts, cfg, onProgress) {
   }
   return results;
   } catch (e) {
+    if (harness.isControlError(e)) throw e;
     console.warn('[embed] API 请求失败，回退关键词检索:', e.name === 'TimeoutError' ? `请求超时（${LOCAL_TIMEOUT_MS / 1000}s）` : e.message);
     return null;
   }
@@ -217,8 +219,8 @@ async function embedApi(texts, cfg, onProgress) {
 
 function apiConfigs() {
   return [
-    { name: 'dashscope', key: process.env.DASHSCOPE_API_KEY, base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'text-embedding-v3' },
-    { name: 'siliconflow', key: process.env.SILICONFLOW_API_KEY, base: 'https://api.siliconflow.cn/v1', model: process.env.EMBED_MODEL || 'BAAI/bge-m3' },
+    { name: 'dashscope', key: harness.configValue('DASHSCOPE_API_KEY'), base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'text-embedding-v3' },
+    { name: 'siliconflow', key: harness.configValue('SILICONFLOW_API_KEY'), base: 'https://api.siliconflow.cn/v1', model: harness.configValue('EMBED_MODEL') || 'BAAI/bge-m3' },
   ];
 }
 

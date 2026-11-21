@@ -4,30 +4,127 @@
 
 <h1 align="center">EduPilot · Your AI Learning Companion</h1>
 
-<p align="center"><strong>Turn your materials into an AI course—with lessons, practice and a companion to learn alongside you.</strong></p>
+<p align="center"><strong>Connect your materials, practice and knowledge—with a record of every learning step.</strong></p>
 
-<p align="center">Import Chinese or English materials and move naturally between explanations, practice and review.<br />Native desktop app for Windows / macOS · English and Chinese · Connect your own model API key</p>
+<p align="center">Turn materials into courses, practise with execution feedback, connect topics in a personal graph, and follow run activity.<br />Native desktop app for Windows / macOS · English and Chinese · Connect your own model API key</p>
 
 <p align="center">
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.2.2"><img src="https://img.shields.io/badge/Release-v1.2.2-2563eb" alt="Desktop release v1.2.2" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.2/EduPilot-1.2.2-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="Download the native Windows installer" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.2/EduPilot-1.2.2-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="Download the native Apple Silicon installer" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.2/EduPilot-1.2.2-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="Download the native Intel Mac installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.0.0"><img src="https://img.shields.io/badge/Release-v2.0.0-2563eb" alt="Desktop release v2.0.0" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="Download the native Windows installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="Download the native Apple Silicon installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="Download the native Intel Mac installer" /></a>
 </p>
 
-<p align="center"><a href="#features">Highlights</a> · <a href="#workspace">See the workspace</a> · <a href="#download">Download</a> · <a href="#demo">Learning demo</a> · <a href="#api-keys">Connect a model</a> · <a href="#faq">FAQ</a></p>
+<p align="center"><a href="#download">Download v2</a> · <a href="#whats-new">New in v2</a> · <a href="#workspace">Core workspace</a> · <a href="#features">Materials & learning</a> · <a href="#demo">Learning demo</a> · <a href="#api-keys">Connect a model</a> · <a href="#faq">FAQ</a></p>
 
-## Your materials. Your course. Your learning journey.
+## Start with your materials. Build your own understanding.
 
-Slides, textbooks and notes contain plenty of knowledge. Studying them on your own often leaves harder questions: Where should I start? What does this passage mean? Have I really understood it?
+EduPilot is an AI learning workspace that runs on your computer. Import Chinese or English materials and work through Preview, Learn and Review. Ask follow-up questions, consult the source material and practise what you understand. Courses, conversations and study records stay local; online AI features use the model service you choose.
 
-EduPilot brings your materials, explanations, practice and study history into one workspace. Import a textbook and work through its chapters. Ask when something is unclear, practise what you have learned, then return to consolidate it. Follow the course step by step or explore a question of your own.
+**v2 connects practice, knowledge relationships and run controls into the same learning journey.** See concrete inputs and results when code fails, correct it, then try a fresh task. A personal graph connects courses, chapters and concepts. Run activity shows how a request is progressing, while course management keeps your material collection organised.
 
-Preview questions help you build a map of the topic. Analogies, examples and follow-up questions deepen your understanding, while review checks and mistakes reveal what needs more work. Your materials ground the lessons; progress and long-term memory give your next session a place to continue.
+| What you want to do | Where v2 helps |
+| --- | --- |
+| Understand a coding error and try a fresh problem independently | [Diagnostic practice](#diagnostic-practice): execution feedback, tiered hints, separate correction and first-attempt records |
+| Connect what you have studied with what comes next | [Personal knowledge graph](#knowledge-graph): sources, learning evidence, personal notes and cross-course links |
+| See what the AI is doing and control the current run | [Run activity](#run-activity): status, calls and usage, cancellation and eligible continuation |
+| Organise courses you no longer need or want to rename | [Course management](#course-management): search, open, rename, delete an individual course and retry cleanup |
 
-**For independent learners, students revising a course, anyone building a personal study library, and people learning Python through practice.**
+Textbook-grounded retrieval (RAG), specialist learning roles, the mistake notebook, reports and the **Preview → Learn → Review** flow remain part of EduPilot. **For independent study, course revision, personal learning libraries and hands-on Python practice.**
+
+<a id="download"></a>
+
+## Download v2.0.0 and start your first lesson
+
+Download the native desktop app and start learning from its icon, with no server to manage or separate Node.js / Python installation. The app uses its own window, stays in the tray when closed, and automatically attempts to recover a failed backend.
+
+| Your computer | Download |
+| --- | --- |
+| Windows x64 | [Download Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-Windows-x64-Setup.exe) |
+| Mac · Apple Silicon (M-series chips) | [Download Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-arm64.dmg) |
+| Mac · Intel | [Download Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-x64.dmg) |
+
+1. **Download** the installer for your computer. Choose Apple Silicon for an M-series Mac.
+2. **Double-click to install**: run `Setup.exe` on Windows and follow the prompts. On macOS, open the `.dmg` and drag EduPilot into Applications.
+3. **Connect a model and start learning**: choose your provider and model in Settings, enter your own API key, test the connection and save. Then study the built-in Python course or import your own materials.
+
+Next time, open **EduPilot** from the Windows desktop or Mac Launchpad. Closing the window hides it to the tray (the menu bar on Mac) while the backend keeps running. Select **Quit EduPilot** from the menu to exit completely. Your study records stay on your computer for your next session.
+
+A tour points to real controls on your first visit, introducing courses, uploads, questions, mistakes and reports. Skip whenever you like, or select **Guide** at the top to replay it. Current installers are unsigned, and Mac packages are not notarized; your OS may warn or block opening them. Check the attachments and SHA-256 checksums on the [Release page](https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.0.0). If you already use EduPilot, read the upgrade notes below before installing.
+
+<details>
+<summary>A guide for your first visit</summary>
+
+The tour highlights real buttons, with arrows and nearby explanations to help you take the first step. Skip or replay it whenever you like. This screenshot is from an earlier version and illustrates the basic onboarding flow.
+
+<img src="docs/screenshots/onboarding-mobile-en.jpg" alt="The English tour points to the real Upload button" width="390" />
+
+</details>
+
+The native installer includes the application runtime, Python and document conversion dependencies. Diagnostic task generation, grading and tiered hints work without a model key. Online discussions and generated lessons require your own model service. Semantic search downloads a model on first use and falls back to keyword search if unavailable. See the [desktop launch and exit guide (Chinese)](docs/桌面启动与退出说明.md) for more details.
+
+### Upgrading from an earlier version
+
+Choose **Quit EduPilot** from the app menu before installing; closing the window only hides it to the tray. Back up the entire user-data folder first: `%APPDATA%\EduPilot` on Windows, or `~/Library/Application Support/EduPilot` on macOS. The tray's **Open learning data folder** command (labelled “打开学习数据文件夹”) opens its `workspace/data` subfolder; go up two levels to find the folder to back up.
+
+Installing v2 under the same OS user keeps using that data location. Courses, conversations, model settings and learning records are stored separately from program files. Updates are installed manually; data from older script packages is not migrated automatically. See the [upgrade guide (Chinese)](docs/桌面启动与退出说明.md#升级到-v200) for the backup procedure and storage details.
+
+<a id="whats-new"></a>
+
+## New in v2: practice with evidence and a clear next step
+
+<a id="diagnostic-practice"></a>
+
+### 1. Diagnostic practice: understand an error, then try a fresh task
+
+Open **Diagnostic practice** in the built-in **Python Intro** course. Submit an attempt, compare failing inputs with the expected and actual results, request hints one level at a time, and correct the code before trying an unseen variant. The practice view and report distinguish corrections from first-attempt passes on new tasks. Back in the learning conversation, the tutor can refer to recent practice records.
+
+Three topics are currently available:
+
+| Topic | What you practise |
+| --- | --- |
+| Branches and parity | Choose a branch from the input, including zero and negative values |
+| Loop bounds and sums | Accumulate values and handle closed-interval endpoints and empty intervals |
+| Function returns and changing inputs | Compute from different inputs and distinguish returning from printing |
+
+Grading uses actual code execution and implementation constraints explicitly stated in the task. Every variant is checked against a reference solution and curated incorrect programs before it is offered. AI discussion does not change the objective result. Task generation, grading and tiered hints need no model API key; the v2 desktop installer includes the required Python environment. **Discuss this problem** requires a configured model service. Diagnostic validation currently covers only those three built-in topics. Uploaded courses do not yet support diagnostic practice.
+
+**How assistance is recorded:** the system distinguishes a known absence of in-app help, assistance used and unknown help history. When a discussion request for the current task is accepted, its help record is saved before the model call and remains even if the reply fails. Chat in the same course that is not bound to a task conservatively marks an unfinished task with no previously recorded help as having unknown help history. An independent check requires an unseen task to pass on its first verified submission with a known record of no in-app assistance. It does not detect external help, establish long-term mastery or replace the formal review assessment. Missing historical records are not turned into independent evidence.
+
+Submitted code, hints and results are saved locally and remain available after refreshing. Repeated requests do not duplicate credit. Code runs in a local teaching runner with static prechecks and execution limits, intended for personal local practice rather than a public multi-user code execution service.
+
+<a id="knowledge-graph"></a>
+
+### 2. Personal knowledge graph: connect topics and keep their sources
+
+Open **Knowledge graph** in the sidebar to browse courses, chapters and concepts in a graph or list. Search names and filter by course or learning status. Select a node to inspect its sources, recorded attempts and review results, suggested prior topics and personal notes, then return to the relevant course or a supported diagnostic task.
+
+- **See where a link comes from:** course structure, curated study suggestions and user-added relationships have distinct provenance labels.
+- **Confirm cross-course connections yourself:** same-title concepts appear as unconfirmed candidates. They are not merged automatically, and neither titles nor chapter order establish prerequisites.
+- **Build your own understanding:** add related, prerequisite or applies-to links. A prerequisite cycle is rejected with an explanation.
+- **Keep personal organisation separate from grades:** notes and links do not change scores. Practice, review and independent checks remain distinct evidence. A view includes at most 600 concepts, with a clear notice when content is truncated. Filters apply to the content loaded in that view.
+
+<a id="run-activity"></a>
+
+### 3. Run activity: follow progress and control the current run
+
+Expand **Run activity** in the learning conversation or diagnostic practice view to inspect status, confirmed steps, model and tool call counts, and settled and reserved tokens. Select **Cancel run** while it is active. Eligible interrupted, failed or cancelled runs offer **Resume run**.
+
+Continuation shares the original budget and deadline and reuses confirmed writes. Changes to learning state or model configuration, exhausted limits, or a deleted or reset course can prevent continuation. Calls whose provider has not reported usage keep their reservation instead of counting as free. Activity helps you understand and control execution; actual charges are determined by your provider's bill.
+
+<a id="course-management"></a>
+
+### 4. Course management: organise your learning collection
+
+Open **Manage courses** from the course selector to search, open, rename or delete an uploaded course without first switching to it. The built-in Python course is protected from renaming and deletion.
+
+Deletion requires confirmation and cannot be undone in the app. It removes that course's materials, attachments, conversations, learning records, course memories, graph notes and links, and run records across profiles in this installation. Other courses and cross-course profile information remain. The deleted course becomes unavailable immediately, and unfinished old tasks cannot restore it. If any files or records cannot yet be removed, **Manage courses** keeps a **Retry cleanup** action.
 
 <a id="workspace"></a>
+
+## The workspace and core learning flow
+
+The screenshots and animation below are from earlier versions and show the core import, conversation, practice and report flows. They are not screenshots of the new v2 features. Refer to the current app for Diagnostic practice, Knowledge graph, Run activity and Manage courses.
 
 <img src="docs/screenshots/study-ready-en.jpg" alt="The actual workspace: an imported chapter-based course with a preview question card in the conversation" width="100%" />
 
@@ -44,42 +141,11 @@ Collapse the sidebar to give explanations and follow-up questions more room.
 
 </details>
 
-<a id="download"></a>
-
-## Three steps to your first lesson
-
-Download the native desktop app and start learning from its icon, with no server to manage or separate Node.js / Python installation. The app uses its own window, stays in the tray when closed, and automatically attempts to recover a failed backend.
-
-| Your computer | Download |
-| --- | --- |
-| Windows x64 | [Download Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.2/EduPilot-1.2.2-Windows-x64-Setup.exe) |
-| Mac · Apple Silicon (M-series chips) | [Download Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.2/EduPilot-1.2.2-macOS-arm64.dmg) |
-| Mac · Intel | [Download Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v1.2.2/EduPilot-1.2.2-macOS-x64.dmg) |
-
-1. **Download** the installer for your computer. Choose Apple Silicon for an M-series Mac.
-2. **Double-click to install**: run `Setup.exe` on Windows and follow the prompts. On macOS, open the `.dmg` and drag EduPilot into Applications.
-3. **Connect a model and start learning**: choose your provider and model in Settings, enter your own API key, test the connection and save. Then study the built-in Python course or import your own materials.
-
-Next time, open **EduPilot** from the Windows desktop or Mac Launchpad. Closing the window hides it to the tray (the menu bar on Mac) while the backend keeps running. Select **Quit EduPilot** from the menu to exit completely. Your study records stay on your computer for your next session.
-
-A tour points to real controls on your first visit, introducing courses, uploads, questions, mistakes and reports. Skip whenever you like, or select **Guide** at the top to replay it. Current installers are unsigned, and Mac packages are not notarized; your OS may warn or block opening them. Check the attachments and SHA-256 checksums on the [Release page](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.2.2). Older browser-based packages remain available in [v1.1.4](https://github.com/2092372408-pixel/EduPilot/releases/tag/v1.1.4).
-
-<details>
-<summary>A guide for your first visit</summary>
-
-The tour highlights real buttons, with arrows and nearby explanations to help you take the first step. Skip or replay it whenever you like.
-
-<img src="docs/screenshots/onboarding-mobile-en.jpg" alt="The English tour points to the real Upload button" width="390" />
-
-</details>
-
-The native installer includes the application runtime, Python and document conversion dependencies. Semantic search downloads its model on first use; online answers still require your own model service configuration. See the [desktop launch and exit guide (Chinese)](docs/桌面启动与退出说明.md) for more details.
-
 <a id="demo"></a>
 
 ## From your materials to a complete study session
 
-Import materials → Create a course → Preview check → Learn and practise → View your report. The animation below shows key steps from real interactions.
+Import materials → Create a course → Preview check → Learn and practise → View your report. The earlier-version animation below shows key steps in this core learning flow.
 
 <details>
 <summary>Watch the learning flow in the actual interface</summary>
@@ -90,7 +156,7 @@ Import materials → Create a course → Preview check → Learn and practise �
 
 <a id="features"></a>
 
-## Six ways to keep learning moving
+## Materials, conversations and the complete learning flow
 
 ### 1. Turn a textbook into a course you can work through
 
@@ -163,7 +229,7 @@ Open **Mistakes** in the sidebar to revisit answers and retry a question.
 
 <img src="docs/screenshots/mistakes-en.png" alt="Mistake notebook with your answer, the correct answer, explanations and retry controls" width="100%" />
 
-Open **Report** at the top to see study coverage, verified mastery, next steps and review plans.
+Open **Report** in the sidebar to see study coverage, verified mastery, next steps and review plans.
 
 <img src="docs/screenshots/report-en.png" alt="Learning report with course progress, pending checks, review plans and mistake records" width="100%" />
 
@@ -250,7 +316,7 @@ Choose a provider, check model capability labels and enter your key in the inter
 
 **Can I try it without an API key?**
 
-You can browse courses, saved conversations and existing learning records without a key. AI conversations and generated practice require a configured provider, model and API key. Failed requests display an error instead of switching to demo answers. Supported native search uses the same provider key.
+Yes. Browse existing courses and records, organise your personal graph, and use diagnostic task generation, grading and tiered hints for the three built-in topics without a key. AI conversations, task discussions, and generated lessons and multiple-choice questions for imported materials require a provider, model and API key. Failed requests display an error instead of switching to demo answers. Supported native search uses the same provider key.
 
 **Does it support Chinese and English materials?**
 
@@ -258,7 +324,7 @@ Yes, in both content and interface. Use PDFs with extractable text; scanned page
 
 **Why did a correct answer not mark a topic as mastered?**
 
-Each stage has its own check. Finishing the preview check unlocks Learn; a fully correct lesson check unlocks Review; a fully correct review test records mastery. Extra practice and retrying mistakes do not replace formal stage checks.
+Each stage has its own check. Finishing the preview check unlocks Learn; a fully correct lesson check unlocks Review; a fully correct review test records mastery. Diagnostic corrections or independent checks, extra practice and retrying mistakes do not replace formal stage checks. “Mastered” means the relevant review assessment was passed, not a guarantee of long-term learning.
 
 **Where are my materials and study records stored?**
 
@@ -278,7 +344,7 @@ Closing the native window hides it to the tray while the backend keeps running. 
 
 **Will upgrading keep my learning history?**
 
-Native updates preserve the same system user's settings, courses and learning records. Quit the app completely before installing an update. Data from older script packages is not migrated automatically; keep the original folder as a backup.
+The native app keeps using the same OS user's data folder for settings, courses and learning records. Quit completely and back up that whole folder before installing. There is no in-app automatic update flow. Data from older script packages remains in its original folder and is not migrated automatically. See the [upgrade guide (Chinese)](docs/桌面启动与退出说明.md#升级到-v200).
 
 ## Why we built EduPilot
 
