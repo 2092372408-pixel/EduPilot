@@ -204,8 +204,8 @@ function openProfileCard(first) {
   const curEl = grid.querySelector(`[data-avatar="${cur}"]`);
   if (curEl) curEl.classList.add('selected');
   $('nicknameInput').value = (myProfile && myProfile.nickname) || '';
-  $('welcomeTitle').textContent = first ? ui("你好，我是 EduPilot 👋") : ui("编辑我的资料");
-  $('welcomeSub').textContent = first ? ui("先告诉我怎么称呼你，我会一直记得") : ui("头像与昵称改动后，EduPilot 会以新称呼与你交流");
+  $('welcomeTitle').textContent = first ? ui('欢迎使用 EduPilot 3.0') : ui("编辑我的资料");
+  $('welcomeSub').textContent = first ? ui('用诊断练习发现卡点，用知识图谱连接理解。先设置一个称呼，或直接开始探索。') : ui("头像与昵称改动后，EduPilot 会以新称呼与你交流");
   $('saveProfileBtn').textContent = first ? ui("保存并") + window.t('startLearning') : ui("保存修改");
   $('skipProfileBtn').style.display = first ? '' : 'none';
   $('welcomeOverlay').classList.remove('hidden');
@@ -1326,17 +1326,53 @@ async function loadCourseIntoUI(courseId) {
   const requestedKp = new URLSearchParams(location.search).get('kp');
   if (requestedKp && findKp(requestedKp)) highlightKp(requestedKp);
   if (hist) { $('input').focus(); return; }
-  const welcome = document.createElement('section');
+  renderConversationWelcome();
+  setTimeout(maybeRemindDue, 600); // 到期复习提醒（无历史新进入时）
+  $('input').focus();
+}
+
+/** Discover learning tools without starting a chat, exercise or model request. */
+function renderConversationWelcome() {
+  const welcome = $('messages').querySelector('.conversation-welcome') || document.createElement('section');
   welcome.className = 'conversation-welcome';
+  const version = document.createElement('p');
+  version.className = 'welcome-version';
+  version.textContent = 'EduPilot 3.0';
   const title = document.createElement('h2');
   title.textContent = ui('今天想学什么？');
   const description = document.createElement('p');
   description.textContent = window.tc(courseData.title) + ui('：从左侧选择章节，或直接提问。');
-  welcome.append(title, description);
-  $('messages').appendChild(welcome);
+  const features = document.createElement('nav');
+  features.className = 'welcome-features';
+  features.setAttribute('aria-label', ui('探索学习工具'));
+  const items = [
+    { id: 'practice', title: 'Python 诊断练习', text: '从分支、循环和函数入手，先订正，再用一道新题独立验证。', href: '/learning-lab.html?course=python-intro' },
+    { id: 'knowledge', title: '个人知识图谱', text: '把课程知识点、关联和自己的笔记连起来，找到下一步要学什么。', href: '/knowledge-graph.html?course=' + encodeURIComponent(courseData.id) + '&sessionId=' + encodeURIComponent(SESSION_ID) },
+    { id: 'activity', title: '学习活动记录', text: '查看处理进度与中断原因，按提示继续尚未完成的任务。', action: openLearningActivity },
+    { id: 'courses', title: '课程管理', text: '查找、改名或单独删除导入的课程，学习内容各自保存。', action: () => window.EduCourseManager?.open() },
+  ];
+  for (const item of items) {
+    const entry = document.createElement(item.href ? 'a' : 'button');
+    entry.className = 'welcome-feature';
+    entry.dataset.welcomeFeature = item.id;
+    if (item.href) entry.href = eduUrl(item.href);
+    else { entry.type = 'button'; entry.addEventListener('click', item.action); }
+    const heading = document.createElement('strong'); heading.textContent = ui(item.title);
+    const detail = document.createElement('span'); detail.textContent = ui(item.text);
+    entry.append(heading, detail); features.append(entry);
+  }
+  welcome.replaceChildren(version, title, description, features);
+  if (!welcome.isConnected) $('messages').appendChild(welcome);
   $('messages').classList.add('is-empty');
-  setTimeout(maybeRemindDue, 600); // 到期复习提醒（无历史新进入时）
-  $('input').focus();
+}
+
+function openLearningActivity() {
+  const activity = $('chatRunActivity')?.querySelector('details');
+  if (!activity) return;
+  setSidebar(true, false);
+  activity.open = true;
+  activity.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+  activity.querySelector('summary')?.focus();
 }
 
 /** 学习覆盖与测验证据分别展示，口径与报告一致。 */
@@ -2116,8 +2152,8 @@ window.addEventListener('edu-language-change', async () => {
     $(buttonId).textContent = ui($(inputId).type === 'password' ? '显示' : '隐藏');
   }
   if (!$('welcomeOverlay').classList.contains('hidden')) {
-    $('welcomeTitle').textContent = profileFirst ? ui('你好，我是 EduPilot 👋') : ui('编辑我的资料');
-    $('welcomeSub').textContent = profileFirst ? ui('先告诉我怎么称呼你，我会一直记得') : ui('头像与昵称改动后，EduPilot 会以新称呼与你交流');
+    $('welcomeTitle').textContent = profileFirst ? ui('欢迎使用 EduPilot 3.0') : ui('编辑我的资料');
+    $('welcomeSub').textContent = profileFirst ? ui('用诊断练习发现卡点，用知识图谱连接理解。先设置一个称呼，或直接开始探索。') : ui('头像与昵称改动后，EduPilot 会以新称呼与你交流');
     $('saveProfileBtn').textContent = profileFirst ? ui('保存并') + window.t('startLearning') : ui('保存修改');
   }
   if (!$('llmOverlay').classList.contains('hidden')) {
@@ -2136,6 +2172,7 @@ window.addEventListener('edu-language-change', async () => {
     renderQuickChips();
     if (learning?.currentKpId) highlightKp(learning.currentKpId);
     else $('nowLabel').textContent = ui('当前课程：') + window.tc(courseData.title);
+    if ($('messages').querySelector('.conversation-welcome')) renderConversationWelcome();
     loadConversations().catch(() => {});
   }
   updateBusyUI();

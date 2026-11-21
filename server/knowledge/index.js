@@ -91,7 +91,8 @@ function python(payload, signal) {
   if (Buffer.byteLength(input) > LIMIT) return Promise.reject(problem('graph_too_large', 413));
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(problem('cancelled', 499));
-    const child = spawn(resolvePython(), [path.join(__dirname, 'graph.py')], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    // Keep Chinese titles and personal notes intact on Windows and other non-UTF8 hosts.
+    const child = spawn(resolvePython(), ['-I', '-X', 'utf8', path.join(__dirname, 'graph.py')], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
     let output = '', bytes = 0, errors = '', done = false;
     const finish = (error, value) => {
       if (done) return; done = true;

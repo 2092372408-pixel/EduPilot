@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <script src="ui-en.js"></script>
+  <script src="ui-en.js?v=3"></script>
   <script src="i18n.js"></script>
   <script src="settings.js"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title data-ui="EduPilot · 教育智能体">EduPilot · 教育智能体</title>
+<title data-ui="EduPilot · AI 学习向导">EduPilot · AI 学习向导</title>
 <link rel="stylesheet" href="/vendor/driver-1.9.0/driver.css" />
-<link rel="stylesheet" href="/style.css?v=49" />
+<link rel="stylesheet" href="/style.css?v=50" />
 <link rel="stylesheet" href="/course-manager.css" />
 <link rel="stylesheet" href="/run-activity.css" />
 <link rel="icon" type="image/png" href="/favicon.png" />
@@ -23,7 +23,7 @@
       <div class="logo"><img src="/logo-mark.png" alt="EduPilot" width="28" height="28" /></div>
       <div>
         <h1>EduPilot</h1>
-        <p class="sub" data-i18n="subTitle">教育智能体 · 预习 · 学习 · 复习</p>
+        <p class="sub" data-ui="学习 · 独立练习 · 连接知识">学习 · 独立练习 · 连接知识</p>
         </div>
       </div>
     <div class="workspace-heading"><span data-ui="学习空间">学习空间</span><span class="workspace-divider" aria-hidden="true">/</span><span id="workspaceTitle" data-ui="学习对话">学习对话</span></div>
@@ -150,7 +150,7 @@
       </div>
 
       <div id="modelSetupNotice" class="model-setup-notice" role="status">
-        <div><strong data-ui="接入模型后开始学习">接入模型后开始学习</strong><p data-ui="请先配置模型供应商、模型和 API Key。已有对话与学习记录仍可查看。">请先配置模型供应商、模型和 API Key。已有对话与学习记录仍可查看。</p></div>
+        <div><strong data-ui="接入模型启用 AI 讲解">接入模型启用 AI 讲解</strong><p data-ui="配置模型供应商、模型和 API Key 后即可对话。也可以先体验本地 Python 诊断练习、整理知识图谱或查看已有记录。">配置模型供应商、模型和 API Key 后即可对话。也可以先体验本地 Python 诊断练习、整理知识图谱或查看已有记录。</p></div>
         <button id="modelSetupBtn" class="btn-primary" type="button" data-ui="配置模型">配置模型</button>
       </div>
 
@@ -213,8 +213,8 @@
 <div id="welcomeOverlay" class="overlay hidden">
   <div class="welcome-card" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
     <button id="closeProfileBtn" class="btn-ghost profile-close" aria-label="关闭资料设置" data-ui-aria-label="关闭资料设置">✕</button>
-    <h2 id="welcomeTitle" data-ui="你好，我是 EduPilot 👋">你好，我是 EduPilot 👋</h2>
-    <p class="welcome-sub" id="welcomeSub" data-ui="先告诉我怎么称呼你，我会一直记得">先告诉我怎么称呼你，我会一直记得</p>
+    <h2 id="welcomeTitle" data-ui="欢迎使用 EduPilot 3.0">欢迎使用 EduPilot 3.0</h2>
+    <p class="welcome-sub" id="welcomeSub" data-ui="用诊断练习发现卡点，用知识图谱连接理解。先设置一个称呼，或直接开始探索。">用诊断练习发现卡点，用知识图谱连接理解。先设置一个称呼，或直接开始探索。</p>
     <div class="welcome-avatars" id="avatarGrid"></div>
     <input id="nicknameInput" class="welcome-input" type="text" maxlength="20" aria-label="你的昵称" placeholder="你的昵称（1~20 字）" data-ui-aria-label="你的昵称" data-ui-placeholder="你的昵称（1~20 字）">
     <button id="saveProfileBtn" class="btn-primary welcome-btn" data-ui="保存并开始学习">保存并开始学习</button>
@@ -374,10 +374,10 @@
 <script src="/progress.js?v=45"></script>
 <script src="/practice-card.js?v=45"></script>
 <script src="/vendor/driver-1.9.0/driver.js"></script>
-<script src="/onboarding.js?v=2"></script>
+<script src="/onboarding.js?v=3"></script>
 <script src="/course-manager.js"></script>
 <script src="/run-activity.js"></script>
-<script src="/app.js?v=49"></script>
+<script src="/app.js?v=50"></script>
 <script src="/app-navigation.js?v=2"></script>
 
 </body>

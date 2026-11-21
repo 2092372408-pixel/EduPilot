@@ -123,6 +123,33 @@ async function nativeCheck() {
     const health = await view("fetch('/api/health').then(r=>r.json())");
     assert.equal(health.ok, true); assert.equal(health.desktop.enabled, false);
     assert.equal(health.version, require('../package.json').version);
+    // Use the packaged application and its bundled Python, with isolated app
+    // data. No model credentials or live provider requests are needed here.
+    const productRequest = (route, body) => view(`fetch(${JSON.stringify(route)},${JSON.stringify(body === undefined ? {} : {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })}).then(async response => ({status:response.status,body:await response.json()}))`);
+    const diagnosticSession = 'native-release-diagnostic@python-intro';
+    for (const page of ['/knowledge-graph.html', '/learning-lab.html', '/run-activity.js']) {
+      assert.equal(await view(`fetch(${JSON.stringify(page)}).then(response=>response.status)`), 200, page);
+    }
+    const issued = await productRequest('/api/learning-lab/start', {
+      sessionId: diagnosticSession, familyId: 'parity', requestId: 'native-release-diagnostic-start',
+    });
+    assert.equal(issued.status, 200); assert.equal(issued.body.ok, true);
+    const taskId = issued.body.currentTask.taskId;
+    assert.ok(taskId); assert.equal(issued.body.harness.status, 'completed');
+    assert.equal(issued.body.harness.budget.modelCalls, 0);
+    const hint = await productRequest('/api/learning-lab/hint', {
+      sessionId: diagnosticSession, taskId, requestId: 'native-release-diagnostic-hint',
+    });
+    assert.equal(hint.status, 200); assert.equal(hint.body.currentTask.hintsUsed, 1);
+    const personalGraph = await productRequest('/api/knowledge-graph?sessionId=' + encodeURIComponent(diagnosticSession) + '&lang=zh');
+    assert.equal(personalGraph.status, 200); assert.equal(personalGraph.body.ok, true);
+    assert.equal(personalGraph.body.nodes.find(node => node.kind === 'course' && node.courseId === 'python-intro')?.title, 'Python 编程入门');
+    assert.equal(personalGraph.body.nodes.find(node => node.kind === 'concept' && node.courseId === 'python-intro' && node.kpId === 'kp1')?.title, '变量与赋值');
+    const trace = await productRequest('/api/runs/' + issued.body.harness.runId + '?sessionId=' + encodeURIComponent(diagnosticSession));
+    assert.equal(trace.status, 200);
+    assert.ok(trace.body.run.events.some(event => event.type === 'business_committed'));
     await until(async () => (await view("fetch('/api/health').then(r=>r.json())")).mcp.ready >= 2, 30000);
     await view("fetch('/api/webmode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'native-release-check',webMode:'off'})}).then(r=>r.json())");
     await evaluate(`${window}.close()`);
@@ -143,6 +170,9 @@ async function nativeCheck() {
     });
     const recoveryMs = Date.now() - crashed;
     assert.equal((await view("fetch('/api/session/native-release-check').then(r=>r.json())")).webMode, 'off');
+    const afterRecovery = await productRequest('/api/learning-lab?sessionId=' + encodeURIComponent(diagnosticSession));
+    assert.equal(afterRecovery.body.currentTask.taskId, taskId);
+    assert.equal(afterRecovery.body.currentTask.hintsUsed, 1);
     if (process.env.EDUPILOT_SMOKE_SCREENSHOT) await evaluate(`${window}.webContents.capturePage().then(image=>process.mainModule.require('node:fs').writeFileSync(${JSON.stringify(path.resolve(process.env.EDUPILOT_SMOKE_SCREENSHOT))},image.toPNG()))`);
     await quit();
     await assert.rejects(fetch(origin + '/api/health', { signal: AbortSignal.timeout(2000) }));
@@ -153,11 +183,16 @@ async function nativeCheck() {
     assert.equal(await (await fetch(origin)).text(), 'other application', 'app interfered with the port owner');
     assert.equal(await view("localStorage.getItem('eduowl_uid')"), initialUID);
     assert.equal((await view("fetch('/api/session/native-release-check').then(r=>r.json())")).webMode, 'off');
+    const afterRestart = await productRequest('/api/learning-lab?sessionId=' + encodeURIComponent(diagnosticSession));
+    assert.equal(afterRestart.body.currentTask.taskId, taskId);
+    assert.equal(afterRestart.body.currentTask.hintsUsed, 1);
     await quit();
     const log = fs.readFileSync(path.join(data, 'logs/service.log'), 'utf8');
     assert.doesNotMatch(log, /ELECTRON_RUN_AS_NODE is not supported|NODE_MODULE_VERSION/);
     console.log(JSON.stringify({ version: health.version, nativeWindow: true, rendererSandbox: true, authenticatedLoopback: true,
-      closeToTray: true, singleInstance: true, builtInMcpReady: true, crashRecoveryMs: recoveryMs, portConflictHandled: true, persistedSession: true, cleanQuit: true, data }, null, 2));
+      closeToTray: true, singleInstance: true, builtInMcpReady: true, crashRecoveryMs: recoveryMs, portConflictHandled: true,
+      persistedSession: true, bundledDiagnosticPython: true, personalKnowledgeGraph: true, harnessTrace: true,
+      persistedDiagnosticTask: true, cleanQuit: true, data }, null, 2));
   } finally {
     socket?.close();
     if (child && child.exitCode === null) child.kill();

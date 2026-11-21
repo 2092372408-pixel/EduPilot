@@ -9,6 +9,9 @@ module.exports = {
   asar: true, npmRebuild: false,
   beforePack(context) {
     if (context.electronPlatformName !== process.platform || Arch[context.arch] !== process.arch) throw Error('Build on the target OS and architecture so bundled native dependencies match.');
+    const version = require('../package.json').version;
+    const manifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../.desktop-build/backend/release-manifest.json'), 'utf8'));
+    if (require('./app/package.json').version !== version || manifest.version !== version) throw Error('The prepared backend and desktop versions must match the release version. Run desktop:prepare again.');
     for (const file of ['backend/node_modules', process.platform === 'win32' ? 'python/python.exe' : 'python/bin/python3']) {
       if (!fs.existsSync(path.resolve(__dirname, '../.desktop-build', file))) throw Error('Run desktop:prepare and desktop:python before packaging.');
     }
