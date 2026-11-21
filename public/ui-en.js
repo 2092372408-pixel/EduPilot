@@ -7,7 +7,7 @@
   "接入模型启用 AI 讲解": "Connect a model for AI explanations",
   "配置模型供应商、模型和 API Key 后即可对话。也可以先体验本地 Python 诊断练习、整理知识图谱或查看已有记录。": "Configure a provider, model and API key to chat. You can first try local Python diagnostic practice, organise your knowledge graph or browse saved records.",
   "学习 · 独立练习 · 连接知识": "Learn · Practice independently · Connect ideas",
-  "欢迎使用 EduPilot 3.0": "Welcome to EduPilot 3.0",
+  "欢迎使用 EduPilot 2.0": "Welcome to EduPilot 2.0",
   "用诊断练习发现卡点，用知识图谱连接理解。先设置一个称呼，或直接开始探索。": "Find learning gaps with diagnostic practice and connect ideas in your knowledge graph. Set your name, or start exploring.",
   "探索学习工具": "Explore learning tools",
   "Python 诊断练习": "Python diagnostic practice",

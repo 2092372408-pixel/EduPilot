@@ -9,21 +9,21 @@
 <p align="center">导入资料成课，用真实运行反馈练习，用个人图谱连接知识，用活动记录掌握学习过程。<br />Windows / macOS 原生桌面 App · 中英文界面 · 接入自己的模型 API Key</p>
 
 <p align="center">
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v3.0.0"><img src="https://img.shields.io/badge/Release-v3.0.0-2563eb" alt="桌面版 v3.0.0" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v3.0.0/EduPilot-3.0.0-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="下载 Windows 原生安装包" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v3.0.0/EduPilot-3.0.0-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="下载 Mac M 系列芯片原生安装包" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v3.0.0/EduPilot-3.0.0-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="下载 Mac Intel 原生安装包" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.0.0"><img src="https://img.shields.io/badge/Release-v2.0.0-2563eb" alt="桌面版 v2.0.0" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="下载 Windows 原生安装包" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="下载 Mac M 系列芯片原生安装包" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="下载 Mac Intel 原生安装包" /></a>
 </p>
 
-<p align="center"><a href="#download">下载 v3</a> · <a href="#whats-new">v3 新功能</a> · <a href="#workspace">基础界面</a> · <a href="#features">教材与学习</a> · <a href="#demo">学习演示</a> · <a href="#api-keys">接入模型</a> · <a href="#faq">常见问题</a></p>
+<p align="center"><a href="#download">下载 v2</a> · <a href="#whats-new">v2 新功能</a> · <a href="#workspace">基础界面</a> · <a href="#features">教材与学习</a> · <a href="#demo">学习演示</a> · <a href="#api-keys">接入模型</a> · <a href="#faq">常见问题</a></p>
 
 ## 从教材出发，练出自己的理解
 
 EduPilot 是在自己电脑上使用的 AI 学习工作台。导入中英文教材，按章节完成预习、学习与复习；遇到难点可以追问、查看教材依据，再通过练习检验理解。课程、对话和学习记录留在本机，在线 AI 能力使用你选择的模型服务。
 
-**v3 把练习、知识关联和过程控制接进同一条学习路径。** 练习失败时能看到具体输入和结果；完成订正后可以用新题继续验证。知识图谱连接课程、章节与知识点，活动记录说明本轮执行到了哪一步，课程管理让自己的资料库更容易维护。
+**v2 把练习、知识关联和过程控制接进同一条学习路径。** 练习失败时能看到具体输入和结果；完成订正后可以用新题继续验证。知识图谱连接课程、章节与知识点，活动记录说明本轮执行到了哪一步，课程管理让自己的资料库更容易维护。
 
-| 你想做什么 | v3 的入口与能力 |
+| 你想做什么 | v2 的入口与能力 |
 | --- | --- |
 | 看清代码哪里错、换题后能否独立完成 | [诊断练习](#diagnostic-practice)：真实执行反馈、分级提示、订正与新题首答分别记录 |
 | 把学过和正在学的内容串起来 | [个人知识图谱](#knowledge-graph)：来源、学习证据、个人笔记和跨课程关联 |
@@ -34,15 +34,15 @@ EduPilot 是在自己电脑上使用的 AI 学习工作台。导入中英文教�
 
 <a id="download"></a>
 
-## 下载 v3.0.0，开始你的第一节课
+## 下载 v2.0.0，开始你的第一节课
 
 下载原生桌面 App，双击图标即可学习，无需管理服务器或另外安装 Node.js / Python。应用使用独立窗口，关闭窗口后驻留托盘，后台异常会自动尝试恢复。
 
 | 你的电脑 | 下载 |
 | --- | --- |
-| Windows x64 | [下载 Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v3.0.0/EduPilot-3.0.0-Windows-x64-Setup.exe) |
-| Mac · Apple Silicon（M 系列芯片） | [下载 Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v3.0.0/EduPilot-3.0.0-macOS-arm64.dmg) |
-| Mac · Intel 芯片 | [下载 Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v3.0.0/EduPilot-3.0.0-macOS-x64.dmg) |
+| Windows x64 | [下载 Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-Windows-x64-Setup.exe) |
+| Mac · Apple Silicon（M 系列芯片） | [下载 Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-arm64.dmg) |
+| Mac · Intel 芯片 | [下载 Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-x64.dmg) |
 
 1. **下载**适合自己电脑的安装包。Mac M 系列芯片请选择 Apple Silicon。
 2. **双击安装**：Windows 运行 `Setup.exe`，按提示安装；macOS 打开 `.dmg`，把 EduPilot 拖入 Applications。
@@ -50,7 +50,7 @@ EduPilot 是在自己电脑上使用的 AI 学习工作台。导入中英文教�
 
 以后从 Windows 桌面或 Mac 启动台打开 **EduPilot** 即可。关闭窗口会隐藏到托盘（Mac 菜单栏），后台继续运行；完全退出请从菜单选择 **退出 EduPilot**。学习记录保存在本机，下次打开接着学。
 
-首次打开有按钮指向式教程，带你认识选课、上传、提问、错题本和报告。可以跳过，也可以从顶部 **教程** 重新查看。当前安装包未签名，Mac 包也未公证，系统可能提示来源或阻止打开；请核对 [Release 页面](https://github.com/2092372408-pixel/EduPilot/releases/tag/v3.0.0) 的附件与 SHA-256。旧版用户请先查看下方升级说明。
+首次打开有按钮指向式教程，带你认识选课、上传、提问、错题本和报告。可以跳过，也可以从顶部 **教程** 重新查看。当前安装包未签名，Mac 包也未公证，系统可能提示来源或阻止打开；请核对 [Release 页面](https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.0.0) 的附件与 SHA-256。旧版用户请先查看下方升级说明。
 
 <details>
 <summary>第一次用，也有人带你上手</summary>
@@ -67,11 +67,11 @@ EduPilot 是在自己电脑上使用的 AI 学习工作台。导入中英文教�
 
 从应用菜单选择 **退出 EduPilot** 后再安装新版；关闭窗口只是隐藏到托盘。建议先备份整个用户数据目录：Windows 为 `%APPDATA%\EduPilot`，macOS 为 `~/Library/Application Support/EduPilot`。托盘菜单的 **打开学习数据文件夹** 打开的是其中的 `workspace/data`，向上两级可找到需要备份的目录。
 
-使用同一系统用户安装 v3 会继续读取原有数据位置；课程、会话、模型配置和学习记录与程序文件分开保存。升级需手动下载安装包；旧版脚本包不会自动迁入桌面版。完整备份步骤与数据说明见 [升级指南](docs/桌面启动与退出说明.md#升级到-v300)。
+使用同一系统用户安装 v2 会继续读取原有数据位置；课程、会话、模型配置和学习记录与程序文件分开保存。升级需手动下载安装包；旧版脚本包不会自动迁入桌面版。完整备份步骤与数据说明见 [升级指南](docs/桌面启动与退出说明.md#升级到-v200)。
 
 <a id="whats-new"></a>
 
-## v3：让练习有依据，让学习能接着走
+## v2：让练习有依据，让学习能接着走
 
 <a id="diagnostic-practice"></a>
 
@@ -87,7 +87,7 @@ EduPilot 是在自己电脑上使用的 AI 学习工作台。导入中英文教�
 | 循环边界与求和 | 逐项累加，检查闭区间端点和空区间 |
 | 函数返回与输入变化 | 根据不同输入计算结果，区分返回值与打印输出 |
 
-判分依据是代码的实际运行结果和题面明确要求的实现约束。每道变式在发出前都会运行参考解与典型错解进行检查；AI 讨论不改变客观判分。发题、判分与分级提示无需模型 API Key，v3 桌面安装包已包含所需 Python 环境；**讨论这道题** 需要已配置的模型服务。诊断验证仅支持内置课程的这三个主题，暂不支持上传课程。
+判分依据是代码的实际运行结果和题面明确要求的实现约束。每道变式在发出前都会运行参考解与典型错解进行检查；AI 讨论不改变客观判分。发题、判分与分级提示无需模型 API Key，v2 桌面安装包已包含所需 Python 环境；**讨论这道题** 需要已配置的模型服务。诊断验证仅支持内置课程的这三个主题，暂不支持上传课程。
 
 **帮助记录说明：** 系统区分“明确未使用应用内帮助”“已使用帮助”和“帮助状态未知”。从当前题目提交讨论问题时，系统接收求助后先保存帮助记录，再请求模型；即使回复失败，已保存的求助记录也会保留。同一课程中未绑定题目的聊天，会把原本未记录帮助的正在作答题目保守地标为帮助状态未知。只有未见新题首次验证通过、且应用内记录明确无帮助，才记为一次独立验证；它不判断外部帮助，不证明长期掌握，也不替代正式复习测验。历史记录不全时不会补造独立证据。
 
@@ -124,7 +124,7 @@ EduPilot 是在自己电脑上使用的 AI 学习工作台。导入中英文教�
 
 ## 工作台与基础学习流程
 
-以下截图与动图来自既有版本，展示教材导入、对话、练习和报告等基础流程；并非 v3 新功能实拍。v3 的诊断练习、知识图谱、活动记录和课程管理入口以当前应用为准。
+以下截图与动图来自既有版本，展示教材导入、对话、练习和报告等基础流程；并非 v2 新功能实拍。v2 的诊断练习、知识图谱、活动记录和课程管理入口以当前应用为准。
 
 <img src="docs/screenshots/study-ready-zh.jpg" alt="真实学习界面：导入教材生成章节课程，在对话中完成预习检测题卡" width="100%" />
 
@@ -344,7 +344,7 @@ EduPilot 是在自己电脑上使用的 AI 学习工作台。导入中英文教�
 
 **升级会保留之前的学习吗？**
 
-原生版在同一系统用户的数据目录中继续读取配置、课程和学习记录。先完全退出并备份整个用户数据目录，再安装新版；没有应用内自动升级流程。旧版脚本包的数据仍在旧目录，不会自动迁入原生版。详见 [升级指南](docs/桌面启动与退出说明.md#升级到-v300)。
+原生版在同一系统用户的数据目录中继续读取配置、课程和学习记录。先完全退出并备份整个用户数据目录，再安装新版；没有应用内自动升级流程。旧版脚本包的数据仍在旧目录，不会自动迁入原生版。详见 [升级指南](docs/桌面启动与退出说明.md#升级到-v200)。
 
 ## 我们的初心
 

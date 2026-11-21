@@ -9,21 +9,21 @@
 <p align="center">Turn materials into courses, practise with execution feedback, connect topics in a personal graph, and follow run activity.<br />Native desktop app for Windows / macOS · English and Chinese · Connect your own model API key</p>
 
 <p align="center">
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v3.0.0"><img src="https://img.shields.io/badge/Release-v3.0.0-2563eb" alt="Desktop release v3.0.0" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v3.0.0/EduPilot-3.0.0-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="Download the native Windows installer" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v3.0.0/EduPilot-3.0.0-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="Download the native Apple Silicon installer" /></a>
-  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v3.0.0/EduPilot-3.0.0-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="Download the native Intel Mac installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.0.0"><img src="https://img.shields.io/badge/Release-v2.0.0-2563eb" alt="Desktop release v2.0.0" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-Windows-x64-Setup.exe"><img src="https://img.shields.io/badge/Windows-x64-2ea44f?logo=windows&logoColor=white" alt="Download the native Windows installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-arm64.dmg"><img src="https://img.shields.io/badge/macOS-Apple_Silicon-111111?logo=apple&logoColor=white" alt="Download the native Apple Silicon installer" /></a>
+  <a href="https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-x64.dmg"><img src="https://img.shields.io/badge/macOS-Intel-555555?logo=apple&logoColor=white" alt="Download the native Intel Mac installer" /></a>
 </p>
 
-<p align="center"><a href="#download">Download v3</a> · <a href="#whats-new">New in v3</a> · <a href="#workspace">Core workspace</a> · <a href="#features">Materials & learning</a> · <a href="#demo">Learning demo</a> · <a href="#api-keys">Connect a model</a> · <a href="#faq">FAQ</a></p>
+<p align="center"><a href="#download">Download v2</a> · <a href="#whats-new">New in v2</a> · <a href="#workspace">Core workspace</a> · <a href="#features">Materials & learning</a> · <a href="#demo">Learning demo</a> · <a href="#api-keys">Connect a model</a> · <a href="#faq">FAQ</a></p>
 
 ## Start with your materials. Build your own understanding.
 
 EduPilot is an AI learning workspace that runs on your computer. Import Chinese or English materials and work through Preview, Learn and Review. Ask follow-up questions, consult the source material and practise what you understand. Courses, conversations and study records stay local; online AI features use the model service you choose.
 
-**v3 connects practice, knowledge relationships and run controls into the same learning journey.** See concrete inputs and results when code fails, correct it, then try a fresh task. A personal graph connects courses, chapters and concepts. Run activity shows how a request is progressing, while course management keeps your material collection organised.
+**v2 connects practice, knowledge relationships and run controls into the same learning journey.** See concrete inputs and results when code fails, correct it, then try a fresh task. A personal graph connects courses, chapters and concepts. Run activity shows how a request is progressing, while course management keeps your material collection organised.
 
-| What you want to do | Where v3 helps |
+| What you want to do | Where v2 helps |
 | --- | --- |
 | Understand a coding error and try a fresh problem independently | [Diagnostic practice](#diagnostic-practice): execution feedback, tiered hints, separate correction and first-attempt records |
 | Connect what you have studied with what comes next | [Personal knowledge graph](#knowledge-graph): sources, learning evidence, personal notes and cross-course links |
@@ -34,15 +34,15 @@ Textbook-grounded retrieval (RAG), specialist learning roles, the mistake notebo
 
 <a id="download"></a>
 
-## Download v3.0.0 and start your first lesson
+## Download v2.0.0 and start your first lesson
 
 Download the native desktop app and start learning from its icon, with no server to manage or separate Node.js / Python installation. The app uses its own window, stays in the tray when closed, and automatically attempts to recover a failed backend.
 
 | Your computer | Download |
 | --- | --- |
-| Windows x64 | [Download Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v3.0.0/EduPilot-3.0.0-Windows-x64-Setup.exe) |
-| Mac · Apple Silicon (M-series chips) | [Download Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v3.0.0/EduPilot-3.0.0-macOS-arm64.dmg) |
-| Mac · Intel | [Download Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v3.0.0/EduPilot-3.0.0-macOS-x64.dmg) |
+| Windows x64 | [Download Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-Windows-x64-Setup.exe) |
+| Mac · Apple Silicon (M-series chips) | [Download Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-arm64.dmg) |
+| Mac · Intel | [Download Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-x64.dmg) |
 
 1. **Download** the installer for your computer. Choose Apple Silicon for an M-series Mac.
 2. **Double-click to install**: run `Setup.exe` on Windows and follow the prompts. On macOS, open the `.dmg` and drag EduPilot into Applications.
@@ -50,7 +50,7 @@ Download the native desktop app and start learning from its icon, with no server
 
 Next time, open **EduPilot** from the Windows desktop or Mac Launchpad. Closing the window hides it to the tray (the menu bar on Mac) while the backend keeps running. Select **Quit EduPilot** from the menu to exit completely. Your study records stay on your computer for your next session.
 
-A tour points to real controls on your first visit, introducing courses, uploads, questions, mistakes and reports. Skip whenever you like, or select **Guide** at the top to replay it. Current installers are unsigned, and Mac packages are not notarized; your OS may warn or block opening them. Check the attachments and SHA-256 checksums on the [Release page](https://github.com/2092372408-pixel/EduPilot/releases/tag/v3.0.0). If you already use EduPilot, read the upgrade notes below before installing.
+A tour points to real controls on your first visit, introducing courses, uploads, questions, mistakes and reports. Skip whenever you like, or select **Guide** at the top to replay it. Current installers are unsigned, and Mac packages are not notarized; your OS may warn or block opening them. Check the attachments and SHA-256 checksums on the [Release page](https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.0.0). If you already use EduPilot, read the upgrade notes below before installing.
 
 <details>
 <summary>A guide for your first visit</summary>
@@ -67,11 +67,11 @@ The native installer includes the application runtime, Python and document conve
 
 Choose **Quit EduPilot** from the app menu before installing; closing the window only hides it to the tray. Back up the entire user-data folder first: `%APPDATA%\EduPilot` on Windows, or `~/Library/Application Support/EduPilot` on macOS. The tray's **Open learning data folder** command (labelled “打开学习数据文件夹”) opens its `workspace/data` subfolder; go up two levels to find the folder to back up.
 
-Installing v3 under the same OS user keeps using that data location. Courses, conversations, model settings and learning records are stored separately from program files. Updates are installed manually; data from older script packages is not migrated automatically. See the [upgrade guide (Chinese)](docs/桌面启动与退出说明.md#升级到-v300) for the backup procedure and storage details.
+Installing v2 under the same OS user keeps using that data location. Courses, conversations, model settings and learning records are stored separately from program files. Updates are installed manually; data from older script packages is not migrated automatically. See the [upgrade guide (Chinese)](docs/桌面启动与退出说明.md#升级到-v200) for the backup procedure and storage details.
 
 <a id="whats-new"></a>
 
-## New in v3: practice with evidence and a clear next step
+## New in v2: practice with evidence and a clear next step
 
 <a id="diagnostic-practice"></a>
 
@@ -87,7 +87,7 @@ Three topics are currently available:
 | Loop bounds and sums | Accumulate values and handle closed-interval endpoints and empty intervals |
 | Function returns and changing inputs | Compute from different inputs and distinguish returning from printing |
 
-Grading uses actual code execution and implementation constraints explicitly stated in the task. Every variant is checked against a reference solution and curated incorrect programs before it is offered. AI discussion does not change the objective result. Task generation, grading and tiered hints need no model API key; the v3 desktop installer includes the required Python environment. **Discuss this problem** requires a configured model service. Diagnostic validation currently covers only those three built-in topics. Uploaded courses do not yet support diagnostic practice.
+Grading uses actual code execution and implementation constraints explicitly stated in the task. Every variant is checked against a reference solution and curated incorrect programs before it is offered. AI discussion does not change the objective result. Task generation, grading and tiered hints need no model API key; the v2 desktop installer includes the required Python environment. **Discuss this problem** requires a configured model service. Diagnostic validation currently covers only those three built-in topics. Uploaded courses do not yet support diagnostic practice.
 
 **How assistance is recorded:** the system distinguishes a known absence of in-app help, assistance used and unknown help history. When a discussion request for the current task is accepted, its help record is saved before the model call and remains even if the reply fails. Chat in the same course that is not bound to a task conservatively marks an unfinished task with no previously recorded help as having unknown help history. An independent check requires an unseen task to pass on its first verified submission with a known record of no in-app assistance. It does not detect external help, establish long-term mastery or replace the formal review assessment. Missing historical records are not turned into independent evidence.
 
@@ -124,7 +124,7 @@ Deletion requires confirmation and cannot be undone in the app. It removes that 
 
 ## The workspace and core learning flow
 
-The screenshots and animation below are from earlier versions and show the core import, conversation, practice and report flows. They are not screenshots of the new v3 features. Refer to the current app for Diagnostic practice, Knowledge graph, Run activity and Manage courses.
+The screenshots and animation below are from earlier versions and show the core import, conversation, practice and report flows. They are not screenshots of the new v2 features. Refer to the current app for Diagnostic practice, Knowledge graph, Run activity and Manage courses.
 
 <img src="docs/screenshots/study-ready-en.jpg" alt="The actual workspace: an imported chapter-based course with a preview question card in the conversation" width="100%" />
 
@@ -344,7 +344,7 @@ Closing the native window hides it to the tray while the backend keeps running. 
 
 **Will upgrading keep my learning history?**
 
-The native app keeps using the same OS user's data folder for settings, courses and learning records. Quit completely and back up that whole folder before installing. There is no in-app automatic update flow. Data from older script packages remains in its original folder and is not migrated automatically. See the [upgrade guide (Chinese)](docs/桌面启动与退出说明.md#升级到-v300).
+The native app keeps using the same OS user's data folder for settings, courses and learning records. Quit completely and back up that whole folder before installing. There is no in-app automatic update flow. Data from older script packages remains in its original folder and is not migrated automatically. See the [upgrade guide (Chinese)](docs/桌面启动与退出说明.md#升级到-v200).
 
 ## Why we built EduPilot
 

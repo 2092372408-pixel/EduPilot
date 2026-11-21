@@ -204,7 +204,7 @@ function openProfileCard(first) {
   const curEl = grid.querySelector(`[data-avatar="${cur}"]`);
   if (curEl) curEl.classList.add('selected');
   $('nicknameInput').value = (myProfile && myProfile.nickname) || '';
-  $('welcomeTitle').textContent = first ? ui('欢迎使用 EduPilot 3.0') : ui("编辑我的资料");
+  $('welcomeTitle').textContent = first ? ui('欢迎使用 EduPilot 2.0') : ui("编辑我的资料");
   $('welcomeSub').textContent = first ? ui('用诊断练习发现卡点，用知识图谱连接理解。先设置一个称呼，或直接开始探索。') : ui("头像与昵称改动后，EduPilot 会以新称呼与你交流");
   $('saveProfileBtn').textContent = first ? ui("保存并") + window.t('startLearning') : ui("保存修改");
   $('skipProfileBtn').style.display = first ? '' : 'none';
@@ -1337,7 +1337,7 @@ function renderConversationWelcome() {
   welcome.className = 'conversation-welcome';
   const version = document.createElement('p');
   version.className = 'welcome-version';
-  version.textContent = 'EduPilot 3.0';
+  version.textContent = 'EduPilot 2.0';
   const title = document.createElement('h2');
   title.textContent = ui('今天想学什么？');
   const description = document.createElement('p');
@@ -2152,7 +2152,7 @@ window.addEventListener('edu-language-change', async () => {
     $(buttonId).textContent = ui($(inputId).type === 'password' ? '显示' : '隐藏');
   }
   if (!$('welcomeOverlay').classList.contains('hidden')) {
-    $('welcomeTitle').textContent = profileFirst ? ui('欢迎使用 EduPilot 3.0') : ui('编辑我的资料');
+    $('welcomeTitle').textContent = profileFirst ? ui('欢迎使用 EduPilot 2.0') : ui('编辑我的资料');
     $('welcomeSub').textContent = profileFirst ? ui('用诊断练习发现卡点，用知识图谱连接理解。先设置一个称呼，或直接开始探索。') : ui('头像与昵称改动后，EduPilot 会以新称呼与你交流');
     $('saveProfileBtn').textContent = profileFirst ? ui('保存并') + window.t('startLearning') : ui('保存修改');
   }

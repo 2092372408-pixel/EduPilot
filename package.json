@@ -1,6 +1,6 @@
 {
   "name": "edupilot",
-  "version": "3.0.0",
+  "version": "2.0.0",
   "description": "EduPilot · AI 学习向导：个人知识图谱、Python 诊断练习与可追踪、可恢复的学习流程，本地保存课程和学习记录。",
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
