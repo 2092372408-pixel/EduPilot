@@ -18,12 +18,43 @@ function walk(folder) {
 const files = directoryMode ? walk('') : execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
 const forbidden = /(?:面试|答辩|简历|求职|测试报告|测试用例|验收|实测)|(?:^|\/)(?:career|test|tests|fixtures|verification|internal)(?:\/|$)|\.(?:db|db-wal|db-shm|log|bundle)$/i;
 const problems = [];
-const approved = file => !forbidden.test(file) && (file === '.env.example' || !/(?:^|\/)\.env(?:\.|$)/.test(file))
-  && (policy.files.includes(file) || policy.directories.some(dir => file.startsWith(dir)));
+const permitted = file => !forbidden.test(file) && (file === '.env.example' || !/(?:^|\/)\.env(?:\.|$)/.test(file));
+const approved = file => permitted(file) && (policy.files.includes(file) || policy.directories.some(dir => file.startsWith(dir)));
+let historicalFiles;
+function approvedInHistory(file) {
+  if (approved(file)) return true;
+  if (!permitted(file)) return false;
+  if (!historicalFiles) {
+    const commits = policy.historicalPolicyCommits;
+    if (!Array.isArray(commits) || !commits.length || commits.some(commit => typeof commit !== 'string' || !/^[a-f0-9]{40}$/i.test(commit))) {
+      throw new Error('Historical publication policies require pinned 40-character commit SHAs.');
+    }
+    const files = new Set();
+    for (const commit of commits) {
+      let snapshot;
+      try {
+        snapshot = JSON.parse(execFileSync('git', ['show', commit + ':.github/publication-files.json'], { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 }));
+      } catch (error) {
+        throw new Error('Cannot load pinned historical publication policy ' + commit + ': ' + error.message);
+      }
+      if (!snapshot || !Array.isArray(snapshot.files) || snapshot.files.some(file => typeof file !== 'string' || !file.length)) {
+        throw new Error('Invalid pinned historical publication policy ' + commit + ': expected an explicit files array.');
+      }
+      // Historical directory grants must never expand current publication rights.
+      for (const file of snapshot.files) files.add(file);
+    }
+    historicalFiles = files;
+  }
+  return historicalFiles.has(file);
+}
 if (history) {
-  const paths = execFileSync('git', ['-c', 'core.quotepath=false', 'log', '--all', '--format=', '--name-only'], { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
-  for (const file of new Set(paths.split(/\r?\n/).filter(Boolean))) {
-    if (!approved(file)) problems.push('Unapproved path in Git history: ' + file);
+  try {
+    const paths = execFileSync('git', ['-c', 'core.quotepath=false', 'log', '--all', '--format=', '--name-only'], { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
+    for (const file of new Set(paths.split(/\r?\n/).filter(Boolean))) {
+      if (!approvedInHistory(file)) problems.push('Unapproved path in Git history: ' + file);
+    }
+  } catch (error) {
+    problems.push('Historical publication check failed: ' + error.message);
   }
 }
 for (const file of files) {
