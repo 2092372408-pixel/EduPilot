@@ -191,7 +191,10 @@
       const header = node('div', 'home-skill-top'); const title = node('h3');
       title.append(link(domain.title, '/knowledge-graph.html?course=' + encodeURIComponent(domain.courseId), ''));
       header.append(title, node('span', 'home-skill-status' + (domain.status === 'mastered' ? ' is-mastered' : ''), tr(domain.status === 'mastered' ? 'mastered' : 'domainLearning')));
+      const mastery = domain.totalTopics ? Math.round(number(domain.masteredTopics) * 100 / number(domain.totalTopics)) : 0;
       card.append(header, node('p', 'home-skill-source', domain.courseTitle), node('p', 'home-skill-count', tr('masteryCount', { n: domain.masteredTopics, total: domain.totalTopics })));
+      const meter = node('div', 'home-skill-progress');
+      const fill = node('span'); fill.style.width = mastery + '%'; meter.append(fill); card.append(meter);
       const mastered = domain.skills.filter(skill => skill.mastered);
       if (mastered.length) {
         const tags = node('div', 'home-skill-tags');
