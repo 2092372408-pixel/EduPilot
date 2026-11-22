@@ -92,6 +92,10 @@ function showWindow() {
   if (mainWindow?.isDestroyed()) mainWindow = null;
   if (!mainWindow) {
     mainWindow = new BrowserWindow({ width: 1360, height: 900, minWidth: 850, minHeight: 620, title: 'EduPilot', backgroundColor: '#f7f7f8', icon: path.join(__dirname, 'logo.png'), ...windowsTitleBar, webPreferences: preferences });
+    if (process.platform === 'win32') {
+      mainWindow.setAutoHideMenuBar(true);
+      mainWindow.setMenuBarVisibility(false);
+    }
     mainWindow.loadURL(service?.state.phase === 'ready' ? service.origin : statusURL);
   }
   if (mainWindow.isMinimized()) mainWindow.restore();
