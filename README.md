@@ -1,94 +1,94 @@
-<p align="right"><strong>简体中文</strong> | <a href="README_en.md">English</a></p>
+<p align="right"><a href="README_zh.md">简体中文</a> | <strong>English</strong></p>
 
-<p align="center"><img src="docs/banner.png" alt="EduPilot · AI 学习向导" width="100%" /></p>
+<p align="center"><img src="docs/banner.png" alt="EduPilot · Your AI Learning Companion" width="100%" /></p>
 
-<h1 align="center">EduPilot · AI 学习向导</h1>
+<h1 align="center">EduPilot · Your AI Learning Companion</h1>
 
-<p align="center"><strong>把教材变成课程，把学习积累成看得见的进步。</strong></p>
+<p align="center"><strong>Turn materials into a course. Make your progress visible.</strong></p>
 
-<p align="center">Windows / macOS 桌面应用 · 中英文界面 · 自选 AI 模型</p>
+<p align="center">Windows / macOS desktop app · English and Chinese · Your choice of AI model</p>
 
-EduPilot 把 **教材、练习和学习进度** 放在同一个 AI 工作台：导入资料，按章节学习；通过练习和复习检验理解，再用知识图谱连接所学。个人学习主页汇总每门课的进度与技能积累，下次打开接着学，也能把成果分享给朋友。
+EduPilot brings **your materials, practice and progress** into one AI learning workspace. Study chapter by chapter, check your understanding through exercises and review, and connect ideas in your knowledge graph. Your personal learning home brings courses and skills together, so you can pick up where you left off and share what you have learned.
 
-**[先试一道内置 Python 诊断题，再带上自己的教材开始。](#quick-start)**
+**[Try a built-in Python diagnostic exercise, then bring your own materials.](#quick-start)**
 
-<p align="center"><a href="#download">下载安装</a> · <a href="#features">核心能力</a> · <a href="#quick-start">三步上手</a> · <a href="#workspace">学习演示</a> · <a href="#docs">文档</a></p>
+<p align="center"><a href="#download">Download</a> · <a href="#features">Features</a> · <a href="#quick-start">Get started</a> · <a href="#workspace">Demo</a> · <a href="#docs">Docs</a> · <a href="CONTRIBUTING.md">Contribute</a> · <a href="ROADMAP.md">Roadmap</a></p>
 
 <a id="download"></a>
 
-## 下载 v2.1.0
+## Download v2.1.0
 
-| 平台 | 安装包 |
+| Platform | Installer |
 | --- | --- |
-| Windows x64 | [下载 Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-Windows-x64-Setup.exe) |
-| macOS · Apple Silicon（M 系列） | [下载 Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-macOS-arm64.dmg) |
-| macOS · Intel | [下载 Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-macOS-x64.dmg) |
+| Windows x64 | [Download Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-Windows-x64-Setup.exe) |
+| macOS · Apple Silicon (M-series) | [Download Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-macOS-arm64.dmg) |
+| macOS · Intel | [Download Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-macOS-x64.dmg) |
 
-安装包自带应用运行环境、Python 和文档解析依赖。安装与升级说明见 [桌面指南](docs/桌面启动与退出说明.md)，更多下载见 [Release 页面](https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.1.0)。
+Installers include the application runtime, Python and document conversion dependencies. See the [desktop guide (Chinese)](docs/桌面启动与退出说明.md) for installation and upgrades, or the [Release page](https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.1.0) for more downloads.
 
 <a id="features"></a>
 
-## 核心能力
+## Core features
 
-### 教材变课程
+### Turn materials into a course
 
-导入中英文 PDF、Word、PowerPoint、Markdown、TXT 或 JSON，按章节组织学习内容。围绕原文查看讲解、追问细节、完成配套选择题，让学习沿着自己的教材展开。
+Import Chinese or English PDF, Word, PowerPoint, Markdown, TXT or JSON files and organise them into chapters. Explore explanations, ask follow-up questions and answer practice questions grounded in the original materials.
 
-### 预习 → 学习 → 复习
+### Preview → Learn → Review
 
-多角色学伴配合规划、讲解与练习，每个知识点都有自己的学习进度。错题本、复习安排和学习报告帮助你找到下一步，学习目标与偏好也能延续到后续对话。
+Specialist learning companions support planning, explanations and practice, with progress tracked for each topic. Your mistake notebook, review schedule and learning report help you choose the next step, while goals and preferences carry into later conversations.
 
-### Python 诊断练习
+### Python diagnostic practice
 
-围绕内置 Python 课程的分支判断、循环求和、函数返回三个主题，运行代码并查看失败输入、预期结果与实际输出。按需获取分级提示，订正后再试一道新变式，分别记录订正和新题首次作答的结果。
+Practise branch conditions, loop bounds and sums, and function returns in the built-in Python course. Run code and compare failing inputs, expected results and actual output. Request tiered hints, correct your solution, then try a fresh variant, with corrections and first attempts on new tasks recorded separately.
 
-### 个人知识图谱
+### Personal knowledge graph
 
-连接课程、章节和知识点，查看内容来源与学习记录。搜索感兴趣的主题，添加笔记、确认跨课程关联，把分散的内容整理成自己的知识网络。
+Connect courses, chapters and concepts, and inspect their sources and learning records. Search for a topic, add notes and confirm links across courses to build your own knowledge network.
 
-### 个人学习主页
+### Your personal learning home
 
-集中查看各门课的进度、已通过复习的知识点和正在积累的技能领域。回到课程继续学习，或选取想展示的课程，生成带项目地址与二维码的学习名片，保存图片或分享给朋友。[查看学习名片 →](docs/screenshots/learning-card-zh.png)
+See progress across your courses, topics that have passed review and the skill areas you are building. Continue a course, or choose courses for a learning card with the project address and QR code. Save the image or share it with friends. [Preview a learning card →](docs/screenshots/learning-card-en.png)
 
-### 课程管理
+### Course management
 
-搜索、打开、改名或单独删除上传课程，也可以追加和更新资料。在一个工作台维护自己的课程库，随时回到之前的学习进度与对话。
+Search, open, rename or delete an uploaded course, and add or update its materials. Keep your course collection in one workspace and return to earlier progress and conversations.
 
 <a id="quick-start"></a>
 
-## 三步上手
+## Get started in three steps
 
-1. **安装并打开**：Windows 运行 `Setup.exe`；macOS 打开 DMG，将 EduPilot 拖入 Applications。
-2. **先做一道题**：打开 **诊断练习**，从内置 Python 课程的分支、循环或函数开始，提交代码、查看反馈，再挑战一道新变式。这一步无需 API Key。
-3. **学自己的课程**：在 **设置 → LLM 模型** 中接入 DeepSeek、Qwen、OpenAI、GLM、Kimi 等服务或兼容接口，测试连接后保存；从主页点击 **导入教材**，按章节开始学习。
+1. **Install and open**: run `Setup.exe` on Windows. On macOS, open the DMG and drag EduPilot into Applications.
+2. **Try an exercise**: open **Diagnostic practice** and choose branches, loops or functions in the built-in Python course. Submit code, read the feedback, then try a fresh variant. No API key is needed for this step.
+3. **Study your own materials**: in **Settings → LLM model**, connect DeepSeek, Qwen, OpenAI, GLM, Kimi or another compatible service, test the connection and save. Select **Import materials** from your learning home and start learning chapter by chapter.
 
-图谱整理与内置诊断练习的发题、判分、分级提示可以直接使用。AI 对话和教材内容生成使用所选模型服务；相关问题、教材片段或附件会发送给该服务商。
+Graph organisation and built-in diagnostic tasks, grading and tiered hints work right away. AI conversations and generated course content use your chosen model service; relevant questions, material excerpts or attachments are sent to that provider.
 
-点击顶部 **教程** 可随时查看界面引导。完整操作说明见 [学习指南](docs/学生端说明书.md)。
+Select **Guide** at the top for a walkthrough whenever you need one. See the [learning guide (Chinese)](docs/学生端说明书.md) for detailed instructions.
 
 <a id="workspace"></a>
 
-## 你的学习主页
+## Your learning home
 
-打开即可看到课程进度，从上次的位置继续。想分享时，生成一张自己的学习名片。
+Open EduPilot to see your courses and progress, pick up where you left off, and share a learning card.
 
-<img src="docs/screenshots/learning-home-zh.png" alt="个人学习主页：课程进度、继续学习、技能领域与分享入口" width="100%" />
+<img src="docs/screenshots/learning-home-en.png" alt="Personal learning home: course progress, continue learning, skill areas and sharing" width="100%" />
 
 <details>
-<summary>观看教材学习演示</summary>
+<summary>Watch the materials-to-learning demo</summary>
 
-导入资料 → 生成课程 → 预习检测 → 学习与练习 → 查看报告。
+Import materials → Create a course → Preview check → Learn and practise → View your report.
 
-<img src="docs/demos/learning-journey-zh.gif" alt="教材学习演示：导入、章节课程、练习反馈与学习报告" width="100%" />
+<img src="docs/demos/learning-journey-en.gif" alt="Learning demonstration: importing materials, course chapters, practice feedback and a learning report" width="100%" />
 
 </details>
 
 <a id="source"></a>
 
 <details>
-<summary>开发者：从源码启动</summary>
+<summary>Developers: run from source</summary>
 
-准备 Node.js 22+ 和 Python 3，在终端执行：
+With Node.js 22+ and Python 3 installed, run:
 
 ```bash
 git clone https://github.com/2092372408-pixel/EduPilot.git
@@ -97,21 +97,25 @@ npm ci --omit=dev
 npm start
 ```
 
-打开 [http://127.0.0.1:8787](http://127.0.0.1:8787)，在设置中接入模型。教材解析和本地语义检索还需安装 [Python 依赖](requirements-docker.txt)。
+Open [http://127.0.0.1:8787](http://127.0.0.1:8787) and connect a model in Settings. Document conversion and local semantic search also need the [Python dependencies](requirements-docker.txt).
 
-原生桌面开发与打包步骤见 [开发说明](docs/桌面启动与退出说明.md#源码与桌面开发)。
+See the [development guide (Chinese)](docs/桌面启动与退出说明.md#源码与桌面开发) for native desktop development and packaging.
 
 </details>
 
 <a id="docs"></a>
 
-## 文档与交流
+## Docs and feedback
 
-- [学习指南](docs/学生端说明书.md)：功能入口、练习、图谱与日常使用。
-- [桌面指南](docs/桌面启动与退出说明.md)：安装、启动退出、数据备份与升级。
-- [v2.1.0 更新说明](docs/releases/v2.1.0.md)。
-- [GitHub Issues](https://github.com/2092372408-pixel/EduPilot/issues)：反馈问题与建议。
+- [Learning guide (Chinese)](docs/学生端说明书.md): navigation, practice, graphs and everyday use.
+- [Desktop guide (Chinese)](docs/桌面启动与退出说明.md): installation, launch and exit, backups and upgrades.
+- [v2.1.0 release notes](docs/releases/v2.1.0.md).
+- [GitHub Issues](https://github.com/2092372408-pixel/EduPilot/issues): report a problem or share an idea.
+- [Contributing guide](CONTRIBUTING.md): development setup and collaboration workflow.
+- [Roadmap](ROADMAP.md): current priorities and areas for discussion.
+- [Support](SUPPORT.md): installation, usage and troubleshooting.
+- [Code of Conduct](CODE_OF_CONDUCT.md) and [Security](SECURITY.md).
 
-> 学自己想学的，做自己想做的。
+> Learn what you want, then do what you want.
 
-© 2026 **Qiu Yanzihan** · 个人与非商业使用请参阅 [使用许可](LICENSE) · [第三方许可说明](THIRD_PARTY_NOTICES.md)
+© 2026 **Qiu Yanzihan** · For personal and noncommercial use, see the [license](LICENSE) · [Third-Party Notices](THIRD_PARTY_NOTICES.md)
