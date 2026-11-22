@@ -174,6 +174,10 @@ async function nativeCheck() {
         await document.fonts.ready; if(frame) await frame.contentDocument.fonts.ready;
         await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       })()`);
+      if (embedded) {
+        assert.equal(await view("document.getElementById('workspaceTitle').textContent"), lang === 'en' ? 'Learning home' : '学习主页');
+        assert.equal(await view("(()=>{const nav=document.querySelector('.workspace-nav');return nav.scrollWidth>nav.clientWidth})()"), false, 'workspace navigation is clipped');
+      }
     };
     const openHomeShare = async () => {
       await view("document.getElementById('homeShare').click()");

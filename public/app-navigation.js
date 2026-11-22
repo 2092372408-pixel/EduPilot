@@ -52,7 +52,9 @@
     function renderLabels() {
       const selected = active && views[active.name];
       document.getElementById('featureTitle').textContent = selected ? ui(selected.title) : '';
-      document.getElementById('workspaceTitle').textContent = selected ? ui(selected.title) : ui('学习对话');
+      const workspaceTitle = document.getElementById('workspaceTitle');
+      workspaceTitle.dataset.ui = selected ? selected.title : '学习对话';
+      workspaceTitle.textContent = ui(workspaceTitle.dataset.ui);
       document.getElementById('featureBackBtn').textContent = ui('返回对话');
       const chatLink = document.getElementById('chatLink');
       if (selected) chatLink.removeAttribute('aria-current');

@@ -608,7 +608,8 @@ a.disabled-entry { opacity: .45; pointer-events: none; cursor: not-allowed; text
 .learning-page .sidebar-toggle { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; flex-shrink: 0; }
 .learning-page .sidebar { width: 272px; min-width: 272px; background: var(--bg); border-right: 1px solid var(--border); }
 .sidebar-backdrop { display: none; }
-.learning-page .workspace-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 12px; flex-shrink: 0; }
+.learning-page .workspace-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; padding: 12px; flex-shrink: 0; }
+html[lang^="en"] .learning-page .workspace-nav { grid-template-columns: minmax(0, 1fr); }
 .learning-page .workspace-nav .tb-btn { justify-content: flex-start; height: 36px; padding: 0 9px; font-size: var(--note-font-size); border-radius: 7px; gap: 7px; }
 .learning-page .workspace-nav .tb-btn[aria-current="page"] { background: #e2e6df; color: var(--text); font-weight: 600; }
 .learning-page .workspace-nav .icon { width: 17px; height: 17px; }
