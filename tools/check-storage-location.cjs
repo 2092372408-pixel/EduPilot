@@ -1,0 +1,41 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const store = require('../desktop/app/storage-location.cjs');
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'edupilot-location-check-'));
+try {
+  const original = path.join(root, 'old-data');
+  const parent = path.join(root, 'new-parent');
+  fs.mkdirSync(path.join(original, 'workspace', 'data'), { recursive: true });
+  fs.mkdirSync(parent);
+  fs.writeFileSync(path.join(original, 'workspace', 'data', 'app.db'), 'sample-database');
+  fs.writeFileSync(path.join(original, 'settings.env'), 'LLM_API_KEY=local-only');
+  fs.writeFileSync(path.join(original, 'installation-id'), 'stable-installation-id');
+  fs.mkdirSync(path.join(original, 'workspace', 'server'));
+  fs.writeFileSync(path.join(original, 'workspace', 'server', 'generated.js'), 'generated');
+  assert.equal(store.configuredLocation(original), original);
+  assert.equal(store.existingLearningData(original), true);
+  assert.throws(() => store.proposedLocation(original, original, original));
+  const target = store.proposedLocation(original, original, parent);
+  store.queueLocationMove(original, original, target);
+  assert.equal(store.completePendingMove(original), target);
+  assert.equal(store.configuredLocation(original), target);
+  assert.equal(fs.readFileSync(path.join(target, 'workspace', 'data', 'app.db'), 'utf8'), 'sample-database');
+  assert.equal(fs.readFileSync(path.join(target, 'settings.env'), 'utf8'), 'LLM_API_KEY=local-only');
+  assert.equal(fs.readFileSync(path.join(target, 'installation-id'), 'utf8'), 'stable-installation-id');
+  assert.equal(fs.existsSync(path.join(target, 'workspace', 'server')), false, 'generated app files should be regenerated');
+  assert.equal(fs.existsSync(path.join(original, 'workspace', 'data', 'app.db')), true, 'the original must be retained as backup');
+  const nextParent = path.join(root, 'second');
+  fs.mkdirSync(nextParent);
+  const nextTarget = store.proposedLocation(original, target, nextParent);
+  fs.mkdirSync(nextTarget);
+  fs.writeFileSync(path.join(nextTarget, 'do-not-overwrite'), 'KEEP');
+  assert.throws(() => store.queueLocationMove(original, target, nextTarget), /非空/);
+  assert.equal(fs.readFileSync(path.join(nextTarget, 'do-not-overwrite'), 'utf8'), 'KEEP');
+  assert.equal(store.configuredLocation(original), target);
+  console.log('Data path selection and lossless migration checks passed.');
+} finally {
+  fs.rmSync(root, { recursive: true, force: true });
+}
