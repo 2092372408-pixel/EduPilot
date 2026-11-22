@@ -48,7 +48,7 @@ Connect courses, chapters and concepts, and inspect their sources and learning r
 
 ### Your personal learning home
 
-See progress across your courses, topics that have passed review and the skill areas you are building. Continue a course, or choose courses for a learning card with the project address and QR code. Save the image or share it with friends.
+See progress across your courses, topics that have passed review and the skill areas you are building. Continue a course, or choose courses for a learning card with the project address and QR code. Save the image or share it with friends. [Preview a learning card →](docs/screenshots/learning-card-en.png)
 
 ### Course management
 
@@ -64,15 +64,15 @@ Search, open, rename or delete an uploaded course, and add or update its materia
 
 Graph organisation and built-in diagnostic tasks, grading and tiered hints work right away. AI conversations and generated course content use your chosen model service; relevant questions, material excerpts or attachments are sent to that provider.
 
-Follow the tour on your first visit, or select **Guide** at the top to replay it. See the [learning guide (Chinese)](docs/学生端说明书.md) for detailed instructions.
+Select **Guide** at the top for a walkthrough whenever you need one. See the [learning guide (Chinese)](docs/学生端说明书.md) for detailed instructions.
 
 <a id="workspace"></a>
 
-## The learning workspace
+## Your learning home
 
-Choose a course and topic on the left. Ask questions, practise and get feedback in the conversation on the right.
+Open EduPilot to see your courses and progress, pick up where you left off, and share a learning card.
 
-<img src="docs/screenshots/study-ready-en.jpg" alt="The learning workspace: a chapter-based course and a preview question card in the conversation" width="100%" />
+<img src="docs/screenshots/learning-home-en.png" alt="Personal learning home: course progress, continue learning, skill areas and sharing" width="100%" />
 
 <details>
 <summary>Watch the materials-to-learning demo</summary>
