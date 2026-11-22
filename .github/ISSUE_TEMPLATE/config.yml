@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Installation and usage help
+    url: https://github.com/2092372408-pixel/EduPilot/blob/master/SUPPORT.md
+    about: Check the support guide before opening a general question.
+  - name: Project roadmap
+    url: https://github.com/2092372408-pixel/EduPilot/blob/master/ROADMAP.md
+    about: Review current priorities and how to propose an improvement.
