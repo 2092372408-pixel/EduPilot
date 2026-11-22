@@ -32,7 +32,7 @@ async function open() {
   assert.equal(initial.desktop.enabled, true);
   assert.equal(initial.desktop.clients, 0, 'check requires a package started with NoBrowser');
   if (version) assert.equal(initial.version, version);
-  for (const page of ['/', '/upload.html', '/report.html', '/coding.html', '/choice.html', '/exam.html']) {
+  for (const page of ['/', '/home.html', '/upload.html', '/report.html', '/coding.html', '/choice.html', '/exam.html']) {
     assert.match(await (await fetch(base + page)).text(), /desktop-session\.js/, page);
   }
   assert.equal((await fetch(base + '/desktop-session.js')).status, 200);
@@ -53,7 +53,7 @@ async function open() {
   assert.equal(stopped, true, 'service did not stop after its last page closed');
   const exitMs = Date.now() - started;
   assert.ok(exitMs >= 14000, 'refresh grace period was skipped');
-  console.log(JSON.stringify({ version: initial.version, desktopPages: 6, multiTab: true, refresh: true, lastPageExitMs: exitMs }, null, 2));
+  console.log(JSON.stringify({ version: initial.version, desktopPages: 7, multiTab: true, refresh: true, lastPageExitMs: exitMs }, null, 2));
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => {
   for (const controller of streams) controller.abort();
 });
@@ -65,7 +65,12 @@ async function nativeCheck() {
   const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
   const { spawn } = require('node:child_process');
   const executable = path.resolve(process.argv[3]);
+  if (process.env.EDUPILOT_PRODUCT_PREVIEW_DIR && process.env.EDUPILOT_SMOKE_DATA) {
+    throw Error('Product previews require a fresh automatically created data directory.');
+  }
   const data = process.env.EDUPILOT_SMOKE_DATA ? path.resolve(process.env.EDUPILOT_SMOKE_DATA) : fs.mkdtempSync(path.join(os.tmpdir(), 'edupilot-app-'));
+  const previewDir = process.env.EDUPILOT_PRODUCT_PREVIEW_DIR && !process.env.EDUPILOT_SMOKE_DATA
+    ? path.resolve(process.env.EDUPILOT_PRODUCT_PREVIEW_DIR) : null;
   fs.mkdirSync(data, { recursive: true });
   const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   const electron = "process.mainModule.require('electron')";
@@ -118,6 +123,7 @@ async function nativeCheck() {
     assert.equal(await view("typeof require"), 'undefined', 'renderer has Node access');
     assert.equal(await view("typeof window.edupilotDesktop"), 'undefined', 'product page has privileged recovery controls');
     const initialUID = await view("localStorage.getItem('eduowl_uid')");
+    const initialLanguage = await view("localStorage.getItem('eduowl_lang')");
     const origin = await view('location.origin');
     assert.equal((await fetch(origin + '/api/health')).status, 401, 'backend does not require app token');
     const health = await view("fetch('/api/health').then(r=>r.json())");
@@ -129,8 +135,108 @@ async function nativeCheck() {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })}).then(async response => ({status:response.status,body:await response.json()}))`);
     const diagnosticSession = 'native-release-diagnostic@python-intro';
-    for (const page of ['/knowledge-graph.html', '/learning-lab.html', '/run-activity.js']) {
+    const homeUid = 'native-home-' + require('node:crypto').randomUUID();
+    const homeRoute = '/api/learning-home?uid=' + encodeURIComponent(homeUid) + '&lang=zh';
+    for (const page of ['/knowledge-graph.html', '/learning-lab.html', '/run-activity.js',
+      '/home.html', '/home.js', '/home.css', '/home-share.js', '/project-qr.svg']) {
       assert.equal(await view(`fetch(${JSON.stringify(page)}).then(response=>response.status)`), 200, page);
+    }
+    const checkHome = async () => {
+      const result = await productRequest(homeRoute);
+      assert.equal(result.status, 200); assert.equal(result.body.ok, true);
+      const builtin = result.body.courses.find(course => course.id === 'python-intro');
+      assert.ok(builtin?.totalTopics > 0, 'packaged home has no built-in course outline');
+      assert.equal(builtin.title, 'Python 编程入门');
+      assert.equal(result.body.summary.studiedTopics, 0, 'new home invented study activity');
+      assert.equal(result.body.summary.masteredTopics, 0, 'new home invented mastery');
+      assert.equal(result.body.summary.independentChecks, 0, 'new home invented independent checks');
+      return result.body;
+    };
+    const initialHome = await checkHome();
+    assert.ok(initialHome.courses.every(course => course.source === 'builtin'), 'sharing check requires isolated app data without uploaded courses');
+    assert.equal(initialHome.profile.nickname, '', 'preview identity must have no personal nickname');
+    const previewNames = new Set(['home-zh.png', 'home-en.png', 'home-mobile.png', 'learning-card-zh.png', 'learning-card-en.png']);
+    const previewPath = name => {
+      assert.ok(previewDir && previewNames.has(name), 'unknown product preview');
+      return path.join(previewDir, name);
+    };
+    const originalWindow = previewDir ? await evaluate(`({size:${window}.getContentSize(),minimum:${window}.getMinimumSize()})`) : null;
+    if (previewDir) fs.mkdirSync(previewDir, { recursive: true });
+    const waitHome = async (lang, embedded = false) => {
+      await until(async () => view(`(()=>{
+        const frame=${embedded ? "document.querySelector('.feature-frame:not([hidden])')" : 'null'};
+        const page=${embedded ? 'frame?.contentDocument' : 'document'};
+        return page?.documentElement?.lang?.split('-')[0]===${JSON.stringify(lang)} && page.getElementById('homeShare')?.disabled===false
+          && page.getElementById('homeContent')?.hidden===false${embedded ? " && document.body.dataset.activeView==='home' && document.getElementById('tutorialBtn')?.disabled===false" : ''};
+      })()`));
+      await view(`(async()=>{
+        const frame=${embedded ? "document.querySelector('.feature-frame:not([hidden])')" : 'null'};
+        await document.fonts.ready; if(frame) await frame.contentDocument.fonts.ready;
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      })()`);
+    };
+    const openHomeShare = async () => {
+      await view("document.getElementById('homeShare').click()");
+      await until(async () => {
+        const state = await view("(()=>{const image=document.getElementById('homeShareImage'), error=document.getElementById('homeShareError');return {ready:!!image && !image.hidden && image.complete && image.naturalWidth>0,error:error && !error.hidden ? error.textContent : ''}})()");
+        if (state.error) throw Error('Native learning card: ' + state.error);
+        return state.ready;
+      }, 30000);
+    };
+    const saveCard = async name => {
+      const png = await view("(async()=>{const blob=await (await fetch(document.getElementById('homeShareImage').src)).blob();return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(blob)})})()");
+      assert.ok(png.startsWith('data:image/png;base64,'));
+      fs.writeFileSync(previewPath(name), Buffer.from(png.slice('data:image/png;base64,'.length), 'base64'));
+    };
+    const saveWindow = async name => {
+      assert.equal(await view("!!document.querySelector('.overlay:not(.hidden),dialog[open],.driver-overlay') || !!document.querySelector('.feature-frame:not([hidden])')?.contentDocument.querySelector('dialog[open]')"), false, 'product preview is obscured by a modal');
+      await evaluate(`${window}.webContents.capturePage().then(image=>process.mainModule.require('node:fs').writeFileSync(${JSON.stringify(previewPath(name))},image.toPNG()))`);
+    };
+    await view(`localStorage.setItem('eduowl_uid',${JSON.stringify(homeUid)})`);
+    if (previewDir) await view(`localStorage.setItem(${JSON.stringify('eduowl_onboarding:v2:' + homeUid)},'seen');localStorage.setItem(${JSON.stringify('eduowl_profile_prompted:' + homeUid)},'1')`);
+    try {
+      await evaluate(`${window}.loadURL(${JSON.stringify(origin + '/home.html?lang=zh')})`);
+      await waitHome('zh');
+      assert.equal(await view("localStorage.getItem('eduowl_uid')"), homeUid);
+      await openHomeShare();
+      const share = await view(`(async()=>{
+        const image=document.getElementById('homeShareImage');
+        const blob=await (await fetch(image.src)).blob();
+        const bytes=new Uint8Array(await blob.arrayBuffer());
+        const data=await (await fetch(${JSON.stringify(homeRoute)})).json();
+        const snapshot=window.EduHomeShare.buildSnapshot(data,{courseIds:['python-intro'],showName:false,lang:'zh'});
+        return {size:blob.size,type:blob.type,signature:Array.from(bytes.slice(0,8)),width:image.naturalWidth,height:image.naturalHeight,
+          projectUrl:snapshot.projectUrl,mastered:snapshot.summary.masteredTopics,skills:snapshot.skills.length,
+          canDownload:!document.getElementById('homeDownload').disabled};
+      })()`);
+      assert.equal(share.type, 'image/png');
+      assert.ok(share.size > 1000 && share.width > 0 && share.height > 0, 'learning card PNG is empty');
+      assert.deepEqual(share.signature, [137, 80, 78, 71, 13, 10, 26, 10]);
+      assert.equal(share.projectUrl, 'https://github.com/2092372408-pixel/EduPilot');
+      assert.equal(share.mastered, 0); assert.equal(share.skills, 0); assert.equal(share.canDownload, true);
+      if (previewDir) {
+        await saveCard('learning-card-zh.png');
+        await evaluate(`${window}.setContentSize(1360,900)`);
+        for (const lang of ['zh', 'en']) {
+          await evaluate(`${window}.loadURL(${JSON.stringify(origin)}+'/?view=home&lang='+${JSON.stringify(lang)})`);
+          await waitHome(lang, true);
+          await checkHome();
+          await saveWindow('home-' + lang + '.png');
+        }
+        await evaluate(`${window}.loadURL(${JSON.stringify(origin + '/home.html?lang=en')})`);
+        await waitHome('en');
+        await openHomeShare();
+        await saveCard('learning-card-en.png');
+        await evaluate(`${window}.setMinimumSize(320,480);${window}.setContentSize(390,844)`);
+        await evaluate(`${window}.loadURL(${JSON.stringify(origin + '/home.html?lang=zh')})`);
+        await waitHome('zh');
+        assert.deepEqual(await view('[innerWidth,innerHeight]'), [390, 844]);
+        await saveWindow('home-mobile.png');
+      }
+    } finally {
+      if (originalWindow) await evaluate(`${window}.setMinimumSize(...${JSON.stringify(originalWindow.minimum)});${window}.setContentSize(...${JSON.stringify(originalWindow.size)})`);
+      await view(`localStorage.setItem('eduowl_uid',${JSON.stringify(initialUID)});${initialLanguage == null ? "localStorage.removeItem('eduowl_lang')" : `localStorage.setItem('eduowl_lang',${JSON.stringify(initialLanguage)})`}`);
+      await evaluate(`${window}.loadURL(${JSON.stringify(origin)})`);
     }
     const issued = await productRequest('/api/learning-lab/start', {
       sessionId: diagnosticSession, familyId: 'parity', requestId: 'native-release-diagnostic-start',
@@ -173,6 +279,7 @@ async function nativeCheck() {
     const afterRecovery = await productRequest('/api/learning-lab?sessionId=' + encodeURIComponent(diagnosticSession));
     assert.equal(afterRecovery.body.currentTask.taskId, taskId);
     assert.equal(afterRecovery.body.currentTask.hintsUsed, 1);
+    await checkHome();
     if (process.env.EDUPILOT_SMOKE_SCREENSHOT) await evaluate(`${window}.webContents.capturePage().then(image=>process.mainModule.require('node:fs').writeFileSync(${JSON.stringify(path.resolve(process.env.EDUPILOT_SMOKE_SCREENSHOT))},image.toPNG()))`);
     await quit();
     await assert.rejects(fetch(origin + '/api/health', { signal: AbortSignal.timeout(2000) }));
@@ -186,13 +293,15 @@ async function nativeCheck() {
     const afterRestart = await productRequest('/api/learning-lab?sessionId=' + encodeURIComponent(diagnosticSession));
     assert.equal(afterRestart.body.currentTask.taskId, taskId);
     assert.equal(afterRestart.body.currentTask.hintsUsed, 1);
+    await checkHome();
     await quit();
     const log = fs.readFileSync(path.join(data, 'logs/service.log'), 'utf8');
     assert.doesNotMatch(log, /ELECTRON_RUN_AS_NODE is not supported|NODE_MODULE_VERSION/);
     console.log(JSON.stringify({ version: health.version, nativeWindow: true, rendererSandbox: true, authenticatedLoopback: true,
       closeToTray: true, singleInstance: true, builtInMcpReady: true, crashRecoveryMs: recoveryMs, portConflictHandled: true,
       persistedSession: true, bundledDiagnosticPython: true, personalKnowledgeGraph: true, harnessTrace: true,
-      persistedDiagnosticTask: true, cleanQuit: true, data }, null, 2));
+      persistedDiagnosticTask: true, personalLearningHome: true, learningHomePng: true, learningHomeAfterRestart: true,
+      cleanQuit: true, data }, null, 2));
   } finally {
     socket?.close();
     if (child && child.exitCode === null) child.kill();

@@ -8,6 +8,7 @@
  *   POST /api/chat      发送消息 { sessionId, message } → Agent 响应
  *   POST /api/chat/stream   SSE 流式：event tool/delta/done
  *   GET  /api/course    课程大纲 + 学习进度（前端初始化）
+ *   GET  /api/learning-home  个人学习主页（跨课程进度与技能）
  *   GET  /api/session/:id   Agent 内部状态（调试面板）
  *   GET  /api/health    运行模式与版本信息
  */
@@ -28,6 +29,7 @@ const grader = require('./coding/grader');
 const learningLab = require('./agent/learning-lab');
 const harness = require('./harness/runtime');
 const knowledge = require('./knowledge');
+const learningHome = require('./learning-home');
 const courseLifecycle = require('./course-lifecycle');
 const { course, findKnowledgePoint } = require('./data/course');
 const courseEn = require('./data/course_en');
@@ -727,9 +729,25 @@ const server = http.createServer((req, res) => locale.runRequest(req, async () =
       return;
     }
 
-    // ---- LLM 接入配置（首次进入的向导）----
-    // 安全：这些接口能读改 API Key，只接受本机回环来源，或已通过服务令牌
-    // 鉴权的请求（Docker 中宿主浏览器在容器内通常显示为桥接地址）。
+    // Personal learning home reads existing course scopes without opening chats.
+    if (p === '/api/learning-home') {
+      if (req.method !== 'GET') {
+        res.setHeader('Allow', 'GET');
+        sendJSON(res, 405, { ok: false, error: 'Method not allowed', code: 'method_not_allowed' });
+        return;
+      }
+      const lang = (url.searchParams.get('lang') || (locale.english() ? 'en' : 'zh')) === 'en' ? 'en' : 'zh';
+      const controller = new AbortController();
+      const cancel = () => controller.abort();
+      res.once('close', cancel);
+      try {
+        const result = await learningHome.buildLearningHome({ uid: url.searchParams.get('uid'), lang,
+          builtinCourse: lang === 'en' ? courseEn.course : course, sessions: agent.sessions, signal: controller.signal });
+        sendJSON(res, 200, result);
+      } finally { res.removeListener('close', cancel); }
+      return;
+    }
+
     if (p === '/api/profile' && req.method === 'GET') {
       // 用户档案查询（uid 或 sessionId 均可 → 取 @ 前缀）
       const uid = url.searchParams.get('uid') || url.searchParams.get('sessionId') || '';

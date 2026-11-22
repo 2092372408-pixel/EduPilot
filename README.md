@@ -4,25 +4,27 @@
 
 <h1 align="center">EduPilot · AI 学习向导</h1>
 
-<p align="center"><strong>从一份教材开始，把理解、练习与知识连接起来。</strong></p>
+<p align="center"><strong>把教材变成课程，把学习积累成看得见的进步。</strong></p>
 
 <p align="center">Windows / macOS 桌面应用 · 中英文界面 · 自选 AI 模型</p>
 
-EduPilot 是运行在自己电脑上的 AI 学习工作台。导入教材，跟随章节预习、学习与复习；通过代码练习检验理解，用个人知识图谱整理所学。课程、对话和学习记录保存在本机，AI 讲解与问答接入你选择的模型服务。
+EduPilot 把 **教材、练习和学习进度** 放在同一个 AI 工作台：导入资料，按章节学习；通过练习和复习检验理解，再用知识图谱连接所学。个人学习主页汇总每门课的进度与技能积累，下次打开接着学，也能把成果分享给朋友。
+
+**[先试一道内置 Python 诊断题，再带上自己的教材开始。](#quick-start)**
 
 <p align="center"><a href="#download">下载安装</a> · <a href="#features">核心能力</a> · <a href="#quick-start">三步上手</a> · <a href="#workspace">学习演示</a> · <a href="#docs">文档</a></p>
 
 <a id="download"></a>
 
-## 下载 v2.0.0
+## 下载 v2.1.0
 
 | 平台 | 安装包 |
 | --- | --- |
-| Windows x64 | [下载 Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-Windows-x64-Setup.exe) |
-| macOS · Apple Silicon（M 系列） | [下载 Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-arm64.dmg) |
-| macOS · Intel | [下载 Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-x64.dmg) |
+| Windows x64 | [下载 Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-Windows-x64-Setup.exe) |
+| macOS · Apple Silicon（M 系列） | [下载 Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-macOS-arm64.dmg) |
+| macOS · Intel | [下载 Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-macOS-x64.dmg) |
 
-安装包自带应用运行环境、Python 和文档解析依赖。安装与升级说明见 [桌面指南](docs/桌面启动与退出说明.md)，更多下载见 [Release 页面](https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.0.0)。
+安装包自带应用运行环境、Python 和文档解析依赖。安装与升级说明见 [桌面指南](docs/桌面启动与退出说明.md)，更多下载见 [Release 页面](https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.1.0)。
 
 <a id="features"></a>
 
@@ -30,7 +32,7 @@ EduPilot 是运行在自己电脑上的 AI 学习工作台。导入教材，跟�
 
 ### 教材变课程
 
-导入中英文 PDF、Word、PowerPoint、Markdown、TXT 或 JSON，按章节组织学习内容。结合教材检索（RAG）查看讲解、追问细节、完成配套选择题，让学习围绕自己的资料展开。
+导入中英文 PDF、Word、PowerPoint、Markdown、TXT 或 JSON，按章节组织学习内容。围绕原文查看讲解、追问细节、完成配套选择题，让学习沿着自己的教材展开。
 
 ### 预习 → 学习 → 复习
 
@@ -44,9 +46,9 @@ EduPilot 是运行在自己电脑上的 AI 学习工作台。导入教材，跟�
 
 连接课程、章节和知识点，查看内容来源与学习记录。搜索感兴趣的主题，添加笔记、确认跨课程关联，把分散的内容整理成自己的知识网络。
 
-### 看得见的学习活动
+### 个人学习主页
 
-查看本轮执行步骤、模型与工具调用、Token 用量。任务进行时可以取消，符合恢复条件时可以继续执行，让学习过程更容易掌握。
+集中查看各门课的进度、已通过复习的知识点和正在积累的技能领域。回到课程继续学习，或选取想展示的课程，生成带项目地址与二维码的学习名片，保存图片或分享给朋友。
 
 ### 课程管理
 
@@ -57,8 +59,8 @@ EduPilot 是运行在自己电脑上的 AI 学习工作台。导入教材，跟�
 ## 三步上手
 
 1. **安装并打开**：Windows 运行 `Setup.exe`；macOS 打开 DMG，将 EduPilot 拖入 Applications。
-2. **接入模型**：在 **设置 → LLM 模型** 中选择供应商、填写 API Key，测试连接后保存。支持 DeepSeek、Qwen、OpenAI、GLM、Kimi 等服务及兼容接口。
-3. **开始学习**：选择内置 **Python 编程入门**，或点击 **上传** 导入自己的教材。跟随章节学习，也可以从侧栏打开 **诊断练习**、**知识图谱**、**错题本** 和 **报告**。
+2. **先做一道题**：打开 **诊断练习**，从内置 Python 课程的分支、循环或函数开始，提交代码、查看反馈，再挑战一道新变式。这一步无需 API Key。
+3. **学自己的课程**：在 **设置 → LLM 模型** 中接入 DeepSeek、Qwen、OpenAI、GLM、Kimi 等服务或兼容接口，测试连接后保存；从主页点击 **导入教材**，按章节开始学习。
 
 图谱整理与内置诊断练习的发题、判分、分级提示可以直接使用。AI 对话和教材内容生成使用所选模型服务；相关问题、教材片段或附件会发送给该服务商。
 
@@ -80,6 +82,8 @@ EduPilot 是运行在自己电脑上的 AI 学习工作台。导入教材，跟�
 <img src="docs/demos/learning-journey-zh.gif" alt="教材学习演示：导入、章节课程、练习反馈与学习报告" width="100%" />
 
 </details>
+
+<a id="source"></a>
 
 <details>
 <summary>开发者：从源码启动</summary>
@@ -105,7 +109,7 @@ npm start
 
 - [学习指南](docs/学生端说明书.md)：功能入口、练习、图谱与日常使用。
 - [桌面指南](docs/桌面启动与退出说明.md)：安装、启动退出、数据备份与升级。
-- [v2.0.0 更新说明](docs/releases/v2.0.0.md)。
+- [v2.1.0 更新说明](docs/releases/v2.1.0.md)。
 - [GitHub Issues](https://github.com/2092372408-pixel/EduPilot/issues)：反馈问题与建议。
 
 > 学自己想学的，做自己想做的。

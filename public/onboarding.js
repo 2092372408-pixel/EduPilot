@@ -3,12 +3,18 @@
   const $ = id => document.getElementById(id);
   const steps = [
     {
+      element: '#learningHomeLink', sidebar: true,
+      title: '你的学习，从这里继续',
+      text: '学习主页汇总各门课程的进度和技能领域。选择一门课继续，也可以生成附项目地址的学习名片，分享给朋友。',
+      action: '打开学习主页', target: 'learningHomeLink',
+    },
+    {
       element: '#courseSelect', sidebar: true,
       title: '先选择一门课程',
       text: '选择内置 Python 课程或自己导入的课程，再从目录进入预习、学习与复习。每门课分别保存对话和进度，通过复习检测后才会标为已验证掌握。',
     },
     {
-      element: '#input', sidebar: false,
+      element: '#input', sidebar: false, chat: true,
       title: '在这里向学伴提问',
       text: '输入问题后按 Enter 发送，Shift + Enter 换行。“附件”辅助当前提问；导入整门课程请用侧栏的“上传”。',
     },
@@ -95,6 +101,7 @@
       steps: steps.map(step => ({
         element: step.element,
         onHighlightStarted: element => {
+          if (step.chat) window.EduNavigation?.navigate('/');
           window.setSidebar(step.sidebar, false);
           element?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
         },
@@ -129,7 +136,7 @@
       storageKey = 'eduowl_onboarding:v2:' + uid;
       pending = localStorage.getItem(storageKey) !== 'seen';
       $('tutorialBtn').disabled = false;
-      showPending();
+      if (document.body.dataset.activeView !== 'home') showPending();
     },
     isActive: () => !!tour?.isActive(),
     // Let the preceding modal's Escape/click event finish before opening the tour.

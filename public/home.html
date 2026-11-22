@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EduPilot · 学习主页</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="stylesheet" href="/style.css?v=51" />
+  <link rel="stylesheet" href="/home.css?v=1" />
+  <script src="/ui-en.js?v=4"></script>
+  <script src="/i18n.js"></script>
+  <script src="/settings.js"></script>
+  <script src="/app-navigation.js?v=5" defer></script>
+  <script src="/home-share.js?v=1" defer></script>
+  <script src="/home.js?v=1" defer></script>
+</head>
+<body class="home-page">
+  <div class="app">
+    <header class="topbar">
+      <a class="brand home-brand" href="/?view=home"><div class="logo"><img src="/logo-mark.png" alt="EduPilot" width="32" height="32" /></div><h1>EduPilot</h1></a>
+      <nav class="top-right"><button class="tb-btn" id="homeLanguage" type="button" aria-label="Switch language">EN</button><a class="tb-btn" href="/" data-home="openWorkspace">学习空间</a></nav>
+    </header>
+    <main class="home-scroll" id="homeScroll">
+      <div class="home-shell">
+        <header class="home-heading">
+          <div class="home-identity"><span class="home-avatar" id="homeAvatar" aria-hidden="true">学</span><div><p class="home-eyebrow" data-home="eyebrow">MY LEARNING</p><h1 id="homeGreeting">我的学习主页</h1><button type="button" class="home-text-button" id="homeEditName" data-home="editName">编辑昵称</button></div></div>
+          <button class="home-button home-share-button" id="homeShare" type="button" disabled><svg class="icon" aria-hidden="true"><use href="/icons.svg#share"></use></svg><span data-home="share">分享学习主页</span></button>
+        </header>
+        <p class="home-intro" data-home="intro">把教材变成课程，把学习积累成看得见的进步。</p>
+        <p class="home-navigation-notice" id="homeNavigationNotice" role="status" hidden></p>
+        <div class="home-error" id="homeError" role="alert" hidden><p id="homeErrorText"></p><button class="home-text-button" id="homeRetry" type="button" data-home="retry">重新加载</button></div>
+        <p class="sr-only" id="homeAnnouncement" role="status" aria-live="polite"></p>
+        <section class="home-loading" id="homeLoading" role="status" data-home="loading">正在整理你的学习进度…</section>
+        <div id="homeContent" hidden>
+          <section class="home-stats" aria-label="学习概览" data-home-aria="overview">
+            <div><strong id="homeActiveCourses">0</strong><span data-home="activeCourses">在学课程</span></div>
+            <div><strong id="homeStudied">0</strong><span data-home="studiedTopics">已学知识点</span></div>
+            <div><strong id="homeMastered">0</strong><span data-home="masteredTopics">复习通过</span></div>
+          </section>
+          <section class="home-next" id="homeNext" aria-labelledby="homeNextTitle"></section>
+          <nav class="home-shortcuts" aria-label="开始学习" data-home-aria="startLearning">
+            <a href="/learning-lab.html?course=python-intro"><svg class="icon" aria-hidden="true"><use href="/icons.svg#code"></use></svg><span><strong data-home="tryPractice">做一道 Python 诊断题</strong><small data-home="tryPracticeNote">运行、订正，再试一道新题</small></span><span aria-hidden="true">↗</span></a>
+            <a href="/upload.html"><svg class="icon" aria-hidden="true"><use href="/icons.svg#upload"></use></svg><span><strong data-home="importMaterials">带上自己的教材</strong><small data-home="importNote">从一份 PDF，开始一门课程</small></span><span aria-hidden="true">↗</span></a>
+          </nav>
+          <section class="home-section" aria-labelledby="homeCoursesTitle">
+            <div class="home-section-heading"><div><h2 id="homeCoursesTitle" data-home="myCourses">我的课程</h2><p id="homeCourseSummary"></p></div><a class="home-text-link" href="/report.html" data-home="details">查看学习报告 ↗</a></div>
+            <div class="home-course-tools"><div class="home-filters" role="group" aria-label="筛选课程" data-home-aria="filterCourses"><button type="button" data-course-filter="all" aria-pressed="true" data-home="allCourses">全部</button><button type="button" data-course-filter="learning" aria-pressed="false" data-home="inProgress">学习中</button><button type="button" data-course-filter="completed" aria-pressed="false" data-home="completed">已完成</button></div><label class="home-search"><svg class="icon" aria-hidden="true"><use href="/icons.svg#search"></use></svg><input id="homeSearch" type="search" maxlength="180" autocomplete="off" aria-label="搜索课程" data-home-aria="searchCourses" /></label></div>
+            <div id="homeCourses" class="home-course-list"></div>
+          </section>
+          <section class="home-section" aria-labelledby="homeSkillsTitle">
+            <div class="home-section-heading"><div><h2 id="homeSkillsTitle" data-home="skillDomains">我的技能领域</h2><p data-home="skillsNote">从课程知识点开始，逐步积累自己的能力。</p></div><a class="home-text-link" href="/knowledge-graph.html" data-home="openGraph">打开知识图谱 ↗</a></div>
+            <div id="homeSkills" class="home-skill-grid"></div>
+            <button id="homeMoreSkills" class="home-text-button home-more" type="button" hidden data-home="showMore">展开更多领域</button>
+          </section>
+          <footer class="home-footer"><span>EduPilot</span><p data-home="footer">教材 · 练习 · 进度 · 你的知识网络</p><a href="https://github.com/2092372408-pixel/EduPilot" target="_blank" rel="noopener noreferrer" data-home="project">项目主页 ↗</a></footer>
+        </div>
+      </div>
+    </main>
+  </div>
+  <dialog class="home-dialog home-name-dialog" id="homeNameDialog" aria-labelledby="homeNameTitle">
+    <form id="homeNameForm"><div class="home-dialog-heading"><h2 id="homeNameTitle" data-home="editName">编辑昵称</h2><button type="button" class="home-icon-button" data-close-dialog="homeNameDialog" aria-label="关闭" data-home-aria="close">×</button></div><label for="homeNameInput" data-home="nickname">怎么称呼你？</label><input id="homeNameInput" maxlength="20" required autocomplete="nickname" /><p class="home-form-error" id="homeNameError" role="alert" hidden></p><button class="home-button home-primary" id="homeNameSave" type="submit" data-home="saveName">保存昵称</button></form>
+  </dialog>
+  <dialog class="home-dialog home-share-dialog" id="homeShareDialog" aria-labelledby="homeShareTitle">
+    <div class="home-dialog-heading"><div><p class="home-eyebrow">SHARE YOUR PROGRESS</p><h2 id="homeShareTitle" data-home="shareTitle">把进步分享出去</h2></div><button type="button" class="home-icon-button" data-close-dialog="homeShareDialog" aria-label="关闭" data-home-aria="close">×</button></div>
+    <div class="home-share-layout">
+      <div class="home-share-options"><p data-home="shareNote">选几门课，生成属于你的学习名片。</p><fieldset><legend data-home="selectCourses">展示课程（最多 4 门）</legend><div class="home-share-course-list" id="homeShareCourses"></div></fieldset><label class="home-name-option"><input type="checkbox" id="homeShowName" checked /><span data-home="showNickname">显示我的昵称</span></label><p class="home-share-hint" data-home="shareHint">图片附带项目地址和二维码，朋友可以由此开始体验。</p><p class="home-form-error" id="homeShareError" role="alert" hidden></p><button class="home-text-button" id="homeShareRetry" type="button" hidden data-home="retry">重新加载</button></div>
+      <div class="home-share-preview"><p id="homeShareLoading" role="status" data-home="generating">正在生成学习名片…</p><img id="homeShareImage" alt="学习名片预览" data-home-alt="previewAlt" hidden /></div>
+    </div>
+    <div class="home-share-actions"><span class="home-save-status" id="homeShareStatus" role="status" aria-live="polite"></span><button class="home-button" id="homeNativeShare" type="button" hidden disabled><svg class="icon" aria-hidden="true"><use href="/icons.svg#share"></use></svg><span data-home="systemShare">系统分享</span></button><button class="home-button home-primary" id="homeDownload" type="button" disabled><svg class="icon" aria-hidden="true"><use href="/icons.svg#download"></use></svg><span data-home="saveImage">保存图片</span></button></div>
+  </dialog>
+</body>
+</html>

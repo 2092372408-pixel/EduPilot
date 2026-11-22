@@ -4,25 +4,27 @@
 
 <h1 align="center">EduPilot · Your AI Learning Companion</h1>
 
-<p align="center"><strong>Start with your materials. Connect understanding, practice and knowledge.</strong></p>
+<p align="center"><strong>Turn materials into a course. Make your progress visible.</strong></p>
 
 <p align="center">Windows / macOS desktop app · English and Chinese · Your choice of AI model</p>
 
-EduPilot is an AI learning workspace that runs on your computer. Import your materials and work through Preview, Learn and Review. Test your understanding with coding practice and organise what you learn in a personal knowledge graph. Courses, conversations and study records stay local; AI explanations and conversations use the model service you choose.
+EduPilot brings **your materials, practice and progress** into one AI learning workspace. Study chapter by chapter, check your understanding through exercises and review, and connect ideas in your knowledge graph. Your personal learning home brings courses and skills together, so you can pick up where you left off and share what you have learned.
+
+**[Try a built-in Python diagnostic exercise, then bring your own materials.](#quick-start)**
 
 <p align="center"><a href="#download">Download</a> · <a href="#features">Features</a> · <a href="#quick-start">Get started</a> · <a href="#workspace">Demo</a> · <a href="#docs">Docs</a></p>
 
 <a id="download"></a>
 
-## Download v2.0.0
+## Download v2.1.0
 
 | Platform | Installer |
 | --- | --- |
-| Windows x64 | [Download Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-Windows-x64-Setup.exe) |
-| macOS · Apple Silicon (M-series) | [Download Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-arm64.dmg) |
-| macOS · Intel | [Download Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.0.0/EduPilot-2.0.0-macOS-x64.dmg) |
+| Windows x64 | [Download Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-Windows-x64-Setup.exe) |
+| macOS · Apple Silicon (M-series) | [Download Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-macOS-arm64.dmg) |
+| macOS · Intel | [Download Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-macOS-x64.dmg) |
 
-Installers include the application runtime, Python and document conversion dependencies. See the [desktop guide (Chinese)](docs/桌面启动与退出说明.md) for installation and upgrades, or the [Release page](https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.0.0) for more downloads.
+Installers include the application runtime, Python and document conversion dependencies. See the [desktop guide (Chinese)](docs/桌面启动与退出说明.md) for installation and upgrades, or the [Release page](https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.1.0) for more downloads.
 
 <a id="features"></a>
 
@@ -30,7 +32,7 @@ Installers include the application runtime, Python and document conversion depen
 
 ### Turn materials into a course
 
-Import Chinese or English PDF, Word, PowerPoint, Markdown, TXT or JSON files and organise them into chapters. Use textbook retrieval (RAG) to explore explanations, ask follow-up questions and answer practice questions grounded in your own materials.
+Import Chinese or English PDF, Word, PowerPoint, Markdown, TXT or JSON files and organise them into chapters. Explore explanations, ask follow-up questions and answer practice questions grounded in the original materials.
 
 ### Preview → Learn → Review
 
@@ -44,9 +46,9 @@ Practise branch conditions, loop bounds and sums, and function returns in the bu
 
 Connect courses, chapters and concepts, and inspect their sources and learning records. Search for a topic, add notes and confirm links across courses to build your own knowledge network.
 
-### Visible run activity
+### Your personal learning home
 
-Follow execution steps, model and tool calls, and token usage. Cancel an active task or continue it when recovery is available, keeping the learning process easy to follow and control.
+See progress across your courses, topics that have passed review and the skill areas you are building. Continue a course, or choose courses for a learning card with the project address and QR code. Save the image or share it with friends.
 
 ### Course management
 
@@ -57,8 +59,8 @@ Search, open, rename or delete an uploaded course, and add or update its materia
 ## Get started in three steps
 
 1. **Install and open**: run `Setup.exe` on Windows. On macOS, open the DMG and drag EduPilot into Applications.
-2. **Connect a model**: in **Settings → LLM model**, choose a provider, enter your API key, test the connection and save. Connect DeepSeek, Qwen, OpenAI, GLM, Kimi or another compatible service.
-3. **Start learning**: choose the built-in **Python Intro** course or select **Upload** to import your materials. Follow the chapters, or open **Diagnostic practice**, **Knowledge graph**, **Mistakes** and **Report** from the sidebar.
+2. **Try an exercise**: open **Diagnostic practice** and choose branches, loops or functions in the built-in Python course. Submit code, read the feedback, then try a fresh variant. No API key is needed for this step.
+3. **Study your own materials**: in **Settings → LLM model**, connect DeepSeek, Qwen, OpenAI, GLM, Kimi or another compatible service, test the connection and save. Select **Import materials** from your learning home and start learning chapter by chapter.
 
 Graph organisation and built-in diagnostic tasks, grading and tiered hints work right away. AI conversations and generated course content use your chosen model service; relevant questions, material excerpts or attachments are sent to that provider.
 
@@ -80,6 +82,8 @@ Import materials → Create a course → Preview check → Learn and practise �
 <img src="docs/demos/learning-journey-en.gif" alt="Learning demonstration: importing materials, course chapters, practice feedback and a learning report" width="100%" />
 
 </details>
+
+<a id="source"></a>
 
 <details>
 <summary>Developers: run from source</summary>
@@ -105,7 +109,7 @@ See the [development guide (Chinese)](docs/桌面启动与退出说明.md#源码
 
 - [Learning guide (Chinese)](docs/学生端说明书.md): navigation, practice, graphs and everyday use.
 - [Desktop guide (Chinese)](docs/桌面启动与退出说明.md): installation, launch and exit, backups and upgrades.
-- [v2.0.0 release notes (Chinese)](docs/releases/v2.0.0.md).
+- [v2.1.0 release notes (Chinese)](docs/releases/v2.1.0.md).
 - [GitHub Issues](https://github.com/2092372408-pixel/EduPilot/issues): report a problem or share an idea.
 
 > Learn what you want, then do what you want.

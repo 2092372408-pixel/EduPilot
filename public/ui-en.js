@@ -4,6 +4,14 @@
   else root.EduEnglish = factory();
 })(typeof window !== "undefined" ? window : this, function () {
   return {
+  "学习主页": "Learning home",
+  "导入教材": "Import materials",
+  "欢迎使用 EduPilot 2.1": "Welcome to EduPilot 2.1",
+  "每门课程都有进度，每一步学习都有积累。": "Every course keeps your progress. Every step builds your understanding.",
+  "把课程进度与技能积累放在一起，继续学习，也分享自己的进步。": "See your course progress and skill areas together. Keep learning and share how far you have come.",
+  "你的学习，从这里继续": "Continue your learning here",
+  "学习主页汇总各门课程的进度和技能领域。选择一门课继续，也可以生成附项目地址的学习名片，分享给朋友。": "Learning home brings together your courses and skill areas. Continue a course or create a learning card with the project link to share with friends.",
+  "打开学习主页": "Open learning home",
   "接入模型启用 AI 讲解": "Connect a model for AI explanations",
   "配置模型供应商、模型和 API Key 后即可对话。也可以先体验本地 Python 诊断练习、整理知识图谱或查看已有记录。": "Configure a provider, model and API key to chat. You can first try local Python diagnostic practice, organise your knowledge graph or browse saved records.",
   "学习 · 独立练习 · 连接知识": "Learn · Practice independently · Connect ideas",

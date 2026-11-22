@@ -612,6 +612,18 @@ a.disabled-entry { opacity: .45; pointer-events: none; cursor: not-allowed; text
 .learning-page .workspace-nav .tb-btn { justify-content: flex-start; height: 36px; padding: 0 9px; font-size: var(--note-font-size); border-radius: 7px; gap: 7px; }
 .learning-page .workspace-nav .tb-btn[aria-current="page"] { background: #e2e6df; color: var(--text); font-weight: 600; }
 .learning-page .workspace-nav .icon { width: 17px; height: 17px; }
+.learning-page #learningHomeLink { grid-column: 1 / -1; }
+.home-sidebar-actions { display: none; }
+.learning-page[data-active-view="home"] .feature-toolbar,
+.learning-page[data-active-view="home"] .side-head,
+.learning-page[data-active-view="home"] .sidebar-content,
+.learning-page[data-active-view="home"] .side-foot,
+.learning-page[data-active-view="home"] #examBtn { display: none; }
+.learning-page[data-active-view="home"] .home-sidebar-actions { display: flex; flex-direction: column; padding: 14px 12px; gap: 6px; border-top: 1px solid var(--border); flex: 1; }
+.home-sidebar-actions .tb-btn { justify-content: flex-start; font-size: 13px; padding: 0 9px; }
+.home-sidebar-actions p { margin-top: auto; padding: 20px 10px; font-size: 12px; line-height: 1.8; color: var(--text-2); }
+.learning-page.tutorial-active[data-active-view="home"] .side-head { display: block; }
+.learning-page.tutorial-active[data-active-view="home"] .sidebar-content { display: flex; }
 .learning-page .side-head { padding: 10px 14px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); flex-shrink: 0; max-height: 42%; overflow-y: auto; }
 .learning-page .side-head h2 { display: none; }
 .learning-page .course-switch select { min-height: 36px; font-size: var(--ui-font-size); background: #fbfcf9; border-color: var(--border); }

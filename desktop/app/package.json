@@ -1,8 +1,8 @@
 {
   "name": "edupilot-desktop",
   "productName": "EduPilot",
-  "version": "2.0.0",
-  "description": "EduPilot AI 学习向导：个人知识图谱、Python 诊断练习与可恢复的学习流程",
+  "version": "2.1.0",
+  "description": "EduPilot AI 学习工作台：教材课程、诊断练习与可分享的个人学习主页",
   "author": "EduPilot",
   "license": "SEE LICENSE IN LICENSE",
   "main": "main.cjs"
