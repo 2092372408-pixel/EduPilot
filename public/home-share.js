@@ -16,7 +16,8 @@
       const masteredTopics = Math.min(totalTopics, count(course.masteredTopics));
       const studiedTopics = Math.min(totalTopics, Math.max(masteredTopics, count(course.studiedTopics)));
       return { id, title: cleanText(course.title), totalTopics, studiedTopics, masteredTopics,
-        progressPercent: totalTopics ? Math.round(masteredTopics * 100 / totalTopics) : 0 };
+        progressPercent: totalTopics ? Math.round(masteredTopics * 100 / totalTopics) : 0,
+        studiedPercent: totalTopics ? Math.round(studiedTopics * 100 / totalTopics) : 0 };
     });
     const selected = new Map(courses.map(course => [course.id, course]));
     const skills = [], domains = [], seenSkills = new Set(), seenDomains = new Set();
@@ -133,91 +134,88 @@
     const [logo, qr] = await Promise.all([
       imageAsset('/logo-mark.png', text.imageError), imageAsset('/project-qr.svg', text.imageError),
     ]);
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080;
-    let context = canvas.getContext('2d');
-    if (!context) throw new Error(text.canvasError);
-    const padding = 64, width = canvas.width - padding * 2;
-    font(context, 44, 650);
-    const titleLines = wrap(context, snapshot.nickname ? text.named(snapshot.nickname) : text.title, width, 2);
-    font(context, 23);
-    const subtitleLines = wrap(context, text.subtitle, width, 2);
-    const statsY = 182 + titleLines.length * 56 + 16 + subtitleLines.length * 34 + 32;
-    const courseY = statsY + 122 + 38;
-    const courseEnd = courseY + 48 + (snapshot.courses.length ? snapshot.courses.length * 100 + (snapshot.courses.length - 1) * 12 : 84);
-    const tagRows = items => Math.ceil(items.length / 3);
-    const sectionHeight = items => items.length ? 48 + tagRows(items) * 46 + (tagRows(items) - 1) * 10 + 24 : 0;
-    const skillsHeight = sectionHeight(snapshot.skills) + sectionHeight(snapshot.domains);
-    const contentEnd = courseEnd + 32 + (skillsHeight || 74);
-    canvas.height = Math.max(1100, contentEnd + 238);
-    context = canvas.getContext('2d');
-    context.textBaseline = 'top';
-    const color = { ink: '#1c3327', green: '#2f5a3e', muted: '#718075', pale: '#f0f4ed', line: '#dfe6dc', white: '#ffffff' };
-    context.fillStyle = color.white; context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(logo, padding, 52, 48, 48);
-    font(context, 28, 650); context.fillStyle = color.ink; context.fillText('EduPilot', padding + 62, 60);
-    const date = new Date(snapshot.generatedAt);
-    const dateLabel = Number.isFinite(date.getTime()) ? date.toLocaleDateString(snapshot.lang === 'en' ? 'en-US' : 'zh-CN', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
-    font(context, 19); context.fillStyle = color.muted; context.textAlign = 'right'; context.fillText(dateLabel, canvas.width - padding, 66); context.textAlign = 'left';
-    context.fillStyle = color.line; context.fillRect(padding, 127, width, 1);
-    font(context, 17, 600); context.fillStyle = color.muted; context.fillText(text.eyebrow, padding, 151);
-    font(context, 44, 650); context.fillStyle = color.ink;
-    titleLines.forEach((line, index) => context.fillText(line, padding, 182 + index * 56));
-    font(context, 23); context.fillStyle = color.muted;
-    subtitleLines.forEach((line, index) => context.fillText(line, padding, 182 + titleLines.length * 56 + 16 + index * 34));
+    const canvas = document.createElement('canvas'); canvas.width = 1080;
+    let ctx = canvas.getContext('2d'); if (!ctx) throw new Error(text.canvasError);
+    const pad = 68, width = 944, courses = snapshot.courses.slice(0,4), skills = snapshot.skills.slice(0,8), domains = snapshot.domains.slice(0,6);
+    const courseTop = 545, cardH = 106, gap = 13;
+    const courseEnd = courseTop + 48 + Math.max(1,courses.length)*(cardH+gap)-gap;
+    const skillTop = courseEnd+30, skillRows = Math.max(1,Math.ceil(skills.length/3));
+    const domainTop = skillTop+50+skillRows*48+20, domainRows = Math.max(1,Math.ceil(domains.length/3));
+    const contentEnd = domainTop + (domains.length?44+domainRows*48:0) + 112;
+    canvas.height = Math.max(1200,contentEnd+205);
+    ctx=canvas.getContext('2d'); ctx.textBaseline='top';
+    const c={ink:'#1d3427',green:'#315f40',mid:'#638967',muted:'#718075',pale:'#edf3ea',line:'#e0e8dd',white:'#fff'};
+    const bg=ctx.createLinearGradient(0,0,canvas.width,canvas.height); bg.addColorStop(0,'#fbfcfa');bg.addColorStop(1,'#eef3eb');
+    ctx.fillStyle=bg;ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='#eaf1e7';ctx.beginPath();ctx.arc(1000,150,175,0,Math.PI*2);ctx.fill();
+    ctx.drawImage(logo,pad,48,46,46);font(ctx,29,650);ctx.fillStyle=c.ink;ctx.fillText('EduPilot',pad+60,57);
+    const date=new Date(snapshot.generatedAt);font(ctx,17);ctx.fillStyle=c.muted;ctx.textAlign='right';
+    ctx.fillText(Number.isFinite(date.getTime())?date.toLocaleDateString(snapshot.lang==='en'?'en-US':'zh-CN',{year:'numeric',month:'short',day:'numeric'}):'',canvas.width-pad,67);ctx.textAlign='left';
+    ctx.fillStyle=c.line;ctx.fillRect(pad,120,width,1);
+    font(ctx,15,650);ctx.fillStyle=c.mid;ctx.fillText(text.eyebrow.toUpperCase(),pad,151);
+    font(ctx,55,700);ctx.fillStyle=c.ink;
+    const title=wrap(ctx,snapshot.nickname?text.named(snapshot.nickname):text.title,width*.82,2);
+    title.forEach((line,i)=>ctx.fillText(line,pad,184+i*64));
+    font(ctx,24);ctx.fillStyle=c.muted;
+    wrap(ctx,text.subtitle,width*.82,2).forEach((line,i)=>ctx.fillText(line,pad,184+title.length*64+12+i*34));
+    rounded(ctx,pad,184+title.length*64+86,62,5,3,c.mid);
 
-    rounded(context, padding, statsY, width, 122, 18, color.pale);
-    const stats = [[snapshot.summary.courses, text.courses], [snapshot.summary.studiedTopics, text.studied], [snapshot.summary.masteredTopics, text.mastered]];
-    stats.forEach(([number, label], index) => {
-      const x = padding + 28 + index * width / 3;
-      if (index) { context.fillStyle = color.line; context.fillRect(x - 28, statsY + 26, 1, 70); }
-      font(context, 43, 650); context.fillStyle = color.ink; context.fillText(fit(context, String(number), width / 3 - 52), x, statsY + 18);
-      font(context, 18); context.fillStyle = color.muted; context.fillText(fit(context, label, width / 3 - 46), x, statsY + 78);
+    const statsY=345,statW=(width-28)/3;
+    [[snapshot.summary.courses,text.courses],[snapshot.summary.studiedTopics,text.studied],[snapshot.summary.masteredTopics,text.mastered]].forEach(([value,label],i)=>{
+      const x=pad+i*(statW+14);rounded(ctx,x,statsY,statW,140,17,c.white,c.line);
+      font(ctx,40,700);ctx.fillStyle=c.ink;ctx.fillText(String(value),x+20,statsY+28);
+      font(ctx,16,500);ctx.fillStyle=c.muted;ctx.fillText(fit(ctx,label,statW-40),x+20,statsY+91);
+      rounded(ctx,x+20,statsY+122,38,4,2,i===2?c.mid:'#dce8d8');
     });
 
-    font(context, 25, 600); context.fillStyle = color.ink; context.fillText(text.courseSection, padding, courseY);
-    if (!snapshot.courses.length) {
-      font(context, 23); context.fillStyle = color.muted; context.fillText(text.emptyCourses, padding, courseY + 62);
-    }
-    snapshot.courses.forEach((course, index) => {
-      const y = courseY + 48 + index * 112;
-      rounded(context, padding, y, width, 100, 14, color.white, color.line);
-      font(context, 24, 600); context.fillStyle = color.ink; context.fillText(fit(context, course.title, width - 48), padding + 24, y + 15);
-      font(context, 18); context.fillStyle = color.muted; context.fillText(fit(context, text.progress(course.masteredTopics, course.totalTopics), width - 150), padding + 24, y + 50);
-      context.textAlign = 'right'; font(context, 18, 600); context.fillStyle = color.green; context.fillText(course.progressPercent + '%', padding + width - 24, y + 50); context.textAlign = 'left';
-      rounded(context, padding + 24, y + 80, width - 48, 6, 3, color.pale);
-      if (course.progressPercent) rounded(context, padding + 24, y + 80, (width - 48) * course.progressPercent / 100, 6, 3, color.green);
+    font(ctx,27,650);ctx.fillStyle=c.ink;ctx.fillText(text.courseSection,pad,courseTop);
+    if(!courses.length){rounded(ctx,pad,courseTop+48,width,cardH,15,c.white,c.line);font(ctx,18);ctx.fillStyle=c.muted;ctx.fillText(text.emptyCourses,pad+22,courseTop+87);}
+    courses.forEach((course,i)=>{
+      const y=courseTop+48+i*(cardH+gap);rounded(ctx,pad,y,width,cardH,15,c.white,c.line);
+      rounded(ctx,pad,y,6,cardH,3,i===0?c.green:c.mid);
+      rounded(ctx,pad+22,y+21,42,42,12,c.pale);
+      font(ctx,15,700);ctx.fillStyle=c.green;ctx.textAlign='center';ctx.fillText(String(i+1).padStart(2,'0'),pad+43,y+34);ctx.textAlign='left';
+      font(ctx,22,650);ctx.fillStyle=c.ink;ctx.fillText(fit(ctx,course.title,width-280),pad+82,y+17);
+      font(ctx,15);ctx.fillStyle=c.muted;
+      const meta=snapshot.lang==='en'?course.studiedTopics+'/'+course.totalTopics+' concepts explored · '+course.masteredTopics+' review-passed':'已学 '+course.studiedTopics+' / '+course.totalTopics+' 个知识点 · 复习通过 '+course.masteredTopics;
+      ctx.fillText(fit(ctx,meta,width-300),pad+82,y+51);
+      const percent=Number.isFinite(course.studiedPercent)?course.studiedPercent:course.progressPercent;
+      ctx.textAlign='right';font(ctx,22,700);ctx.fillStyle=c.green;ctx.fillText(percent+'%',canvas.width-pad-22,y+26);ctx.textAlign='left';
+      rounded(ctx,pad+82,y+82,width-142,6,3,'#edf1eb');
+      if(percent>0)rounded(ctx,pad+82,y+82,(width-142)*percent/100,6,3,c.mid);
     });
 
-    let sectionY = courseEnd + 32;
-    function drawTags(items, title, green) {
-      if (!items.length) return;
-      font(context, 25, 600); context.fillStyle = color.ink; context.fillText(title, padding, sectionY);
-      const gap = 12, column = (width - gap * 2) / 3;
-      items.forEach((item, index) => {
-        const x = padding + index % 3 * (column + gap), y = sectionY + 48 + Math.floor(index / 3) * 56;
-        rounded(context, x, y, column, 46, 12, green ? color.pale : '#f6f7f4', green ? null : color.line);
-        font(context, 19, 500); context.fillStyle = green ? color.green : color.muted;
-        context.fillText(fit(context, item.title, column - 32), x + 16, y + 11);
-      });
-      sectionY += sectionHeight(items);
+    function chips(items,y,title,variant){
+      if(!items.length)return y;
+      font(ctx,23,650);ctx.fillStyle=c.ink;ctx.fillText(title,pad,y);
+      let x=pad,row=y+40;
+      for(const item of items){
+        font(ctx,16,550);const label=fit(ctx,item.title,245),w=Math.max(118,ctx.measureText(label).width+42);
+        if(x+w>pad+width){x=pad;row+=48;}
+        rounded(ctx,x,row,w,38,19,variant?c.pale:'#f5f7f3',variant?null:c.line);
+        ctx.fillStyle=variant?c.green:c.muted;ctx.beginPath();ctx.arc(x+16,row+19,4,0,Math.PI*2);ctx.fill();
+        font(ctx,16,550);ctx.fillText(label,x+28,row+10);x+=w+10;
+      }
+      return row+48;
     }
-    drawTags(snapshot.skills, text.skillSection, true);
-    drawTags(snapshot.domains, text.domainSection, false);
-    if (!skillsHeight) { font(context, 23); context.fillStyle = color.muted; context.fillText(text.emptySkills, padding, sectionY + 20); }
+    let y=courseEnd+30;
+    y=chips(skills,y,text.skillSection,true);
+    if(!skills.length){font(ctx,16);ctx.fillStyle=c.muted;ctx.fillText(text.emptySkills,pad,y+4);y+=32;}
+    y=chips(domains,y+14,text.domainSection,false);
+    const quoteY=y+24;rounded(ctx,pad,quoteY,width,82,16,'#eaf1e7');
+    font(ctx,22,550);ctx.fillStyle=c.ink;ctx.textAlign='center';
+    ctx.fillText(snapshot.lang==='en'?'Every practice session is a step forward.':'每一次练习，都是下一步的起点。',canvas.width/2,quoteY+28);ctx.textAlign='left';
 
-    const footerY = canvas.height - 218;
-    context.fillStyle = color.pale; context.fillRect(0, footerY, canvas.width, 218);
-    font(context, 24, 650); context.fillStyle = color.ink; context.fillText('EduPilot', padding, footerY + 32);
-    font(context, 20); context.fillStyle = color.muted;
-    wrap(context, text.footer, width - 200, 2).forEach((line, index) => context.fillText(line, padding, footerY + 72 + index * 28));
-    font(context, 18, 500); context.fillStyle = color.green; context.fillText(projectUrl, padding, footerY + 143);
-    context.drawImage(qr, canvas.width - padding - 164, footerY + 14, 164, 164);
-    font(context, 15); context.fillStyle = color.muted; context.textAlign = 'center'; context.fillText(text.scan, canvas.width - padding - 82, footerY + 187); context.textAlign = 'left';
-    const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error(text.canvasError)), 'image/png'));
-    const day = Number.isFinite(date.getTime()) ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` : 'progress';
-    return { canvas, blob, filename: 'EduPilot-learning-' + day + '.png' };
+    const footerY=canvas.height-205;ctx.fillStyle='#e8efe5';ctx.fillRect(0,footerY,canvas.width,205);
+    ctx.fillStyle=c.line;ctx.fillRect(pad,footerY+1,width,1);
+    font(ctx,25,700);ctx.fillStyle=c.ink;ctx.fillText('EduPilot',pad,footerY+27);
+    font(ctx,16);ctx.fillStyle=c.muted;wrap(ctx,text.footer,width-225,2).forEach((line,i)=>ctx.fillText(line,pad,footerY+65+i*24));
+    font(ctx,15,550);ctx.fillStyle=c.green;ctx.fillText(fit(ctx,projectUrl,width-225),pad,footerY+126);
+    rounded(ctx,canvas.width-pad-140,footerY+20,116,116,13,c.white,c.line);ctx.drawImage(qr,canvas.width-pad-134,footerY+26,104,104);
+    font(ctx,13);ctx.fillStyle=c.muted;ctx.textAlign='center';ctx.fillText(text.scan,canvas.width-pad-82,footerY+145);ctx.textAlign='left';
+    const blob=await new Promise((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error(text.canvasError)),'image/png'));
+    const day=Number.isFinite(date.getTime())?date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0'):'progress';
+    return {canvas,blob,filename:'EduPilot-learning-'+day+'.png'};
   }
-
   window.EduHomeShare = { projectUrl, buildSnapshot, render };
 })();
