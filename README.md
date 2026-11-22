@@ -109,6 +109,7 @@ See the [development guide (Chinese)](docs/桌面启动与退出说明.md#源码
 
 - [Learning guide (Chinese)](docs/学生端说明书.md): navigation, practice, graphs and everyday use.
 - [Desktop guide (Chinese)](docs/桌面启动与退出说明.md): installation, launch and exit, backups and upgrades.
+- [Download and data-location guide (Chinese)](docs/安装与数据位置指南.md): choosing installers, installation location and safe data backups.
 - [v2.1.0 release notes](docs/releases/v2.1.0.md).
 - [GitHub Issues](https://github.com/2092372408-pixel/EduPilot/issues): report a problem or share an idea.
 - [Contributing guide](CONTRIBUTING.md): development setup and collaboration workflow.
