@@ -137,7 +137,7 @@ async function nativeCheck() {
     const diagnosticSession = 'native-release-diagnostic@python-intro';
     const homeUid = 'native-home-' + require('node:crypto').randomUUID();
     const homeRoute = '/api/learning-home?uid=' + encodeURIComponent(homeUid) + '&lang=zh';
-    for (const page of ['/knowledge-graph.html', '/learning-lab.html', '/run-activity.js',
+    for (const page of ['/knowledge-graph.html', '/knowledge-graph.js', '/knowledge-graph.css', '/learning-lab.html', '/run-activity.js',
       '/home.html', '/home.js', '/home.css', '/home-share.js', '/project-qr.svg']) {
       assert.equal(await view(`fetch(${JSON.stringify(page)}).then(response=>response.status)`), 200, page);
     }
@@ -155,7 +155,7 @@ async function nativeCheck() {
     const initialHome = await checkHome();
     assert.ok(initialHome.courses.every(course => course.source === 'builtin'), 'sharing check requires isolated app data without uploaded courses');
     assert.equal(initialHome.profile.nickname, '', 'preview identity must have no personal nickname');
-    const previewNames = new Set(['home-zh.png', 'home-en.png', 'home-mobile.png', 'learning-card-zh.png', 'learning-card-en.png']);
+    const previewNames = new Set(['home-zh.png', 'home-en.png', 'home-mobile.png', 'skill-domains-zh.png', 'learning-share-zh.png', 'learning-card-zh.png', 'learning-card-en.png', 'knowledge-graph-zh.png', 'knowledge-graph-list-zh.png']);
     const previewPath = name => {
       assert.ok(previewDir && previewNames.has(name), 'unknown product preview');
       return path.join(previewDir, name);
@@ -192,9 +192,9 @@ async function nativeCheck() {
       assert.ok(png.startsWith('data:image/png;base64,'));
       fs.writeFileSync(previewPath(name), Buffer.from(png.slice('data:image/png;base64,'.length), 'base64'));
     };
-    const saveWindow = async name => {
-      assert.equal(await view("!!document.querySelector('.overlay:not(.hidden),dialog[open],.driver-overlay') || !!document.querySelector('.feature-frame:not([hidden])')?.contentDocument.querySelector('dialog[open]')"), false, 'product preview is obscured by a modal');
-      await evaluate(`${window}.webContents.capturePage().then(image=>process.mainModule.require('node:fs').writeFileSync(${JSON.stringify(previewPath(name))},image.toPNG()))`);
+    const saveWindow = async (name, allowModal = false) => {
+      if (!allowModal) assert.equal(await view("!!document.querySelector('.overlay:not(.hidden),dialog[open],.driver-overlay') || !!document.querySelector('.feature-frame:not([hidden])')?.contentDocument.querySelector('dialog[open]')"), false, 'product preview is obscured by a modal');
+      await evaluate(\`\${window}.webContents.capturePage().then(image=>process.mainModule.require('node:fs').writeFileSync(\${JSON.stringify(previewPath(name))},image.toPNG()))\`);
     };
     await view(`localStorage.setItem('eduowl_uid',${JSON.stringify(homeUid)})`);
     if (previewDir) await view(`localStorage.setItem(${JSON.stringify('eduowl_onboarding:v2:' + homeUid)},'seen');localStorage.setItem(${JSON.stringify('eduowl_profile_prompted:' + homeUid)},'1')`);
@@ -220,6 +220,11 @@ async function nativeCheck() {
       assert.equal(share.mastered, 0); assert.equal(share.skills, 0); assert.equal(share.canDownload, true);
       if (previewDir) {
         await saveCard('learning-card-zh.png');
+        await saveWindow('learning-share-zh.png', true);
+        await view("document.getElementById('homeShareDialog').close()");
+        await view("document.getElementById('homeSkills').scrollIntoView({block:'center'})");
+        await view("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+        await saveWindow('skill-domains-zh.png');
         await evaluate(`${window}.setContentSize(1360,900)`);
         for (const lang of ['zh', 'en']) {
           await evaluate(`${window}.loadURL(${JSON.stringify(origin)}+'/?view=home&lang='+${JSON.stringify(lang)})`);
@@ -257,6 +262,18 @@ async function nativeCheck() {
     assert.equal(personalGraph.status, 200); assert.equal(personalGraph.body.ok, true);
     assert.equal(personalGraph.body.nodes.find(node => node.kind === 'course' && node.courseId === 'python-intro')?.title, 'Python 编程入门');
     assert.equal(personalGraph.body.nodes.find(node => node.kind === 'concept' && node.courseId === 'python-intro' && node.kpId === 'kp1')?.title, '变量与赋值');
+    if (previewDir) {
+      await evaluate(\`\${window}.loadURL(\${JSON.stringify(origin + '/knowledge-graph.html?course=python-intro&lang=zh')})\`);
+      await until(async () => view("!document.getElementById('kgContent')?.hidden && document.querySelectorAll('#kgGraph .kg-node[data-kind=concept]').length > 0"), 30000);
+      await view("document.querySelector('#kgGraph .kg-node[data-kind=concept]')?.dispatchEvent(new MouseEvent('click',{bubbles:true}))");
+      await view("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+      await saveWindow('knowledge-graph-zh.png');
+      await view("document.getElementById('kgListTab').click()");
+      await view("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+      await saveWindow('knowledge-graph-list-zh.png');
+      await evaluate(\`\${window}.loadURL(\${JSON.stringify(origin)})\`);
+      await until(async () => view("document.readyState === 'complete'"));
+    }
     const trace = await productRequest('/api/runs/' + issued.body.harness.runId + '?sessionId=' + encodeURIComponent(diagnosticSession));
     assert.equal(trace.status, 200);
     assert.ok(trace.body.run.events.some(event => event.type === 'business_committed'));
