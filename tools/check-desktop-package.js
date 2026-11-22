@@ -194,7 +194,7 @@ async function nativeCheck() {
     };
     const saveWindow = async (name, allowModal = false) => {
       if (!allowModal) assert.equal(await view("!!document.querySelector('.overlay:not(.hidden),dialog[open],.driver-overlay') || !!document.querySelector('.feature-frame:not([hidden])')?.contentDocument.querySelector('dialog[open]')"), false, 'product preview is obscured by a modal');
-      await evaluate(\`\${window}.webContents.capturePage().then(image=>process.mainModule.require('node:fs').writeFileSync(\${JSON.stringify(previewPath(name))},image.toPNG()))\`);
+      await evaluate(`${window}.webContents.capturePage().then(image=>process.mainModule.require('node:fs').writeFileSync(${JSON.stringify(previewPath(name))},image.toPNG()))`);
     };
     await view(`localStorage.setItem('eduowl_uid',${JSON.stringify(homeUid)})`);
     if (previewDir) await view(`localStorage.setItem(${JSON.stringify('eduowl_onboarding:v2:' + homeUid)},'seen');localStorage.setItem(${JSON.stringify('eduowl_profile_prompted:' + homeUid)},'1')`);
@@ -263,7 +263,7 @@ async function nativeCheck() {
     assert.equal(personalGraph.body.nodes.find(node => node.kind === 'course' && node.courseId === 'python-intro')?.title, 'Python 编程入门');
     assert.equal(personalGraph.body.nodes.find(node => node.kind === 'concept' && node.courseId === 'python-intro' && node.kpId === 'kp1')?.title, '变量与赋值');
     if (previewDir) {
-      await evaluate(\`\${window}.loadURL(\${JSON.stringify(origin + '/knowledge-graph.html?course=python-intro&lang=zh')})\`);
+      await evaluate(`${window}.loadURL(${JSON.stringify(origin + '/knowledge-graph.html?course=python-intro&lang=zh')})`);
       await until(async () => view("!document.getElementById('kgContent')?.hidden && document.querySelectorAll('#kgGraph .kg-node[data-kind=concept]').length > 0"), 30000);
       await view("document.querySelector('#kgGraph .kg-node[data-kind=concept]')?.dispatchEvent(new MouseEvent('click',{bubbles:true}))");
       await view("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
@@ -271,7 +271,7 @@ async function nativeCheck() {
       await view("document.getElementById('kgListTab').click()");
       await view("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
       await saveWindow('knowledge-graph-list-zh.png');
-      await evaluate(\`\${window}.loadURL(\${JSON.stringify(origin)})\`);
+      await evaluate(`${window}.loadURL(${JSON.stringify(origin)})`);
       await until(async () => view("document.readyState === 'complete'"));
     }
     const trace = await productRequest('/api/runs/' + issued.body.harness.runId + '?sessionId=' + encodeURIComponent(diagnosticSession));
