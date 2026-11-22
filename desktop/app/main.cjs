@@ -229,7 +229,15 @@ async function start() {
     { type: 'separator' }, { label: '退出 EduPilot', click: () => app.quit() },
   ]));
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: 'EduPilot', submenu: [{ label: '显示工作台', click: showWindow }, { label: '重新连接', click: () => service.restart() }, { type: 'separator' }, { role: 'quit', label: '退出 EduPilot' }] },
+    { label: 'EduPilot', submenu: [
+      { label: '显示工作台', click: showWindow },
+      { label: '重新连接', click: () => service.restart() },
+      { type: 'separator' },
+      { label: '打开学习数据文件夹', click: () => shell.openPath(workspace.data) },
+      { label: '更改学习数据位置…', click: chooseNewStorageLocation },
+      { type: 'separator' },
+      { role: 'quit', label: '退出 EduPilot' },
+    ] },
     { label: '编辑', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
     { label: '视图', submenu: [{ role: 'reload' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'togglefullscreen' }] },
   ]));
