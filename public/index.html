@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <script src="ui-en.js?v=3"></script>
+  <script src="ui-en.js?v=4"></script>
   <script src="i18n.js"></script>
   <script src="settings.js"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title data-ui="EduPilot · AI 学习向导">EduPilot · AI 学习向导</title>
 <link rel="stylesheet" href="/vendor/driver-1.9.0/driver.css" />
-<link rel="stylesheet" href="/style.css?v=50" />
+<link rel="stylesheet" href="/style.css?v=51" />
 <link rel="stylesheet" href="/course-manager.css" />
 <link rel="stylesheet" href="/run-activity.css" />
 <link rel="icon" type="image/png" href="/favicon.png" />
@@ -33,7 +33,7 @@
       <span class="tb-sep" aria-hidden="true"></span>
       
       <!-- 身份 -->
-      <button id="userChip" class="tb-btn user-chip hidden" title="编辑我的资料" data-ui-title="编辑我的资料"><span id="userAvatar" class="user-avatar"></span><span id="userNick"></span></button>
+      <button id="userChip" class="tb-btn user-chip hidden" title="学习主页" data-ui-title="学习主页"><span id="userAvatar" class="user-avatar"></span><span id="userNick"></span></button>
       <!-- 设置 -->
       <button id="tutorialBtn" class="tb-btn" type="button" disabled title="重看新手教程" aria-label="新手教程" data-ui-title="重看新手教程" data-ui-aria-label="新手教程">
         <svg class="icon" aria-hidden="true"><use href="/icons.svg#book"></use></svg>
@@ -51,6 +51,7 @@
     <!-- ===== 左栏：课程大纲与进度 ===== -->
     <aside class="sidebar" id="courseSidebar" aria-label="课程与学习进度" aria-hidden="false" data-ui-aria-label="课程与学习进度">
       <nav class="tb-group workspace-nav" aria-label="学习工具" data-ui-aria-label="学习工具">
+        <a id="learningHomeLink" class="tb-btn" href="/home.html"><svg class="icon" aria-hidden="true"><use href="/icons.svg#home"></use></svg><span data-ui="学习主页">学习主页</span></a>
         <a id="chatLink" class="tb-btn" href="/" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chat"></use></svg><span data-ui="学习对话">学习对话</span></a>
         <a id="codingLink" class="tb-btn" href="/coding.html" title="编程实践：写代码 + 试运行 + 提交判分" data-ui-title="编程实践：写代码 + 试运行 + 提交判分">
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#code"></use></svg>
@@ -70,6 +71,7 @@
           <span data-i18n="reportBtn">报告</span>
         </a>
       </nav>
+      <div class="home-sidebar-actions"><a class="tb-btn" href="/upload.html"><svg class="icon" aria-hidden="true"><use href="/icons.svg#upload"></use></svg><span data-ui="导入教材">导入教材</span></a><button class="tb-btn" id="homeManageCourses" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#book"></use></svg><span data-ui="管理全部课程">管理全部课程</span></button><p data-ui="每门课程都有进度，每一步学习都有积累。">每门课程都有进度，每一步学习都有积累。</p></div>
       <div class="side-head">
         <div class="course-switch">
           <select id="courseSelect" title="切换课程" aria-label="切换课程" data-ui-title="切换课程" data-ui-aria-label="切换课程"></select>
@@ -213,7 +215,7 @@
 <div id="welcomeOverlay" class="overlay hidden">
   <div class="welcome-card" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
     <button id="closeProfileBtn" class="btn-ghost profile-close" aria-label="关闭资料设置" data-ui-aria-label="关闭资料设置">✕</button>
-    <h2 id="welcomeTitle" data-ui="欢迎使用 EduPilot 2.0">欢迎使用 EduPilot 2.0</h2>
+    <h2 id="welcomeTitle" data-ui="欢迎使用 EduPilot 2.1">欢迎使用 EduPilot 2.1</h2>
     <p class="welcome-sub" id="welcomeSub" data-ui="用诊断练习发现卡点，用知识图谱连接理解。先设置一个称呼，或直接开始探索。">用诊断练习发现卡点，用知识图谱连接理解。先设置一个称呼，或直接开始探索。</p>
     <div class="welcome-avatars" id="avatarGrid"></div>
     <input id="nicknameInput" class="welcome-input" type="text" maxlength="20" aria-label="你的昵称" placeholder="你的昵称（1~20 字）" data-ui-aria-label="你的昵称" data-ui-placeholder="你的昵称（1~20 字）">
@@ -374,11 +376,11 @@
 <script src="/progress.js?v=45"></script>
 <script src="/practice-card.js?v=45"></script>
 <script src="/vendor/driver-1.9.0/driver.js"></script>
-<script src="/onboarding.js?v=3"></script>
+<script src="/onboarding.js?v=4"></script>
 <script src="/course-manager.js"></script>
 <script src="/run-activity.js"></script>
-<script src="/app.js?v=50"></script>
-<script src="/app-navigation.js?v=2"></script>
+<script src="/app.js?v=51"></script>
+<script src="/app-navigation.js?v=5"></script>
 
 </body>
 </html>

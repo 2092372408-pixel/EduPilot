@@ -1,6 +1,7 @@
 /* Keep feature views inside the app while preserving each view's working state. */
 (function () {
   const views = {
+    home: { path: '/home.html', title: '学习主页', link: 'learningHomeLink', global: true },
     coding: { path: '/coding.html', title: '代码实践', link: 'codingLink' },
     lab: { path: '/learning-lab.html', title: '诊断练习', link: 'learningLabLink' },
     knowledge: { path: '/knowledge-graph.html', title: '知识图谱', link: 'knowledgeGraphLink' },
@@ -26,6 +27,10 @@
         window.dispatchEvent(new CustomEvent('edu:select-topic', { detail: { kpId: event.data.kpId } }));
         return;
       }
+      if (event.data?.type === 'edupilot:navigation-status') {
+        window.dispatchEvent(new CustomEvent('edu:navigation-status', { detail: { code: event.data.code } }));
+        return;
+      }
       if (event.data?.type !== 'edupilot:activate') return;
       const state = event.data;
       if (state.language && window.setEduLanguage && window.eduLanguage?.() !== state.language) window.setEduLanguage(state.language);
@@ -47,7 +52,9 @@
     function renderLabels() {
       const selected = active && views[active.name];
       document.getElementById('featureTitle').textContent = selected ? ui(selected.title) : '';
-      document.getElementById('workspaceTitle').textContent = selected ? ui(selected.title) : ui('学习对话');
+      const workspaceTitle = document.getElementById('workspaceTitle');
+      workspaceTitle.dataset.ui = selected ? selected.title : '学习对话';
+      workspaceTitle.textContent = ui(workspaceTitle.dataset.ui);
       document.getElementById('featureBackBtn').textContent = ui('返回对话');
       const chatLink = document.getElementById('chatLink');
       if (selected) chatLink.removeAttribute('aria-current');
@@ -59,6 +66,7 @@
           else link.removeAttribute('aria-current');
         }
       }
+      if (typeof updatePracticeLinks === 'function') updatePracticeLinks();
     }
 
     async function navigate(value, { replace = false, pop = false } = {}) {
@@ -67,16 +75,20 @@
       const name = Object.keys(views).find(key => views[key].path === target.pathname) || (views[target.searchParams.get('view')] ? target.searchParams.get('view') : null);
       const targetCourse = target.searchParams.get('course') || active?.course || course();
       const selection = name === 'lab' && target.searchParams.has('family') ? { familyId: target.searchParams.get('family') } : {};
-      if (!name && targetCourse !== course() && typeof switchCourse === 'function') {
+      if (!views[name]?.global && targetCourse !== course() && typeof switchCourse === 'function') {
         const previousUrl = location.href;
         const previousState = history.state;
         await switchCourse(targetCourse);
         history.replaceState(previousState, '', previousUrl);
+        if (course() !== targetCourse) {
+          active?.frame.contentWindow?.postMessage({ type: 'edupilot:navigation-status', code: 'course_busy' }, location.origin);
+          return false;
+        }
       }
       if (active) { active.frame.hidden = true; message(active.frame, false, false); }
       active = null;
       if (name) {
-        const key = `${name}@${targetCourse}`;
+        const key = views[name].global ? name : `${name}@${targetCourse}`;
         let frame = frames.get(key);
         const fresh = !frame;
         if (!frame) {
@@ -86,7 +98,8 @@
           const url = new URL(views[name].path, location.origin);
           url.search = target.search;
           url.searchParams.delete('view');
-          url.searchParams.set('course', targetCourse);
+          if (views[name].global) url.searchParams.delete('course');
+          else url.searchParams.set('course', targetCourse);
           url.searchParams.set('lang', language());
           url.searchParams.set('embedded', '1');
           frame.src = url.href;
@@ -101,8 +114,8 @@
           document.getElementById('featureFrames').appendChild(frame);
         }
         frame.hidden = false;
-        active = { name, frame, course: targetCourse, selection };
-        if (!fresh) message(frame, true, ['report', 'knowledge', 'lab'].includes(name), selection);
+        active = { name, frame, course: views[name].global ? null : targetCourse, selection };
+        if (!fresh) message(frame, true, ['home', 'report', 'knowledge', 'lab'].includes(name), selection);
       }
       chatPanel.hidden = Boolean(active);
       host.hidden = !active;
@@ -114,7 +127,11 @@
       url.searchParams.delete('embedded');
       url.searchParams.delete('family');
       url.searchParams.delete('kp');
-      if (name) { url.searchParams.set('view', name); url.searchParams.set('course', targetCourse); }
+      if (name) {
+        url.searchParams.set('view', name);
+        if (views[name].global) url.searchParams.delete('course');
+        else url.searchParams.set('course', targetCourse);
+      }
       else {
         url.searchParams.delete('view');
         url.searchParams.set('course', targetCourse);
@@ -165,16 +182,23 @@
       if (removedActive) {
         active = null;
         navigate('/?course=' + encodeURIComponent(course()), { replace: true });
-      } else if (active?.name === 'knowledge') message(active.frame, true, true);
+      } else if (['home', 'knowledge'].includes(active?.name)) message(active.frame, true, true);
     });
     window.addEventListener('edu-course-renamed', () => {
-      if (active?.name === 'knowledge') message(active.frame, true, true);
+      if (['home', 'knowledge'].includes(active?.name)) message(active.frame, true, true);
+    });
+    for (const eventName of ['edu-profile-updated', 'edu-course-reset']) window.addEventListener(eventName, () => {
+      if (active?.name === 'home') message(active.frame, true, true);
     });
     window.addEventListener('message', event => {
-      if (event.origin !== location.origin || event.source !== active?.frame.contentWindow || event.data?.type !== 'edupilot:navigate') return;
-      if (internal(event.data.href)) navigate(event.data.href);
+      if (event.origin !== location.origin || event.source !== active?.frame.contentWindow) return;
+      if (event.data?.type === 'edupilot:profile-updated' && active?.name === 'home') {
+        if (typeof loadProfile === 'function') loadProfile();
+      } else if (event.data?.type === 'edupilot:navigate' && internal(event.data.href)) navigate(event.data.href);
     });
-    navigate(location.href, { replace: true });
+    const initial = new URL(location.href);
+    if (!initial.searchParams.has('view') && !initial.searchParams.has('course') && !initial.searchParams.has('kp')) initial.searchParams.set('view', 'home');
+    navigate(initial.href, { replace: true });
   }
 
   if (host || embedded) document.addEventListener('click', event => {
@@ -183,6 +207,6 @@
     event.preventDefault();
     event.stopPropagation();
     const navigation = window.EduNavigation.navigate(link.href);
-    if (host && typeof link.onclick === 'function') Promise.resolve(navigation).then(() => link.onclick(event));
+    if (host && typeof link.onclick === 'function') Promise.resolve(navigation).then(navigated => { if (navigated !== false) link.onclick(event); });
   }, true);
 })();

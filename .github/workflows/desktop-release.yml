@@ -166,7 +166,22 @@ jobs:
         run: npx electron-builder --config desktop/builder.cjs --${{ matrix.platform }} --${{ matrix.arch }} --publish never
       - name: Verify packaged window, Python learning features, recovery and persistence
         timeout-minutes: 10
+        env:
+          EDUPILOT_PRODUCT_PREVIEW_DIR: ${{ matrix.platform == 'win' && format('{0}/edupilot-interface', runner.temp) || '' }}
         run: node tools/check-desktop-package.js --native "${{ matrix.executable }}"
+      - name: Save product interface previews
+        if: matrix.platform == 'win'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Product-interface-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/edupilot-interface/home-zh.png
+            ${{ runner.temp }}/edupilot-interface/home-en.png
+            ${{ runner.temp }}/edupilot-interface/home-mobile.png
+            ${{ runner.temp }}/edupilot-interface/learning-card-zh.png
+            ${{ runner.temp }}/edupilot-interface/learning-card-en.png
+          if-no-files-found: error
+          retention-days: 14
       - name: Check packaged product sources
         shell: bash
         run: |
