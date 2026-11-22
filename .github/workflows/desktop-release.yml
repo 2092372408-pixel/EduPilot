@@ -178,8 +178,12 @@ jobs:
             ${{ runner.temp }}/edupilot-interface/home-zh.png
             ${{ runner.temp }}/edupilot-interface/home-en.png
             ${{ runner.temp }}/edupilot-interface/home-mobile.png
+            ${{ runner.temp }}/edupilot-interface/skill-domains-zh.png
+            ${{ runner.temp }}/edupilot-interface/learning-share-zh.png
             ${{ runner.temp }}/edupilot-interface/learning-card-zh.png
             ${{ runner.temp }}/edupilot-interface/learning-card-en.png
+            ${{ runner.temp }}/edupilot-interface/knowledge-graph-zh.png
+            ${{ runner.temp }}/edupilot-interface/knowledge-graph-list-zh.png
           if-no-files-found: error
           retention-days: 14
       - name: Check packaged product sources
