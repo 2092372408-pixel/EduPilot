@@ -71,6 +71,7 @@
     "docs/screenshots/",
     "docs/diagrams/",
     "docs/exam-shots/",
-    ".github/ISSUE_TEMPLATE/"
+    ".github/ISSUE_TEMPLATE/",
+    "docs/community/"
   ]
 }
