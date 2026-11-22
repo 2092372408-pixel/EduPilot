@@ -11,12 +11,29 @@ const {
 } = require('./storage-location.cjs');
 const { Service } = require('./service.cjs');
 
-// Persistent selection is held at the original OS app-data location, so moving
-// the working directory never loses the pointer. Test-only overrides remain explicit.
+// Resolve the data location BEFORE Electron creates its browser session.
+// The persistent pointer always lives in the original OS app-data directory.
 const defaultUserData = app.getPath('userData');
-if (process.env.EDUPILOT_APP_DATA) app.setPath('userData', path.resolve(process.env.EDUPILOT_APP_DATA));
-else if (configuredLocation(defaultUserData) !== defaultUserData) {
-  app.setPath('userData', configuredLocation(defaultUserData));
+let storageMigrationWarning = null;
+if (process.env.EDUPILOT_APP_DATA) {
+  app.setPath('userData', path.resolve(process.env.EDUPILOT_APP_DATA));
+} else {
+  let selected = configuredLocation(defaultUserData);
+  const pending = path.join(defaultUserData, 'storage-migration.json');
+  if (fs.existsSync(pending)) {
+    try {
+      selected = completePendingMove(defaultUserData);
+    } catch (error) {
+      storageMigrationWarning = error.message;
+      // Failed moves are never retried automatically; preserve the old pointer.
+      try { fs.renameSync(pending, pending + '.failed-' + Date.now()); } catch {}
+      selected = configuredLocation(defaultUserData);
+    }
+  }
+  if (selected !== defaultUserData) {
+    if (!fs.existsSync(selected)) throw new Error('学习数据目录不存在：' + selected);
+    app.setPath('userData', selected);
+  }
 }
 let mainWindow, tray, service, quitting = false;
 const pages = new Map();
@@ -28,53 +45,44 @@ const windowsTitleBar = process.platform === 'win32'
   : {};
 const desktopFrameCSS = fs.readFileSync(path.join(__dirname, 'window-frame.css'), 'utf8');
 async function setupStorageOnFirstLaunch() {
-  if (process.env.EDUPILOT_APP_DATA) return;
-  // Existing installations must never see an onboarding prompt or be moved silently.
-  const current = configuredLocation(defaultUserData);
-  const migration = path.join(defaultUserData, 'storage-migration.json');
-  if (current !== defaultUserData || fs.existsSync(migration)) {
-    if (fs.existsSync(migration)) {
-      try {
-        app.setPath('userData', completePendingMove(defaultUserData));
-      } catch (error) {
-        // A failed copy must not trap users in a repeated startup failure.
-        // Keep the current data source selected, and quarantine the pending request.
-        try { fs.renameSync(migration, migration + '.failed-' + Date.now()); } catch {}
-        await dialog.showMessageBox({
-          type: 'warning', title: 'EduPilot · 数据迁移未完成',
-          message: '已保留原来的学习数据',
-          detail: '新位置复制失败：' + error.message + '\\n本次继续使用原来的学习数据目录。请检查磁盘空间和写入权限后再试。',
-          buttons: ['继续打开 EduPilot'], noLink: true,
-        });
-        if (!fs.existsSync(current)) throw new Error('原学习数据位置不可用：' + current);
-        app.setPath('userData', current);
-      }
-    } else {
-      if (!fs.existsSync(current)) throw new Error('已选择的学习数据目录不存在：' + current);
-      app.setPath('userData', current);
-    }
-    return;
+  if (process.env.EDUPILOT_APP_DATA) return true;
+  if (storageMigrationWarning) {
+    await dialog.showMessageBox({
+      type: 'warning', title: 'EduPilot · 数据迁移未完成',
+      message: '已保留原来的学习数据',
+      detail: '新位置复制失败：' + storageMigrationWarning +
+        '\\n本次继续使用原学习数据目录。请检查磁盘空间和写入权限后再试。',
+      buttons: ['继续打开 EduPilot'], noLink: true,
+    });
   }
-  if (existingLearningData(defaultUserData)) return;
+  if (configuredLocation(defaultUserData) !== defaultUserData ||
+      existingLearningData(defaultUserData)) return true;
   const choice = await dialog.showMessageBox({
     type: 'info', title: 'EduPilot · 首次使用',
     message: '欢迎使用 EduPilot',
     detail: '课程、学习进度及设置默认保存在系统用户数据目录。你也可以将这些学习资料放在其他本地磁盘。安装目录与学习数据目录是独立的。',
     buttons: ['使用默认位置', '选择学习数据位置'], defaultId: 0, cancelId: 0, noLink: true,
   });
-  if (choice.response !== 1) return;
-  const selected = await dialog.showOpenDialog({ title: '选择存放学习数据的文件夹', properties: ['openDirectory', 'createDirectory'] });
-  if (selected.canceled || !selected.filePaths[0]) return;
+  if (choice.response !== 1) return true;
+  const selected = await dialog.showOpenDialog({
+    title: '选择存放学习数据的文件夹',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (selected.canceled || !selected.filePaths[0]) return true;
   try {
     const destination = proposedLocation(defaultUserData, defaultUserData, selected.filePaths[0]);
     fs.mkdirSync(destination, { recursive: true });
     writeConfig(defaultUserData, destination);
-    app.setPath('userData', destination);
+    // Restart once so app.setPath(userData) happens before the browser session
+    // starts. A path change after ready could split Chromium state from course data.
+    app.relaunch();
+    app.quit();
+    return false;
   } catch (error) {
     dialog.showErrorBox('学习数据位置未更改', error.message + '\\n将继续使用默认位置。');
+    return true;
   }
 }
-
 async function chooseNewStorageLocation() {
   const current = app.getPath('userData');
   const confirmation = await dialog.showMessageBox(mainWindow, {
@@ -258,7 +266,7 @@ else {
     service?.stop().finally(() => { tray?.destroy(); app.quit(); });
     if (!service) app.quit();
   });
-  app.whenReady().then(async () => { await setupStorageOnFirstLaunch(); await start(); }).catch(error => {
+  app.whenReady().then(async () => { if (await setupStorageOnFirstLaunch()) await start(); }).catch(error => {
     dialog.showErrorBox('EduPilot 无法启动', error.message);
     app.quit();
   });
