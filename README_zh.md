@@ -109,6 +109,7 @@ npm start
 
 - [学习指南](docs/学生端说明书.md)：功能入口、练习、图谱与日常使用。
 - [桌面指南](docs/桌面启动与退出说明.md)：安装、启动退出、数据备份与升级。
+- [下载与存储指引](docs/安装与数据位置指南.md)：选择安装包、程序安装位置、学习数据位置与迁移注意事项。
 - [v2.1.0 更新说明](docs/releases/v2.1.0.md)。
 - [GitHub Issues](https://github.com/2092372408-pixel/EduPilot/issues)：反馈问题与建议。
 - [贡献指南](CONTRIBUTING.md)：开发环境、协作流程与 PR 说明。
