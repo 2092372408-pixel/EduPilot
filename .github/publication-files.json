@@ -57,7 +57,11 @@
     "SUPPORT.md",
     "CODE_OF_CONDUCT.md",
     "SECURITY.md",
-    ".github/PULL_REQUEST_TEMPLATE.md"
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    "docs/安装与数据位置指南.md",
+    "desktop/app/storage-location.cjs",
+    "desktop/app/window-frame.css",
+    "tools/check-storage-location.cjs"
   ],
   "historicalPolicyCommits": [
     "543d93b14f790febfeaf045be963153ce7d42e6c"
