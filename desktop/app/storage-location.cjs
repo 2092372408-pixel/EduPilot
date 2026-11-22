@@ -127,5 +127,5 @@ function completePendingMove(defaultDirectory) {
 
 module.exports = {
   configuredLocation, existingLearningData, proposedLocation,
-  queueLocationMove, completePendingMove,
+  queueLocationMove, completePendingMove, writeConfig,
 };
