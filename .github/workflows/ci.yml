@@ -17,6 +17,8 @@ jobs:
           node-version: 22
       - name: Check publication boundary
         run: npm run check:publication
+      - name: Check data location selection and migration
+        run: node tools/check-storage-location.cjs
       - name: Build Docker image
         uses: docker/build-push-action@v6
         env:
