@@ -31,12 +31,28 @@ async function setupStorageOnFirstLaunch() {
   if (process.env.EDUPILOT_APP_DATA) return;
   // Existing installations must never see an onboarding prompt or be moved silently.
   const current = configuredLocation(defaultUserData);
-  if (current !== defaultUserData) {
-    app.setPath('userData', completePendingMove(defaultUserData));
-    return;
-  }
-  if (fs.existsSync(path.join(defaultUserData, 'storage-migration.json'))) {
-    app.setPath('userData', completePendingMove(defaultUserData));
+  const migration = path.join(defaultUserData, 'storage-migration.json');
+  if (current !== defaultUserData || fs.existsSync(migration)) {
+    if (fs.existsSync(migration)) {
+      try {
+        app.setPath('userData', completePendingMove(defaultUserData));
+      } catch (error) {
+        // A failed copy must not trap users in a repeated startup failure.
+        // Keep the current data source selected, and quarantine the pending request.
+        try { fs.renameSync(migration, migration + '.failed-' + Date.now()); } catch {}
+        await dialog.showMessageBox({
+          type: 'warning', title: 'EduPilot · 数据迁移未完成',
+          message: '已保留原来的学习数据',
+          detail: '新位置复制失败：' + error.message + '\\n本次继续使用原来的学习数据目录。请检查磁盘空间和写入权限后再试。',
+          buttons: ['继续打开 EduPilot'], noLink: true,
+        });
+        if (!fs.existsSync(current)) throw new Error('原学习数据位置不可用：' + current);
+        app.setPath('userData', current);
+      }
+    } else {
+      if (!fs.existsSync(current)) throw new Error('已选择的学习数据目录不存在：' + current);
+      app.setPath('userData', current);
+    }
     return;
   }
   if (existingLearningData(defaultUserData)) return;
