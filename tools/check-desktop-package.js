@@ -312,3 +312,5 @@ async function nativeCheck() {
     if (portOwner) await new Promise(resolve => portOwner.close(resolve));
   }
 }
+
+// Temporary CI capture run: verify real packaged EduPilot UI screenshots; do not merge this QA-only marker.
