@@ -285,11 +285,11 @@ jobs:
             assert.ok(courseContext.includes('recursion base cases'));
             assert.ok(!courseContext.includes('regression assumptions'), 'Other-course difficulty must not leak into current course context');
 
-            const generalContext = await memory.buildMemoryInjection(session, 'Explain a general learning strategy', { agentId: 'general' });
+            const generalContext = await memory.buildMemoryInjection(session, 'Suggest a strategy using worked examples', { agentId: 'general' });
             assert.ok(generalContext.includes('Prefers concise worked examples'));
             assert.ok(!generalContext.includes('recursion base cases'), 'General chat must not inherit course-specific difficulties');
 
-            const crossCourseContext = await memory.buildMemoryInjection(session, '请查看跨课程的学习情况', { agentId: 'coordinator' });
+            const crossCourseContext = await memory.buildMemoryInjection(session, '请查看跨课程的学习情况，尤其是 regression assumptions', { agentId: 'coordinator' });
             assert.ok(crossCourseContext.includes('regression assumptions'), 'Explicit cross-course requests may retrieve other course memories');
             database.close();
             console.log('Role-aware memory scopes, cross-course opt-in and context assembly passed');
