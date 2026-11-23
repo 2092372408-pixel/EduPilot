@@ -282,6 +282,7 @@ jobs:
             };
             // Mirror the production path: explicit profile facts are promoted into the Core learner block.
             memory.refreshStudentNote(session);
+            require('./server/agent/memory-wiki').sync(current);
             const courseContext = await memory.buildMemoryInjection(session, 'How do I understand recursion?', { agentId: 'learn' });
             assert.ok(courseContext.includes('Prefers concise worked examples'));
             assert.ok(courseContext.includes('recursion base cases'));
