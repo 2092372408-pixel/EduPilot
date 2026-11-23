@@ -5,20 +5,121 @@ const net = require('node:net');
 const { randomUUID } = require('node:crypto');
 const { pathToFileURL } = require('node:url');
 const { prepareWorkspace } = require('./workspace.cjs');
+const {
+  configuredLocation, existingLearningData, proposedLocation,
+  queueLocationMove, completePendingMove, writeConfig,
+} = require('./storage-location.cjs');
 const { Service } = require('./service.cjs');
 
-if (process.env.EDUPILOT_APP_DATA) app.setPath('userData', path.resolve(process.env.EDUPILOT_APP_DATA));
+// Resolve the data location BEFORE Electron creates its browser session.
+// The persistent pointer always lives in the original OS app-data directory.
+const defaultUserData = app.getPath('userData');
+let storageMigrationWarning = null;
+if (process.env.EDUPILOT_APP_DATA) {
+  app.setPath('userData', path.resolve(process.env.EDUPILOT_APP_DATA));
+} else {
+  let selected = configuredLocation(defaultUserData);
+  const pending = path.join(defaultUserData, 'storage-migration.json');
+  if (fs.existsSync(pending)) {
+    try {
+      selected = completePendingMove(defaultUserData);
+    } catch (error) {
+      storageMigrationWarning = error.message;
+      // Failed moves are never retried automatically; preserve the old pointer.
+      try { fs.renameSync(pending, pending + '.failed-' + Date.now()); } catch {}
+      selected = configuredLocation(defaultUserData);
+    }
+  }
+  if (selected !== defaultUserData) {
+    if (!fs.existsSync(selected)) throw new Error('学习数据目录不存在：' + selected);
+    app.setPath('userData', selected);
+  }
+}
 let mainWindow, tray, service, quitting = false;
 const pages = new Map();
 const statusFile = path.join(__dirname, 'status.html');
 const statusURL = pathToFileURL(statusFile).href;
 const preferences = { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true };
+const windowsTitleBar = process.platform === 'win32'
+  ? { titleBarStyle: 'hidden', titleBarOverlay: { color: '#ffffff', symbolColor: '#27392d', height: 48 } }
+  : {};
+const desktopFrameCSS = fs.readFileSync(path.join(__dirname, 'window-frame.css'), 'utf8');
+async function setupStorageOnFirstLaunch() {
+  if (process.env.EDUPILOT_APP_DATA) return true;
+  if (storageMigrationWarning) {
+    await dialog.showMessageBox({
+      type: 'warning', title: 'EduPilot · 数据迁移未完成',
+      message: '已保留原来的学习数据',
+      detail: '新位置复制失败：' + storageMigrationWarning +
+        '\\n本次继续使用原学习数据目录。请检查磁盘空间和写入权限后再试。',
+      buttons: ['继续打开 EduPilot'], noLink: true,
+    });
+  }
+  if (configuredLocation(defaultUserData) !== defaultUserData ||
+      existingLearningData(defaultUserData)) return true;
+  const choice = await dialog.showMessageBox({
+    type: 'info', title: 'EduPilot · 首次使用',
+    message: '欢迎使用 EduPilot',
+    detail: '课程、学习进度及设置默认保存在系统用户数据目录。你也可以将这些学习资料放在其他本地磁盘。安装目录与学习数据目录是独立的。',
+    buttons: ['使用默认位置', '选择学习数据位置'], defaultId: 0, cancelId: 0, noLink: true,
+  });
+  if (choice.response !== 1) return true;
+  const selected = await dialog.showOpenDialog({
+    title: '选择存放学习数据的文件夹',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (selected.canceled || !selected.filePaths[0]) return true;
+  try {
+    const destination = proposedLocation(defaultUserData, defaultUserData, selected.filePaths[0]);
+    fs.mkdirSync(destination, { recursive: true });
+    writeConfig(defaultUserData, destination);
+    // Restart once so app.setPath(userData) happens before the browser session
+    // starts. A path change after ready could split Chromium state from course data.
+    app.relaunch();
+    app.quit();
+    return false;
+  } catch (error) {
+    dialog.showErrorBox('学习数据位置未更改', error.message + '\\n将继续使用默认位置。');
+    return true;
+  }
+}
+async function chooseNewStorageLocation() {
+  const current = app.getPath('userData');
+  const confirmation = await dialog.showMessageBox(mainWindow, {
+    type: 'info', title: 'EduPilot · 学习数据位置',
+    message: '迁移学习数据',
+    detail: '更改后会完全退出 EduPilot。下次启动时将复制课程、进度和设置到新位置。原目录会保留作为备份，核对无误后可自行删除。请先完成正在进行的学习任务。',
+    buttons: ['继续选择', '取消'], defaultId: 1, cancelId: 1, noLink: true,
+  });
+  if (confirmation.response !== 0) return;
+  const choice = await dialog.showOpenDialog(mainWindow, {
+    title: '选择新的学习数据文件夹所在位置', properties: ['openDirectory', 'createDirectory'],
+  });
+  if (choice.canceled || !choice.filePaths[0]) return;
+  try {
+    const destination = proposedLocation(defaultUserData, current, choice.filePaths[0]);
+    queueLocationMove(defaultUserData, current, destination);
+    await dialog.showMessageBox(mainWindow, {
+      type: 'info', title: 'EduPilot · 已安排数据迁移',
+      message: '已保存新学习数据位置',
+      detail: 'EduPilot 将完全退出。下次打开时进行复制和校验；如果复制失败，旧数据保持原样。请勿在迁移过程中删除旧文件夹。',
+      buttons: ['退出 EduPilot'], noLink: true,
+    });
+    app.quit();
+  } catch (error) {
+    dialog.showErrorBox('无法更改学习数据目录', error.message);
+  }
+}
 const ownsURL = url => { try { return new URL(url).origin === service?.origin; } catch { return false; } };
 
 function showWindow() {
   if (mainWindow?.isDestroyed()) mainWindow = null;
   if (!mainWindow) {
-    mainWindow = new BrowserWindow({ width: 1360, height: 900, minWidth: 850, minHeight: 620, title: 'EduPilot', backgroundColor: '#f7f7f8', icon: path.join(__dirname, 'logo.png'), webPreferences: preferences });
+    mainWindow = new BrowserWindow({ width: 1360, height: 900, minWidth: 850, minHeight: 620, title: 'EduPilot', backgroundColor: '#f7f7f8', icon: path.join(__dirname, 'logo.png'), ...windowsTitleBar, webPreferences: preferences });
+    if (process.platform === 'win32') {
+      mainWindow.setAutoHideMenuBar(true);
+      mainWindow.setMenuBarVisibility(false);
+    }
     mainWindow.loadURL(service?.state.phase === 'ready' ? service.origin : statusURL);
   }
   if (mainWindow.isMinimized()) mainWindow.restore();
@@ -27,6 +128,13 @@ function showWindow() {
 
 function secureWindow(window) {
   pages.set(window, service?.origin);
+  if (process.platform === 'win32') {
+    // Renderer remains sandboxed: CSS alone creates draggable titlebar regions.
+    // Native caption buttons and Windows snap/maximize behavior stay intact.
+    window.webContents.on('did-finish-load', () => {
+      window.webContents.insertCSS(desktopFrameCSS).catch(error => console.warn('Desktop titlebar style:', error.message));
+    });
+  }
   window.on('close', event => { if (!quitting) { event.preventDefault(); window.hide(); } });
   window.on('closed', () => pages.delete(window));
   window.webContents.on('will-navigate', (event, url) => {
@@ -125,10 +233,19 @@ async function start() {
     { label: '打开 EduPilot', click: showWindow },
     { label: '重新连接', click: () => service.restart() },
     { label: '打开学习数据文件夹', click: () => shell.openPath(workspace.data) },
+    { label: '更改学习数据位置…', click: chooseNewStorageLocation },
     { type: 'separator' }, { label: '退出 EduPilot', click: () => app.quit() },
   ]));
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: 'EduPilot', submenu: [{ label: '显示工作台', click: showWindow }, { label: '重新连接', click: () => service.restart() }, { type: 'separator' }, { role: 'quit', label: '退出 EduPilot' }] },
+    { label: 'EduPilot', submenu: [
+      { label: '显示工作台', click: showWindow },
+      { label: '重新连接', click: () => service.restart() },
+      { type: 'separator' },
+      { label: '打开学习数据文件夹', click: () => shell.openPath(workspace.data) },
+      { label: '更改学习数据位置…', click: chooseNewStorageLocation },
+      { type: 'separator' },
+      { role: 'quit', label: '退出 EduPilot' },
+    ] },
     { label: '编辑', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
     { label: '视图', submenu: [{ role: 'reload' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'togglefullscreen' }] },
   ]));
@@ -149,7 +266,7 @@ else {
     service?.stop().finally(() => { tray?.destroy(); app.quit(); });
     if (!service) app.quit();
   });
-  app.whenReady().then(start).catch(error => {
+  app.whenReady().then(async () => { if (await setupStorageOnFirstLaunch()) await start(); }).catch(error => {
     dialog.showErrorBox('EduPilot 无法启动', error.message);
     app.quit();
   });

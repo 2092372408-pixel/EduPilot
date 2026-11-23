@@ -24,6 +24,8 @@ module.exports = {
     { from: '.desktop-build/python', to: 'python' },
   ],
   win: { target: ['nsis'], icon: path.resolve(__dirname, '../.desktop-build/EduPilot.ico'), artifactName: 'EduPilot-${version}-Windows-${arch}-Setup.${ext}' },
+  // Guided NSIS installer; the user can choose a program installation location.
+  // Course files are managed independently by the app's first-run selection.
   nsis: { oneClick: false, perMachine: false, allowElevation: false, allowToChangeInstallationDirectory: true, createDesktopShortcut: true, deleteAppDataOnUninstall: false },
   mac: { target: ['dmg', 'zip'], icon: path.resolve(__dirname, '../.desktop-build/EduPilot.png'), category: 'public.app-category.education', artifactName: 'EduPilot-${version}-macOS-${arch}.${ext}',
     notarize: Boolean(process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID) },

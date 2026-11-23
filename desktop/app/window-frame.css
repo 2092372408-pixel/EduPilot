@@ -1,0 +1,28 @@
+/*
+ * Desktop-only Electron CSS, injected at document load by main.cjs.
+ * No product page gets fake window controls or privileged renderer APIs.
+ * Native Windows caption buttons live in Electron's titleBarOverlay.
+ */
+:root { --edupilot-caption-area: 148px; }
+.topbar, .report-head, .up-head, .float-head {
+  -webkit-app-region: drag;
+  padding-right: max(var(--edupilot-caption-area), 22px) !important;
+  min-height: 48px;
+}
+.topbar button, .topbar a, .topbar input, .topbar select,
+.report-head button, .report-head a, .report-head input,
+.up-head button, .up-head a, .up-head input,
+.float-head button, .float-head a,
+button, input, select, textarea, a, [role="button"], [contenteditable="true"] {
+  -webkit-app-region: no-drag;
+}
+/* Pages without a persistent top bar still have a small safe drag strip. */
+body:not(:has(.topbar, .report-head, .up-head, .float-head))::before {
+  content: "";
+  -webkit-app-region: drag;
+  position: fixed;
+  inset: 0 var(--edupilot-caption-area) auto 0;
+  height: 10px;
+  z-index: 10000;
+  pointer-events: auto;
+}
