@@ -121,7 +121,7 @@ async function main() {
       promotionDecisionExample: decisions,
       passed: true,
     };
-    process.stdout.write(JSON.stringify(report, null, 2) + '\\n');
+    process.stdout.write(JSON.stringify(report, null, 2) + '\n');
   } finally {
     db.close();
     fs.rmSync(tempDir, { recursive: true, force: true });
