@@ -168,6 +168,59 @@ jobs:
           database.close();
           console.log('Learning event persistence, Dreaming queue, evidence validation and checkpoint passed');
           NODE
+      - name: Verify Memory Wiki pages, evidence links and idempotent sync
+        shell: bash
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const os = require('node:os');
+          const path = require('node:path');
+          process.env.EDUOWL_DB = path.join(os.tmpdir(), 'edupilot-memory-wiki-' + process.pid + '.db');
+          process.env.EMBED_PROVIDER = 'dashscope';
+          process.env.DASHSCOPE_API_KEY = '';
+          const store = require('./server/store/memoryStore');
+          const sessionStore = require('./server/store/sessionStore');
+          const wiki = require('./server/agent/memory-wiki');
+          const database = sessionStore.init();
+          const sessionId = 'wiki-ci@python-intro~session-a';
+          const provenance = { sessionId, turn: 1, quote: 'I prefer worked examples', messageHash: 'wiki-ci-hash' };
+          (async () => {
+            const saved = await store.ingestArchival(sessionId, [{
+              type: 'preference', text: 'Prefers worked examples', provenance,
+            }], { scopeMode: 'uid' });
+            assert.equal(saved.added, 1);
+            for (let i = 0; i < 3; i++) {
+              assert.equal(store.appendLearningEvent(
+                sessionId, i + 1, 'wiki-answer-' + i,
+                i === 1 ? 'answer_incorrect' : 'answer_correct',
+                'kp-recursion',
+                { question: 'Recursion termination ' + i, userAnswer: 'B' }
+              ), true);
+            }
+            const first = wiki.sync(sessionId);
+            assert.ok(first.pagesChanged >= 3);
+            const listing = store.listWiki(sessionId);
+            assert.ok(listing.pages.some(page => page.pageType === 'learner'));
+            assert.ok(listing.pages.some(page => page.pageType === 'course'));
+            assert.ok(listing.pages.some(page => page.pageType === 'concept' && page.entityId === 'kp-recursion'));
+            assert.equal(listing.links.length, 2);
+            const hit = store.searchWiki(sessionId, 'kp-recursion', { topK: 3 });
+            assert.ok(hit.some(page => page.pageType === 'concept'));
+            const second = wiki.sync(sessionId);
+            assert.equal(second.pagesChanged, 0, 'Unchanged Wiki content must not create a new version');
+            const concept = listing.pages.find(page => page.pageType === 'concept');
+            const conceptRow = database.prepare('SELECT version FROM memory_wiki_pages WHERE id=?').get(concept.id);
+            assert.equal(conceptRow.version, 1);
+            store.clearSession(sessionId, { strict: true });
+            const afterCourseReset = store.listWiki(sessionId);
+            assert.ok(afterCourseReset.pages.some(page => page.pageType === 'learner'));
+            assert.ok(!afterCourseReset.pages.some(page => page.pageType === 'course' || page.pageType === 'concept'));
+            store.clearUid('wiki-ci');
+            assert.equal(store.listWiki(sessionId).pages.length, 0);
+            database.close();
+            console.log('Memory Wiki page generation, evidence links, retrieval, idempotency and reset boundaries passed');
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          NODE
       - name: Verify SQLite and desktop startup
         shell: bash
         run: |
