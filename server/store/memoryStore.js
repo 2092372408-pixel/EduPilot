@@ -96,7 +96,6 @@ function init() {
         invalid_at  INTEGER
       );
       CREATE INDEX IF NOT EXISTS idx_archival_scope ON archival(scope, invalid_at);
-      CREATE INDEX IF NOT EXISTS idx_archival_supersedes ON archival(supersedes_id);
       CREATE TABLE IF NOT EXISTS memory_revisions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         memory_id TEXT NOT NULL,
@@ -123,6 +122,7 @@ function init() {
     if (!db.prepare('PRAGMA table_info(recall_messages)').all().some(column => column.name === 'sources_json')) {
       db.exec('ALTER TABLE recall_messages ADD COLUMN sources_json TEXT');
     }
+    db.exec('CREATE INDEX IF NOT EXISTS idx_archival_supersedes ON archival(supersedes_id)');
     migrateLegacy();
     ready = true;
     return db;
