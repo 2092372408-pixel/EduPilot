@@ -18,6 +18,7 @@
     "start": "node server/index.js",
     "dev": "node server/index.js",
     "check:publication": "node .github/check-publication.cjs",
+    "eval:memory": "node tools/evaluate-memory.cjs",
     "desktop:prepare": "node desktop/prepare.cjs",
     "desktop:python": "node desktop/python.cjs",
     "desktop:dev": "electron desktop/app",
