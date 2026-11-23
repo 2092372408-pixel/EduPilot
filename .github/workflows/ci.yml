@@ -280,6 +280,8 @@ jobs:
               learning: { currentKpId: null, kps: {} },
               summary: { text: 'Recently studied recursion and base cases', turn: 5 },
             };
+            // Mirror the production path: explicit profile facts are promoted into the Core learner block.
+            memory.refreshStudentNote(session);
             const courseContext = await memory.buildMemoryInjection(session, 'How do I understand recursion?', { agentId: 'learn' });
             assert.ok(courseContext.includes('Prefers concise worked examples'));
             assert.ok(courseContext.includes('recursion base cases'));
