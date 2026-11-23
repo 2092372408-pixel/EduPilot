@@ -136,7 +136,7 @@ jobs:
           const sessions = ['dream-ci@course-a~session-a', 'dream-ci@course-a~session-b'];
           for (let i = 0; i < 5; i++) {
             const sessionId = sessions[i % 2];
-            const correct = i === 3;
+            const correct = ![1, 2].includes(i);
             assert.equal(store.appendLearningEvent(
               sessionId, i + 1, 'answer-' + i,
               correct ? 'answer_correct' : 'answer_incorrect',
@@ -150,20 +150,46 @@ jobs:
           assert.equal(job.id, jobId);
           const batch = store.getDreamingBatch(job);
           assert.equal(batch.events.length, 5);
+          assert.equal(batch.contextEvents.length, 5);
+          assert.equal(validatePattern({
+            kpId: 'kp-recursion', kind: 'persistent_difficulty',
+            description: 'Only two errors in the first batch',
+            eventIds: [2, 3],
+          }, batch.contextEvents), null);
+          assert.equal(store.completeDreamingJob(job, batch, { summary: 'First batch', patterns: [] }, 0), true);
+
+          // The next batch contains three new errors, but the evidence spans both batches.
+          for (let i = 5; i < 10; i++) {
+            const sessionId = sessions[i % 2];
+            const correct = ![5, 7, 9].includes(i);
+            assert.equal(store.appendLearningEvent(
+              sessionId, i + 1, 'answer-' + i,
+              correct ? 'answer_correct' : 'answer_incorrect',
+              'kp-recursion',
+              { question: 'Recursion termination follow-up ' + i, userAnswer: 'B' }
+            ), true);
+          }
+          const nextJobId = store.enqueueDreaming(sessions[1]);
+          assert.ok(nextJobId, 'New evidence after the first checkpoint should enqueue another job');
+          const nextJob = store.claimDreamingJob();
+          assert.equal(nextJob.id, nextJobId);
+          const nextBatch = store.getDreamingBatch(nextJob);
+          assert.equal(nextBatch.events.length, 5);
+          assert.equal(nextBatch.contextEvents.length, 10);
           const candidate = validatePattern({
             kpId: 'kp-recursion', kind: 'persistent_difficulty',
             description: 'Repeated errors on recursion termination conditions',
-            eventIds: [1, 2, 3, 5],
-          }, batch.events);
-          assert.ok(candidate, 'Repeated errors across sessions should pass evidence gates');
+            eventIds: [2, 3, 6, 8, 10],
+          }, nextBatch.contextEvents);
+          assert.ok(candidate, 'Persistent difficulty must be recognized across completed batches');
           assert.equal(candidate.type, 'pain');
           assert.ok(candidate.confidence >= 0.7 && candidate.confidence <= 0.92);
           assert.equal(validatePattern({
             kpId: 'kp-recursion', kind: 'persistent_difficulty',
-            description: 'Unsupported single-session pattern', eventIds: [1, 3, 5],
-          }, batch.events), null);
-          assert.equal(store.completeDreamingJob(job, batch, { summary: 'CI reflection', patterns: [] }, 0), true);
-          assert.equal(store.dreamingStats('dream-ci').runs, 1);
+            description: 'Evidence missing prior batch', eventIds: [2, 3, 6],
+          }, nextBatch.events), null);
+          assert.equal(store.completeDreamingJob(nextJob, nextBatch, { summary: 'Cross-batch reflection', patterns: [] }, 0), true);
+          assert.equal(store.dreamingStats('dream-ci').runs, 2);
           assert.equal(store.dreamingStats('dream-ci').queued, 0);
           database.close();
           console.log('Learning event persistence, Dreaming queue, evidence validation and checkpoint passed');
