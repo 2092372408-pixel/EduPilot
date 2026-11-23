@@ -80,6 +80,33 @@ function evaluateContext(context, options = {}) {
   };
 }
 
+function evaluateEvidenceCoverage(records) {
+  const rows = Array.isArray(records) ? records : [];
+  const covered = rows.filter(record => {
+    const provenance = record && record.provenance;
+    return !!(provenance && (
+      (typeof provenance.quote === 'string' && provenance.quote.trim() && provenance.messageHash)
+      || (Array.isArray(provenance.eventIds) && provenance.eventIds.length > 0)
+      || (Array.isArray(provenance.evidence) && provenance.evidence.length > 0)
+    ));
+  }).length;
+  return {
+    total: rows.length,
+    covered,
+    coverage: rows.length ? covered / rows.length : 1,
+  };
+}
+
+function evaluateLifecycle(memory, expected = {}) {
+  const checks = {
+    statusMatches: expected.status == null || memory?.status === expected.status,
+    versionMatches: expected.version == null || Number(memory?.version) === Number(expected.version),
+    hasEvidence: expected.requireEvidence === false || evaluateEvidenceCoverage([memory]).coverage === 1,
+    supersedesMatches: expected.supersedesId == null || memory?.supersedesId === expected.supersedesId,
+  };
+  return { passed: Object.values(checks).every(Boolean), checks };
+}
+
 function aggregateRetrievalCases(cases) {
   const rows = (Array.isArray(cases) ? cases : []).filter(Boolean);
   if (!rows.length) return { cases: 0, precisionAtK: 0, recallAtK: 0, reciprocalRank: 0, ndcgAtK: 0 };
@@ -98,5 +125,7 @@ module.exports = {
   evaluateScope,
   estimateTokens,
   evaluateContext,
+  evaluateEvidenceCoverage,
+  evaluateLifecycle,
   aggregateRetrievalCases,
 };
