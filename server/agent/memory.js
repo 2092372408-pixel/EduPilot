@@ -241,6 +241,37 @@ ${JSON.stringify(events)}
 
 /* ========================= ③ Archival Memory ========================= */
 
+/** 将可信判题结果沉淀为独立事件，供跨 Session Dreaming 分析。 */
+function recordLearningEvents(session, turn) {
+  if (!ENABLED || !session || !turn) return 0;
+  const turnNo = turnCountOf(session);
+  let saved = 0;
+  for (let i = 0; i < (turn.toolCalls || []).length; i++) {
+    const call = turn.toolCalls[i];
+    if (call.name !== 'check_answer' || !call.output || typeof call.output.correct !== 'boolean' || call.output.error) continue;
+    const input = call.input || {};
+    const output = call.output;
+    const kpId = output.kpId || input.kpId || session.learning?.currentKpId || null;
+    const payload = {
+      question: String(output.question || input.question || '').slice(0, 500),
+      userAnswer: String(output.userAnswer || input.userAnswer || '').slice(0, 120),
+      quizMode: output.quizMode || null,
+      quizFinished: output.quizFinished === true,
+      quizAllCorrect: output.quizAllCorrect === true,
+      phase: output.phase || null,
+    };
+    if (store.appendLearningEvent(
+      session.id,
+      turnNo,
+      `check_answer:${i}`,
+      output.correct ? 'answer_correct' : 'answer_incorrect',
+      kpId,
+      payload
+    )) saved += 1;
+  }
+  return saved;
+}
+
 /** 每轮：从学生消息/判分结果里识别"卡点"，写入知识点记录（供 core 进度块与报告使用） */
 function recordPainPoints(session, turn, userMessage, context) {
   if (!ENABLED) return;
@@ -422,8 +453,10 @@ async function upkeep(session, turn, userMessage, context) {
   if (!ENABLED) return;
   execution.throwIfAborted();
   try {
+    recordLearningEvents(session, turn);
     recordPainPoints(session, turn, userMessage, context);
     refreshCourseProgress(session);
+    store.enqueueDreaming(session.id);
     await maybeExtractMemories(session);
     await maybeSummarize(session);
   } catch (e) {
@@ -433,7 +466,7 @@ async function upkeep(session, turn, userMessage, context) {
 }
 
 module.exports = {
-  maybeSummarize, recordPainPoints, maybeExtractMemories, buildMemoryInjection, upkeep,
+  maybeSummarize, recordPainPoints, recordLearningEvents, maybeExtractMemories, buildMemoryInjection, upkeep,
   recordMessage, refreshCourseProgress, refreshStudentNote,
   isEnabled, turnCountOf,
   // 统计/清理（报告页与后台用）
