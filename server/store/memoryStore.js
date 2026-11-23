@@ -819,11 +819,18 @@ function getDreamingBatch(job) {
     const rows = d.prepare(`SELECT id,session_id,turn,event_key,event_type,kp_id,payload_json,created_at
       FROM learning_events WHERE uid=? AND course_id=? AND id>? AND id<=? ORDER BY id`)
       .all(job.uid, job.course_id, currentCursor, job.target_event_id);
+    const historyLimit = Math.max(30, Math.min(Number(process.env.DREAMING_CONTEXT_EVENTS) || 120, 500));
+    const historyRows = d.prepare(`SELECT id,session_id,turn,event_key,event_type,kp_id,payload_json,created_at
+      FROM learning_events WHERE uid=? AND course_id=? AND id<=? ORDER BY id DESC LIMIT ?`)
+      .all(job.uid, job.course_id, job.target_event_id, historyLimit).reverse();
+    const toEvent = row => ({
+      id: row.id, sessionId: row.session_id, turn: row.turn, eventKey: row.event_key,
+      type: row.event_type, kpId: row.kp_id, payload: parseProvenance(row.payload_json) || {}, at: row.created_at,
+    });
     return {
-      events: rows.map(row => ({
-        id: row.id, sessionId: row.session_id, turn: row.turn, eventKey: row.event_key,
-        type: row.event_type, kpId: row.kp_id, payload: parseProvenance(row.payload_json) || {}, at: row.created_at,
-      })),
+      events: rows.map(toEvent),
+      // Rolling evidence window lets Dreaming recognize patterns spanning multiple completed batches.
+      contextEvents: historyRows.map(toEvent),
       lastEventId: rows.at(-1)?.id || currentCursor,
       currentCursor,
       memories: listArchival(job.scope).map(({ id, type, text, confidence, status, version }) => ({ id, type, text, confidence, status, version })),
