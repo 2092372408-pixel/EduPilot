@@ -46,6 +46,77 @@ jobs:
         run: |
           npm ci --ignore-scripts
           node -e "new (require('better-sqlite3'))(':memory:').close()"
+      - name: Verify memory evidence and revision governance
+        shell: bash
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const os = require('node:os');
+          const path = require('node:path');
+          const Database = require('better-sqlite3');
+          const dbPath = path.join(os.tmpdir(), 'edupilot-memory-governance-' + process.pid + '.db');
+          // Simulate an existing installation using the pre-governance archival schema.
+          const legacy = new Database(dbPath);
+          legacy.exec(`
+            CREATE TABLE archival (
+              id TEXT PRIMARY KEY, scope TEXT NOT NULL, type TEXT NOT NULL, text TEXT NOT NULL,
+              vec TEXT, importance REAL NOT NULL DEFAULT 0.5, hits INTEGER NOT NULL DEFAULT 0,
+              source TEXT, provenance TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+              invalid_at INTEGER
+            );
+          `);
+          legacy.close();
+          process.env.EDUOWL_DB = dbPath;
+          process.env.EMBED_PROVIDER = 'dashscope';
+          process.env.DASHSCOPE_API_KEY = '';
+          const store = require('./server/store/memoryStore');
+          const sessionStore = require('./server/store/sessionStore');
+          const database = sessionStore.init();
+          assert.ok(store.listArchival('migration-user', true));
+          const columns = new Set(database.prepare('PRAGMA table_info(archival)').all().map(row => row.name));
+          for (const name of ['confidence', 'status', 'version', 'supersedes_id', 'last_verified_at', 'last_hit_at']) {
+            assert.ok(columns.has(name), 'Missing migrated archival column: ' + name);
+          }
+          (async () => {
+            const sessionId = 'ci-memory-user@course-a';
+            const provenance = { sessionId, turn: 1, quote: 'I prefer worked examples', messageHash: 'ci-evidence-hash' };
+            const first = await store.ingestArchival(sessionId, [{
+              type: 'preference', text: 'Prefers worked examples', provenance,
+            }], { scopeMode: 'uid' });
+            assert.equal(first.added, 1);
+            let active = store.listArchival('ci-memory-user');
+            assert.equal(active.length, 1);
+            const original = active[0];
+            assert.equal(original.confidence, 0.82);
+            assert.equal(original.status, 'active');
+            assert.equal(original.version, 1);
+            assert.equal(store.verifyArchival(original.id, 'ci-memory-user'), true);
+            assert.equal(store.listArchival('ci-memory-user')[0].status, 'verified');
+            assert.ok(store.memoryHistory(original.id).some(item => item.action === 'verified'));
+
+            const updater = { callApi: async () => JSON.stringify({ action: 'UPDATE', targetIndex: 1, importance: 0.9 }) };
+            const updated = await store.ingestArchival(sessionId, [{
+              type: 'preference', text: 'Prefers concise worked examples',
+              provenance: { ...provenance, turn: 2, quote: 'I prefer concise worked examples' },
+            }], { scopeMode: 'uid', llm: updater });
+            assert.equal(updated.updated, 1);
+            active = store.listArchival('ci-memory-user');
+            assert.equal(active.length, 1);
+            assert.equal(active[0].version, 2);
+            assert.equal(active[0].supersedesId, original.id);
+            assert.ok(store.memoryHistory(original.id).some(item => item.action === 'superseded'));
+
+            const deleter = { callApi: async () => JSON.stringify({ action: 'DELETE', targetIndex: 1 }) };
+            const deleted = await store.ingestArchival(sessionId, [{
+              type: 'preference', text: 'No longer prefers concise worked examples',
+              provenance: { ...provenance, turn: 3, quote: 'No longer prefer concise worked examples' },
+            }], { scopeMode: 'uid', llm: deleter });
+            assert.equal(deleted.invalidated, 1);
+            assert.equal(store.listArchival('ci-memory-user').length, 0, 'DELETE must not insert replacement memory');
+            database.close();
+            console.log('Memory schema migration, evidence confidence, explicit verification, versioning and DELETE semantics passed');
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          NODE
       - name: Check publication boundary
         run: npm run check:publication
       - name: Verify SQLite and desktop startup

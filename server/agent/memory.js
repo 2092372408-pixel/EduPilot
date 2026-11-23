@@ -407,7 +407,10 @@ async function buildMemoryInjection(session, userMessage) {
   // ③ Archival：与当前问题相关的事实
   const facts = await store.searchArchival(session.id, userMessage);
   if (facts.length) {
-    parts.push(`【相关记忆（同一学生的跨课程长期事实）】${facts.map((f) => `[${f.type}；来源课程：${f.sourceCourseId || '未记录'}] ${f.text}`).join('；')}`);
+    parts.push(`【相关记忆（同一学生的跨课程长期事实）】${facts.map((f) => {
+      const verification = f.status === 'verified' ? '用户已确认来源内容' : '来源证据待进一步确认';
+      return `[${f.type}；${verification}；证据置信度：${Number(f.confidence || 0.65).toFixed(2)}；版本：${f.version || 1}；来源课程：${f.sourceCourseId || '未记录'}] ${f.text}`;
+    }).join('；')}`);
   }
 
   if (!parts.length) return null;
