@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const agent = require('./agent/core');
+const dreaming = require('./agent/dreaming');
 const llm = require('./agent/llm');
 const llmConfig = require('./agent/llmconfig'); // LLM 接入配置（平台预设/模型发现/热写入）
 const webConfig = require('./agent/webconfig'); // 当前模型的原生联网能力
@@ -1027,6 +1028,7 @@ function stopDesktop() {
     clearTimeout(deadline);
     require('./kb/embed').closeLocal();
     const forceExit = setTimeout(() => process.exit(0), 5000);
+    await dreaming.stop();
     await mcp.stop();
     sessionStore.getDb().close();
     clearTimeout(forceExit);
@@ -1043,6 +1045,7 @@ if (process.send) {
 }
 
 server.listen(PORT, HOST, () => {
+  dreaming.start();
   console.log('==============================================');
   console.log('  EduPilot 学习向导 · 教育智能体 已启动');
   console.log(`  访问地址: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
