@@ -16,15 +16,15 @@ EduPilot 把 **教材、练习和学习进度** 放在同一个 AI 工作台：�
 
 <a id="download"></a>
 
-## 下载 v2.1.0
+## 下载 v2.2.0
 
 | 平台 | 安装包 |
 | --- | --- |
-| Windows x64 | [下载 Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-Windows-x64-Setup.exe) |
-| macOS · Apple Silicon（M 系列） | [下载 Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-macOS-arm64.dmg) |
-| macOS · Intel | [下载 Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.1.0/EduPilot-2.1.0-macOS-x64.dmg) |
+| Windows x64 | [下载 Setup.exe](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.2.0/EduPilot-2.2.0-Windows-x64-Setup.exe) |
+| macOS · Apple Silicon（M 系列） | [下载 Apple Silicon DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.2.0/EduPilot-2.2.0-macOS-arm64.dmg) |
+| macOS · Intel | [下载 Intel DMG](https://github.com/2092372408-pixel/EduPilot/releases/download/v2.2.0/EduPilot-2.2.0-macOS-x64.dmg) |
 
-安装包自带应用运行环境、Python 和文档解析依赖。安装与升级说明见 [桌面指南](docs/桌面启动与退出说明.md)，更多下载见 [Release 页面](https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.1.0)。
+安装包自带应用运行环境、Python 和文档解析依赖。安装与升级说明见 [桌面指南](docs/桌面启动与退出说明.md)，更多下载见 [Release 页面](https://github.com/2092372408-pixel/EduPilot/releases/tag/v2.2.0)。
 
 <a id="features"></a>
 
@@ -110,7 +110,7 @@ npm start
 - [学习指南](docs/学生端说明书.md)：功能入口、练习、图谱与日常使用。
 - [桌面指南](docs/桌面启动与退出说明.md)：安装、启动退出、数据备份与升级。
 - [下载与存储指引](docs/安装与数据位置指南.md)：选择安装包、程序安装位置、学习数据位置与迁移注意事项。
-- [v2.1.0 更新说明](docs/releases/v2.1.0.md)。
+- [v2.2.0 更新说明](docs/releases/v2.2.0.md)。
 - [GitHub Issues](https://github.com/2092372408-pixel/EduPilot/issues)：反馈问题与建议。
 - [贡献指南](CONTRIBUTING.md)：开发环境、协作流程与 PR 说明。
 - [开发路线图](ROADMAP.md)：了解当前方向并参与功能讨论。
