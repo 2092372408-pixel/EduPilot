@@ -317,8 +317,8 @@ function boundedMessage(value, limit = 1200) {
 /** 摘要辅助调用只发送必要文本，并遮蔽常见凭据格式。 */
 function redactSensitiveText(value) {
   return String(value || '')
-    .replace(/((?:api[ _-]?key|password|passwd|密钥|密码|access[ _-]?token|secret[ _-]?key)\\s*[:=]\\s*)[^\\s,;]+/gi, '$1[REDACTED]')
-    .replace(/\\bsk-[\\w-]{12,}\\b/g, '[REDACTED]');
+    .replace(/((?:api[ _-]?key|password|passwd|密钥|密码|access[ _-]?token|secret[ _-]?key)\s*[:=]\s*)[^\s,;]+/gi, '$1[REDACTED]')
+    .replace(/\bsk-[\w-]{12,}\b/g, '[REDACTED]');
 }
 
 /**
