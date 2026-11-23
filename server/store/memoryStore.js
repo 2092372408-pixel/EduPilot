@@ -708,7 +708,9 @@ function searchWiki(sessionId, query, opts = {}) {
     if (!q || q.length < RECALL_MIN_CHARS) {
       picked = rows.filter(row => row.scope === uid || row.scope === courseScope).slice(0, topK);
     } else {
-      const ranked = bm25Rank(rows.map(row => ({ content: row.title + ' ' + row.summary + ' ' + row.entity_id })), q);
+      const ranked = bm25Rank(rows.map(row => ({
+        content: row.title + ' ' + row.summary + ' ' + row.entity_id + ' ' + JSON.stringify(parseProvenance(row.sections_json) || {}).slice(0, 8000),
+      })), q);
       picked = ranked.slice(0, topK).map(index => rows[index]);
     }
     return picked.map(row => ({
