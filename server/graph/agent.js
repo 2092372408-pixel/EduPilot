@@ -515,7 +515,7 @@ async function run(opts, cbs = {}) {
   });
   // 记忆注入（会话回顾 / 历史卡点 / 语义记忆），贴近用户消息
   if (memoryEngine.isEnabled()) try {
-    const memInject = await memoryEngine.buildMemoryInjection(session, userMessage);
+    const memInject = await memoryEngine.buildMemoryInjection(session, userMessage, { agentId: agent.id });
     if (memInject) messages.push({ role: 'system', content: memInject });
   } catch (e) {
     console.warn('[memory] 记忆注入失败:', e.message);
