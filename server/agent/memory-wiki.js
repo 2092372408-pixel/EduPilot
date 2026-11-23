@@ -75,15 +75,16 @@ function sync(sessionId) {
     const incorrect = courseEvents.filter(event => event.type === 'answer_incorrect').length;
     const correct = courseEvents.filter(event => event.type === 'answer_correct').length;
     const coursePageId = `wiki:${uid}:course:${cid}`;
+    const recentReflections = runs.map(run => ({
+      fromEventId: run.fromEventId,
+      toEventId: run.toEventId,
+      summary: String(run.reflection.summary || '').slice(0, 400),
+      patterns: Array.isArray(run.reflection.patterns) ? run.reflection.patterns.slice(0, 6) : [],
+      at: run.at,
+    }));
     const courseSections = {
       memories: courseFacts.map(memoryView),
-      recentReflections: runs.map(run => ({
-        fromEventId: run.fromEventId,
-        toEventId: run.toEventId,
-        summary: String(run.reflection.summary || '').slice(0, 400),
-        patterns: Array.isArray(run.reflection.patterns) ? run.reflection.patterns.slice(0, 6) : [],
-        at: run.at,
-      })),
+      recentReflections,
       activity: {
         verifiedAnswerEvents: courseEvents.length,
         correct,
@@ -91,11 +92,15 @@ function sync(sessionId) {
         knowledgePointCount: new Set(courseEvents.map(event => event.kpId).filter(Boolean)).size,
       },
     };
+    const highlights = [
+      ...courseFacts.slice(0, 3).map(memory => memory.text),
+      ...recentReflections.flatMap(run => run.patterns.map(pattern => pattern.description)).slice(0, 3),
+    ].filter(Boolean).join('；').slice(0, 500);
     const courseResult = store.upsertWikiPage({
       id: coursePageId, uid, scope, courseId: cid, pageType: 'course',
       entityId: cid,
       title: `Course · ${cid}`,
-      summary: `Course memory index: ${courseEvents.length} verified answer events, ${courseFacts.length} active memories, ${runs.length} recent reflections.`,
+      summary: `Course memory index: ${courseEvents.length} verified answer events, ${courseFacts.length} active memories, ${runs.length} recent reflections.${highlights ? ' Key learning context: ' + highlights : ''}`.slice(0, 900),
       sections: courseSections,
       sourceMemoryIds: courseFacts.map(memory => memory.id),
       sourceEventIds: courseEvents.map(event => event.id),
@@ -134,7 +139,7 @@ function sync(sessionId) {
         id: conceptPageId, uid, scope, courseId: cid, pageType: 'concept',
         entityId: kpId,
         title: conceptTitle(cid, kpId),
-        summary: `Verified practice history: ${conceptCorrect} correct and ${conceptIncorrect} incorrect answers across ${new Set(conceptEvents.map(event => event.sessionId)).size} sessions.`,
+        summary: `Verified practice history: ${conceptCorrect} correct and ${conceptIncorrect} incorrect answers across ${new Set(conceptEvents.map(event => event.sessionId)).size} sessions.${conceptMemories.length ? ' Related learning pattern: ' + conceptMemories.slice(0, 2).map(memory => memory.text).join('；') : ''}`.slice(0, 900),
         sections: {
           evidence: { correct: conceptCorrect, incorrect: conceptIncorrect, total: conceptEvents.length },
           recentEvents,

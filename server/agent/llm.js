@@ -529,7 +529,7 @@ async function buildReactMessages(turn) {
   // 修复：此前记忆只在 LangGraph 引擎注入，切到 legacy 后记忆会静默失效。
   if (memoryEngine.isEnabled()) {
     try {
-      const memInject = await memoryEngine.buildMemoryInjection(ctx, userMessage);
+      const memInject = await memoryEngine.buildMemoryInjection(ctx, userMessage, { agentId });
       if (memInject) messages.push({ role: 'system', content: memInject });
     } catch (e) {
       console.warn('[memory] 注入失败（已忽略）:', e.message);

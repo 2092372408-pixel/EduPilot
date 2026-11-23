@@ -698,15 +698,19 @@ function searchWiki(sessionId, query, opts = {}) {
   const { uid, courseScope } = scopeOf(sessionId);
   const topK = Math.max(1, Math.min(Number(opts.topK) || 3, 8));
   try {
-    const rows = d.prepare('SELECT * FROM memory_wiki_pages WHERE uid=? AND (scope=? OR scope=? OR page_type=?) ORDER BY updated_at DESC')
-      .all(uid, uid, courseScope, 'learner');
+    const rows = opts.includeOtherCourses
+      ? d.prepare("SELECT * FROM memory_wiki_pages WHERE uid=? ORDER BY updated_at DESC").all(uid)
+      : d.prepare('SELECT * FROM memory_wiki_pages WHERE uid=? AND (scope=? OR scope=? OR page_type=?) ORDER BY updated_at DESC')
+        .all(uid, uid, courseScope, 'learner');
     if (!rows.length) return [];
     const q = String(query || '').trim();
     let picked;
     if (!q || q.length < RECALL_MIN_CHARS) {
       picked = rows.filter(row => row.scope === uid || row.scope === courseScope).slice(0, topK);
     } else {
-      const ranked = bm25Rank(rows.map(row => ({ content: row.title + ' ' + row.summary + ' ' + row.entity_id })), q);
+      const ranked = bm25Rank(rows.map(row => ({
+        content: row.title + ' ' + row.summary + ' ' + row.entity_id + ' ' + JSON.stringify(parseProvenance(row.sections_json) || {}).slice(0, 8000),
+      })), q);
       picked = ranked.slice(0, topK).map(index => rows[index]);
     }
     return picked.map(row => ({
@@ -819,11 +823,18 @@ function getDreamingBatch(job) {
     const rows = d.prepare(`SELECT id,session_id,turn,event_key,event_type,kp_id,payload_json,created_at
       FROM learning_events WHERE uid=? AND course_id=? AND id>? AND id<=? ORDER BY id`)
       .all(job.uid, job.course_id, currentCursor, job.target_event_id);
+    const historyLimit = Math.max(10, Math.min(Number(process.env.DREAMING_CONTEXT_EVENTS) || 40, 160));
+    const historyRows = d.prepare(`SELECT id,session_id,turn,event_key,event_type,kp_id,payload_json,created_at
+      FROM learning_events WHERE uid=? AND course_id=? AND id<=? ORDER BY id DESC LIMIT ?`)
+      .all(job.uid, job.course_id, job.target_event_id, historyLimit).reverse();
+    const toEvent = row => ({
+      id: row.id, sessionId: row.session_id, turn: row.turn, eventKey: row.event_key,
+      type: row.event_type, kpId: row.kp_id, payload: parseProvenance(row.payload_json) || {}, at: row.created_at,
+    });
     return {
-      events: rows.map(row => ({
-        id: row.id, sessionId: row.session_id, turn: row.turn, eventKey: row.event_key,
-        type: row.event_type, kpId: row.kp_id, payload: parseProvenance(row.payload_json) || {}, at: row.created_at,
-      })),
+      events: rows.map(toEvent),
+      // Rolling evidence window lets Dreaming recognize patterns spanning multiple completed batches.
+      contextEvents: historyRows.map(toEvent),
       lastEventId: rows.at(-1)?.id || currentCursor,
       currentCursor,
       memories: listArchival(job.scope).map(({ id, type, text, confidence, status, version }) => ({ id, type, text, confidence, status, version })),
@@ -1036,40 +1047,74 @@ async function searchArchival(sessionId, query, opts = {}) {
   const d = init();
   if (!d) return [];
   const topK = Math.max(1, Math.min(Number(opts.topK) || ARCHIVAL_TOP, 10));
-  const rows = listUserArchival(sessionId).map((m) => ({ ...m, scope: m.storageScope.includes('@') ? 'course' : 'uid' }));
-  if (!rows.length) return [];
-  const q = String(query || '').trim();
-  if (!q || q.length < RECALL_MIN_CHARS) {
-    return rows.sort((a, b) => b.importance - a.importance || b.at - a.at).slice(0, topK);
+  const { uid, courseId, courseScope } = scopeOf(sessionId);
+  const includeOtherCourses = opts.includeOtherCourses === true;
+  // Default retrieval is course-safe: global learner facts + this course only.
+  // Other-course memories are included only for explicit cross-course queries.
+  let rows = listUserArchival(sessionId);
+  if (opts.globalOnly) {
+    rows = rows.filter(memory => memory.storageScope === uid);
+  } else if (courseId && !includeOtherCourses) {
+    rows = rows.filter(memory => memory.storageScope === uid || memory.storageScope === courseScope);
   }
-  const bm = bm25Rank(rows.map((r) => ({ content: r.text })), q);
-  let vecRank = [];
-  let timer;
-  try {
-    // Optional semantic recall must not hold up the first response while the shared model warms.
-    const vectors = rows.some((r) => r.vec) ? await Promise.race([
-      embedTexts([q.slice(0, 200)]),
-      new Promise((resolve) => { timer = setTimeout(() => resolve(null), 300); }),
-    ]) : null;
-    const qv = vectors && vectors[0];
-    if (qv) {
-      vecRank = rows.map((r, i) => ({ i, sim: r.vec ? cosine(qv, r.vec) : 0 }))
-        .filter((x) => x.sim > RETRIEVAL_MIN_SIM)
-        .sort((a, b) => b.sim - a.sim)
-        .map((x) => x.i);
-    }
-  } catch (_) { /* 退化 BM25 */ }
-  finally { clearTimeout(timer); }
-  const order = vecRank.length ? rrf([bm, vecRank], topK) : bm.slice(0, topK);
-  const picked = order.map((i) => rows[i]).filter(Boolean);
-  // 命中计数（用于淘汰与调优）
+  rows = rows
+    .filter(memory => memory.status !== 'archived')
+    .map(memory => ({ ...memory, scope: memory.storageScope === uid ? 'uid' : 'course' }));
+  if (!rows.length) return [];
+
+  const q = String(query || '').trim();
+  let order = [];
+  if (!q || q.length < RECALL_MIN_CHARS) {
+    order = rows
+      .map((memory, index) => ({ index, score: Number(memory.importance) || 0.5 }))
+      .sort((a, b) => b.score - a.score || (rows[b.index].at || 0) - (rows[a.index].at || 0))
+      .map(item => item.index);
+  } else {
+    const bm = bm25Rank(rows.map(memory => ({ content: memory.text })), q);
+    let vecRank = [];
+    let timer;
+    try {
+      // Optional semantic recall must not hold up the first response while the shared model warms.
+      const vectors = rows.some(memory => memory.vec) ? await Promise.race([
+        embedTexts([q.slice(0, 200)]),
+        new Promise(resolve => { timer = setTimeout(() => resolve(null), 300); }),
+      ]) : null;
+      const qv = vectors && vectors[0];
+      if (qv) {
+        vecRank = rows.map((memory, index) => ({ index, sim: memory.vec ? cosine(qv, memory.vec) : 0 }))
+          .filter(item => item.sim > RETRIEVAL_MIN_SIM)
+          .sort((a, b) => b.sim - a.sim)
+          .map(item => item.index);
+      }
+    } catch (_) { /* 退化 BM25 */ }
+    finally { clearTimeout(timer); }
+    order = vecRank.length ? rrf([bm, vecRank], rows.length) : bm;
+  }
+
+  // Blend query rank with provenance confidence and scope relevance.
+  const ranked = order.map((index, rank) => {
+    const memory = rows[index];
+    const ageDays = Math.max(0, (now() - Number(memory.at || now())) / 86400000);
+    const recency = Math.exp(-ageDays / 180);
+    const scopeBoost = memory.storageScope === courseScope && courseId ? 0.12
+      : memory.storageScope === uid ? 0.06 : 0;
+    const statusBoost = memory.status === 'verified' ? 0.12 : 0;
+    const quality = 0.10 * Math.max(0, Math.min(1, Number(memory.confidence) || 0))
+      + 0.06 * Math.max(0, Math.min(1, Number(memory.importance) || 0.5))
+      + 0.03 * recency + scopeBoost + statusBoost;
+    return { memory, score: 1 / (rank + 1) + quality };
+  }).sort((a, b) => b.score - a.score).slice(0, topK);
+
+  const picked = ranked.map(item => item.memory);
   try {
     const bump = d.prepare('UPDATE archival SET hits=hits+1, last_hit_at=? WHERE id=?');
-    for (const p of picked) bump.run(now(), p.id);
+    for (const memory of picked) bump.run(now(), memory.id);
   } catch (_) { /* ignore */ }
-  return picked.map((m) => ({ type: m.type, text: m.text, scope: m.scope, importance: m.importance,
-    confidence: m.confidence, status: m.status, version: m.version,
-    sourceCourseId: m.sourceCourseId, sourceSessionId: m.sourceSessionId }));
+  return picked.map(memory => ({
+    type: memory.type, text: memory.text, scope: memory.scope, importance: memory.importance,
+    confidence: memory.confidence, status: memory.status, version: memory.version,
+    sourceCourseId: memory.sourceCourseId, sourceSessionId: memory.sourceSessionId,
+  }));
 }
 
 /* --------------------------------- 概览 --------------------------------- */
