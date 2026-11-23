@@ -326,6 +326,11 @@ jobs:
               provenance: { sessionId: 'memory-eval-ci@ml-course~session-b', turn: 1, quote: 'I repeatedly confuse regression assumptions' },
             }]);
 
+            const stats = store.stats('memory-eval-ci');
+            assert.ok(stats.archivalQuality.averageConfidence > 0);
+            assert.ok(stats.memoryRevisions >= 2);
+            assert.equal(stats.archivalQuality.byStatus.active, 2);
+
             const currentResults = await store.searchArchival(sessionId, 'recursion base cases', { topK: 5 });
             const currentScore = metrics.evaluateRetrieval(currentResults, [currentText], 5);
             assert.equal(currentScore.recallAtK, 1);
