@@ -476,7 +476,7 @@ async function buildMemoryInjection(session, userMessage, options = {}) {
   appendWithinMemoryBudget(parts, coreBlocks.filter(Boolean).join('\n'), budget);
 
   // Session summary is a navigation aid, never authority for mastery or scores.
-  if (session.summary?.text) {
+  if (!isGeneral && session.summary?.text) {
     const structured = session.summary.structured || {};
     const details = [
       structured.topicsCovered?.length ? `涉及：${structured.topicsCovered.join('、')}` : '',
