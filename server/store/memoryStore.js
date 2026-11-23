@@ -757,7 +757,12 @@ async function ingestArchival(sessionId, facts, opts = {}) {
   const scope = opts.scopeMode === 'uid' ? uid : courseScope;
 
   const items = facts
-    .map((f) => ({ type: TYPES.has(f && f.type) ? f.type : 'fact', text: String((f && f.text) || '').trim().slice(0, 200), provenance: f && f.provenance || null }))
+    .map((f) => ({
+      type: TYPES.has(f && f.type) ? f.type : 'fact',
+      text: String((f && f.text) || '').trim().slice(0, 200),
+      provenance: f && f.provenance || null,
+      confidence: Number.isFinite(f && f.confidence) ? Math.max(0, Math.min(1, f.confidence)) : null,
+    }))
     .filter((x) => x.text);
   if (!items.length) return result;
 
@@ -766,7 +771,7 @@ async function ingestArchival(sessionId, facts, opts = {}) {
 
   for (let i = 0; i < items.length; i++) {
     execution.throwIfAborted();
-    const { type, text, provenance } = items[i];
+    const { type, text, provenance, confidence } = items[i];
     const vec = vecs ? vecs[i] : null;
 
     const existing = listUserArchival(sessionId).filter((m) => m.type === type);
@@ -795,7 +800,7 @@ async function ingestArchival(sessionId, facts, opts = {}) {
         d.transaction(() => {
           if (decision.action === 'UPDATE') {
             const rec = insertArchival(scope, type, text, vec, decision.importance, sessionId, provenance, {
-              confidence: provenance?.quote && provenance?.messageHash ? 0.82 : 0.65,
+              confidence: confidence ?? (provenance?.quote && provenance?.messageHash ? 0.82 : 0.65),
               version: target.version + 1,
               supersedesId: target.id,
             });
@@ -817,7 +822,7 @@ async function ingestArchival(sessionId, facts, opts = {}) {
         continue;
       }
     }
-    const rec = insertArchival(scope, type, text, vec, null, sessionId, provenance);
+    const rec = insertArchival(scope, type, text, vec, null, sessionId, provenance, { confidence });
     if (rec) {
       result.added += 1;
     }
