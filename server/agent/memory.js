@@ -468,7 +468,7 @@ async function upkeep(session, turn, userMessage, context) {
     store.enqueueDreaming(session.id);
     await maybeExtractMemories(session);
     await maybeSummarize(session);
-    if (newLearningEvents > 0 || turnCountOf(session) % 5 === 0) memoryWiki.sync(session.id);
+    if (newLearningEvents > 0 || turnCountOf(session) % 3 === 0) memoryWiki.sync(session.id);
   } catch (e) {
     execution.throwIfAborted();
     console.warn('[memory] 维护失败:', e.message);
