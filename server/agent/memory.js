@@ -513,6 +513,7 @@ async function buildMemoryInjection(session, userMessage, options = {}) {
     const facts = await store.searchArchival(session.id, retrievalQuery, {
       topK: agentId === 'review' ? 5 : (isGeneral ? 2 : 4),
       includeOtherCourses: crossCourse,
+      globalOnly: isGeneral && !crossCourse,
     });
     if (facts.length) {
       appendWithinMemoryBudget(parts,
