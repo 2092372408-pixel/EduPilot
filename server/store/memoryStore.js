@@ -22,6 +22,7 @@
  */
 
 const { embedTexts, cosine } = require('../kb/embed');
+const { createHash } = require('node:crypto');
 const { tokenize } = require('../kb/search');
 const execution = require('../agent/execution');
 
@@ -130,6 +131,38 @@ function init() {
         promoted_count INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_dreaming_runs_scope ON dreaming_runs(scope, id);
+      CREATE TABLE IF NOT EXISTS memory_wiki_pages (
+        id TEXT PRIMARY KEY,
+        uid TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        course_id TEXT,
+        page_type TEXT NOT NULL,
+        entity_id TEXT,
+        title TEXT NOT NULL,
+        summary TEXT NOT NULL DEFAULT '',
+        sections_json TEXT NOT NULL DEFAULT '{}',
+        source_memory_ids_json TEXT NOT NULL DEFAULT '[]',
+        source_event_ids_json TEXT NOT NULL DEFAULT '[]',
+        content_hash TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_memory_wiki_scope ON memory_wiki_pages(uid, scope, page_type);
+      CREATE INDEX IF NOT EXISTS idx_memory_wiki_course ON memory_wiki_pages(uid, course_id, page_type);
+      CREATE TABLE IF NOT EXISTS memory_wiki_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uid TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        source_page_id TEXT NOT NULL,
+        target_page_id TEXT NOT NULL,
+        relation TEXT NOT NULL,
+        confidence REAL NOT NULL DEFAULT 1,
+        evidence_json TEXT NOT NULL DEFAULT '[]',
+        created_at INTEGER NOT NULL,
+        UNIQUE(source_page_id,target_page_id,relation)
+      );
+      CREATE INDEX IF NOT EXISTS idx_memory_wiki_links_uid ON memory_wiki_links(uid, scope);
     `);
     if (!db.prepare('PRAGMA table_info(archival)').all().some(column => column.name === 'provenance')) {
       db.exec('ALTER TABLE archival ADD COLUMN provenance TEXT');
@@ -548,6 +581,166 @@ function memoryHistory(id) {
   } catch (_) { return []; }
 }
 
+/** 返回某用户跨课程的有效语义记忆，供 Memory Wiki 生成索引页。 */
+function listUserArchival(sessionId) {
+  const d = init();
+  if (!d) return [];
+  const { uid } = scopeOf(sessionId);
+  const prefix = `${uid}@`;
+  return d.prepare(`SELECT * FROM archival WHERE invalid_at IS NULL
+    AND (scope=? OR substr(scope,1,length(?))=?) ORDER BY updated_at DESC`)
+    .all(uid, prefix, prefix).map(archivalRecord);
+}
+
+/** 返回某用户的结构化学习事件，可按课程过滤。 */
+function listUserLearningEvents(sessionId, courseId = null, limit = 2000) {
+  const d = init();
+  if (!d) return [];
+  const { uid } = scopeOf(sessionId);
+  const cap = Math.max(1, Math.min(Number(limit) || 2000, 5000));
+  try {
+    const rows = courseId
+      ? d.prepare('SELECT * FROM learning_events WHERE uid=? AND course_id=? ORDER BY id DESC LIMIT ?').all(uid, String(courseId), cap)
+      : d.prepare('SELECT * FROM learning_events WHERE uid=? ORDER BY id DESC LIMIT ?').all(uid, cap);
+    return rows.reverse().map(row => ({
+      id: row.id, uid: row.uid, courseId: row.course_id, sessionId: row.session_id,
+      turn: row.turn, eventKey: row.event_key, type: row.event_type, kpId: row.kp_id,
+      payload: parseProvenance(row.payload_json) || {}, at: row.created_at,
+    }));
+  } catch (_) { return []; }
+}
+
+/** 最近的 Dreaming 反思只作为 Wiki 的摘要来源，不作为掌握状态依据。 */
+function listDreamingRuns(scope, limit = 5) {
+  const d = init();
+  if (!d) return [];
+  const cap = Math.max(1, Math.min(Number(limit) || 5, 20));
+  try {
+    return d.prepare('SELECT * FROM dreaming_runs WHERE scope=? ORDER BY id DESC LIMIT ?')
+      .all(scope, cap).reverse().map(row => ({
+        id: row.id, fromEventId: row.from_event_id, toEventId: row.to_event_id,
+        reflection: parseProvenance(row.reflection_json) || {},
+        promotedCount: row.promoted_count, at: row.created_at,
+      }));
+  } catch (_) { return []; }
+}
+
+/** 创建或更新一张紧凑 Wiki 页面；内容未变化时不增加版本。 */
+function upsertWikiPage(page) {
+  const d = init();
+  if (!d || !page || !page.id || !page.uid || !page.scope || !page.pageType || !page.title) return null;
+  const sections = page.sections && typeof page.sections === 'object' ? page.sections : {};
+  const sourceMemoryIds = Array.isArray(page.sourceMemoryIds) ? [...new Set(page.sourceMemoryIds.map(String))] : [];
+  const sourceEventIds = Array.isArray(page.sourceEventIds) ? [...new Set(page.sourceEventIds.map(Number).filter(Number.isSafeInteger))] : [];
+  const summary = String(page.summary || '').slice(0, 800);
+  const sectionsJson = JSON.stringify(sections);
+  const memoriesJson = JSON.stringify(sourceMemoryIds);
+  const eventsJson = JSON.stringify(sourceEventIds);
+  const contentHash = createHash('sha256').update([
+    page.title, summary, sectionsJson, memoriesJson, eventsJson,
+  ].join('\n')).digest('hex');
+  const t = now();
+  try {
+    return d.transaction(() => {
+      const existing = d.prepare('SELECT * FROM memory_wiki_pages WHERE id=?').get(String(page.id));
+      if (existing && existing.content_hash === contentHash) {
+        return { id: existing.id, version: existing.version, changed: false };
+      }
+      const version = existing ? existing.version + 1 : 1;
+      d.prepare(`INSERT INTO memory_wiki_pages
+        (id,uid,scope,course_id,page_type,entity_id,title,summary,sections_json,source_memory_ids_json,source_event_ids_json,content_hash,version,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(id) DO UPDATE SET
+          uid=excluded.uid,scope=excluded.scope,course_id=excluded.course_id,page_type=excluded.page_type,
+          entity_id=excluded.entity_id,title=excluded.title,summary=excluded.summary,
+          sections_json=excluded.sections_json,source_memory_ids_json=excluded.source_memory_ids_json,
+          source_event_ids_json=excluded.source_event_ids_json,content_hash=excluded.content_hash,
+          version=excluded.version,updated_at=excluded.updated_at`)
+        .run(String(page.id), String(page.uid), String(page.scope), page.courseId || null,
+          String(page.pageType), page.entityId || null, String(page.title).slice(0, 160), summary,
+          sectionsJson, memoriesJson, eventsJson, contentHash, version,
+          existing?.created_at || t, t);
+      return { id: String(page.id), version, changed: true };
+    })();
+  } catch (_) { return null; }
+}
+
+/** 原子替换某用户 Wiki 的链接集合；链接只表达有证据的包含/归属关系。 */
+function replaceWikiLinks(uidKey, links) {
+  const d = init();
+  if (!d) return 0;
+  const { uid } = scopeOf(uidKey);
+  const rows = Array.isArray(links) ? links.filter(link => link && link.sourcePageId && link.targetPageId && link.relation) : [];
+  try {
+    return d.transaction(() => {
+      d.prepare('DELETE FROM memory_wiki_links WHERE uid=?').run(uid);
+      const insert = d.prepare(`INSERT OR IGNORE INTO memory_wiki_links
+        (uid,scope,source_page_id,target_page_id,relation,confidence,evidence_json,created_at)
+        VALUES (?,?,?,?,?,?,?,?)`);
+      let count = 0;
+      for (const link of rows) {
+        count += insert.run(uid, String(link.scope || uid), String(link.sourcePageId), String(link.targetPageId),
+          String(link.relation), Math.max(0, Math.min(1, Number(link.confidence) || 1)),
+          JSON.stringify(Array.isArray(link.evidence) ? link.evidence : []), now()).changes;
+      }
+      return count;
+    })();
+  } catch (_) { return 0; }
+}
+
+/** 按相关性检索 Wiki 页面；页面是导航索引，不替代原始证据与 Recall。 */
+function searchWiki(sessionId, query, opts = {}) {
+  const d = init();
+  if (!d) return [];
+  const { uid, courseScope } = scopeOf(sessionId);
+  const topK = Math.max(1, Math.min(Number(opts.topK) || 3, 8));
+  try {
+    const rows = d.prepare('SELECT * FROM memory_wiki_pages WHERE uid=? AND (scope=? OR scope=? OR page_type=?) ORDER BY updated_at DESC')
+      .all(uid, uid, courseScope, 'learner');
+    if (!rows.length) return [];
+    const q = String(query || '').trim();
+    let picked;
+    if (!q || q.length < RECALL_MIN_CHARS) {
+      picked = rows.filter(row => row.scope === uid || row.scope === courseScope).slice(0, topK);
+    } else {
+      const ranked = bm25Rank(rows.map(row => ({ content: row.title + ' ' + row.summary + ' ' + row.entity_id })), q);
+      picked = ranked.slice(0, topK).map(index => rows[index]);
+    }
+    return picked.map(row => ({
+      id: row.id, pageType: row.page_type, title: row.title, summary: row.summary,
+      scope: row.scope, courseId: row.course_id, entityId: row.entity_id,
+      sections: parseProvenance(row.sections_json) || {},
+      sourceMemoryIds: parseProvenance(row.source_memory_ids_json) || [],
+      sourceEventIds: parseProvenance(row.source_event_ids_json) || [],
+      version: row.version, updatedAt: row.updated_at,
+    }));
+  } catch (_) { return []; }
+}
+
+/** 按作用域列出 Wiki 页面及链接，供管理界面和评测使用。 */
+function listWiki(sessionId) {
+  const d = init();
+  if (!d) return { pages: [], links: [] };
+  const { uid, courseScope } = scopeOf(sessionId);
+  try {
+    const pages = d.prepare('SELECT * FROM memory_wiki_pages WHERE uid=? ORDER BY page_type,course_id,title').all(uid)
+      .map(row => ({
+        id: row.id, pageType: row.page_type, title: row.title, summary: row.summary,
+        scope: row.scope, courseId: row.course_id, entityId: row.entity_id,
+        sections: parseProvenance(row.sections_json) || {},
+        sourceMemoryIds: parseProvenance(row.source_memory_ids_json) || [],
+        sourceEventIds: parseProvenance(row.source_event_ids_json) || [],
+        version: row.version, updatedAt: row.updated_at,
+      }));
+    const links = d.prepare('SELECT source_page_id,target_page_id,relation,confidence,evidence_json FROM memory_wiki_links WHERE uid=?')
+      .all(uid).map(row => ({
+        sourcePageId: row.source_page_id, targetPageId: row.target_page_id, relation: row.relation,
+        confidence: row.confidence, evidence: parseProvenance(row.evidence_json) || [],
+      }));
+    return { pages, links };
+  } catch (_) { return { pages: [], links: [] }; }
+}
+
 /** 持久化可信学习事件；仅记录结构化判题证据。 */
 function appendLearningEvent(sessionId, turn, eventKey, eventType, kpId, payload) {
   const d = init();
@@ -888,6 +1081,7 @@ function stats(uid) {
       recall: recallStats(sc.uid),
       archival: d.prepare('SELECT COUNT(*) n FROM archival WHERE invalid_at IS NULL AND (scope=? OR substr(scope,1,length(?))=?)').get(sc.uid, `${sc.uid}@`, `${sc.uid}@`).n,
       dreaming: dreamingStats(sc.uid),
+      wikiPages: d.prepare('SELECT COUNT(*) AS n FROM memory_wiki_pages WHERE uid=?').get(sc.uid).n,
     };
   } catch (_) { return {}; }
 }
@@ -910,6 +1104,8 @@ function clearUid(uidKey) {
     d.prepare('DELETE FROM dreaming_jobs WHERE uid=?').run(uid);
     d.prepare('DELETE FROM dreaming_runs WHERE scope=? OR substr(scope,1,length(?))=?').run(uid, `${uid}@`, `${uid}@`);
     d.prepare('DELETE FROM dreaming_state WHERE scope=? OR substr(scope,1,length(?))=?').run(uid, `${uid}@`, `${uid}@`);
+    d.prepare('DELETE FROM memory_wiki_links WHERE uid=?').run(uid);
+    d.prepare('DELETE FROM memory_wiki_pages WHERE uid=?').run(uid);
     n += d.prepare('DELETE FROM recall_messages WHERE uid=?').run(uid).changes;
   } catch (_) { /* ignore */ }
   return n;
@@ -942,6 +1138,8 @@ function clearSession(sessionId, { strict = false } = {}) {
         d.prepare('DELETE FROM dreaming_jobs WHERE scope=?').run(courseScope);
         d.prepare('DELETE FROM dreaming_runs WHERE scope=?').run(courseScope);
         d.prepare('DELETE FROM dreaming_state WHERE scope=?').run(courseScope);
+        d.prepare('DELETE FROM memory_wiki_links WHERE uid=? AND scope=?').run(uid, courseScope);
+        d.prepare('DELETE FROM memory_wiki_pages WHERE uid=? AND scope=?').run(uid, courseScope);
         n += d.prepare('DELETE FROM core_blocks WHERE scope=?').run(courseScope).changes;
       }
       return n;
@@ -962,6 +1160,8 @@ module.exports = {
   ingestArchival, searchArchival, listArchival, invalidateArchival, verifyArchival, memoryHistory,
   appendLearningEvent, enqueueDreaming, claimDreamingJob, getDreamingBatch,
   completeDreamingJob, failDreamingJob, dreamingStats,
+  listUserArchival, listUserLearningEvents, listDreamingRuns,
+  upsertWikiPage, replaceWikiLinks, searchWiki, listWiki,
   // 其他
   stats, clearUid, clearSession,
   // 常量（测试与调参用）
