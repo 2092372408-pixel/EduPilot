@@ -1041,7 +1041,9 @@ async function searchArchival(sessionId, query, opts = {}) {
   // Default retrieval is course-safe: global learner facts + this course only.
   // Other-course memories are included only for explicit cross-course queries.
   let rows = listUserArchival(sessionId);
-  if (courseId && !includeOtherCourses) {
+  if (opts.globalOnly) {
+    rows = rows.filter(memory => memory.storageScope === uid);
+  } else if (courseId && !includeOtherCourses) {
     rows = rows.filter(memory => memory.storageScope === uid || memory.storageScope === courseScope);
   }
   rows = rows
