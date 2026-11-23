@@ -86,11 +86,26 @@ function init() {
         hits        INTEGER NOT NULL DEFAULT 0,
         source      TEXT,
         provenance  TEXT,
+        confidence  REAL NOT NULL DEFAULT 0.65,
+        status      TEXT NOT NULL DEFAULT 'active',
+        version     INTEGER NOT NULL DEFAULT 1,
+        supersedes_id TEXT,
+        last_verified_at INTEGER,
         created_at  INTEGER NOT NULL,
         updated_at  INTEGER NOT NULL,
         invalid_at  INTEGER
       );
       CREATE INDEX IF NOT EXISTS idx_archival_scope ON archival(scope, invalid_at);
+      CREATE INDEX IF NOT EXISTS idx_archival_supersedes ON archival(supersedes_id);
+      CREATE TABLE IF NOT EXISTS memory_revisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        memory_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        snapshot_json TEXT NOT NULL,
+        reason TEXT,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_memory_revisions_memory ON memory_revisions(memory_id, id);
     `);
     if (!db.prepare('PRAGMA table_info(archival)').all().some(column => column.name === 'provenance')) {
       db.exec('ALTER TABLE archival ADD COLUMN provenance TEXT');
@@ -98,6 +113,13 @@ function init() {
     if (!db.prepare('PRAGMA table_info(archival)').all().some(column => column.name === 'last_hit_at')) {
       db.exec('ALTER TABLE archival ADD COLUMN last_hit_at INTEGER');
     }
+    const archivalColumns = new Set(db.prepare('PRAGMA table_info(archival)').all().map(column => column.name));
+    if (!archivalColumns.has('confidence')) db.exec('ALTER TABLE archival ADD COLUMN confidence REAL NOT NULL DEFAULT 0.65');
+    if (!archivalColumns.has('status')) db.exec("ALTER TABLE archival ADD COLUMN status TEXT NOT NULL DEFAULT 'active'");
+    if (!archivalColumns.has('version')) db.exec('ALTER TABLE archival ADD COLUMN version INTEGER NOT NULL DEFAULT 1');
+    if (!archivalColumns.has('supersedes_id')) db.exec('ALTER TABLE archival ADD COLUMN supersedes_id TEXT');
+    if (!archivalColumns.has('last_verified_at')) db.exec('ALTER TABLE archival ADD COLUMN last_verified_at INTEGER');
+    db.exec("UPDATE archival SET status='superseded' WHERE invalid_at IS NOT NULL AND status='active'");
     if (!db.prepare('PRAGMA table_info(recall_messages)').all().some(column => column.name === 'sources_json')) {
       db.exec('ALTER TABLE recall_messages ADD COLUMN sources_json TEXT');
     }
@@ -382,7 +404,11 @@ function archivalRecord(row) {
   const sourceScope = sourceSessionId?.includes('@') ? sourceSessionId : row.scope;
   return {
     id: row.id, type: row.type, text: row.text, vec: parseVec(row.vec),
-    importance: row.importance, hits: row.hits, at: row.updated_at,
+    importance: row.importance, confidence: Number(row.confidence ?? 0.65),
+    status: row.status || (row.invalid_at ? 'superseded' : 'active'),
+    version: Number(row.version) || 1, supersedesId: row.supersedes_id || null,
+    lastVerifiedAt: row.last_verified_at || null,
+    hits: row.hits, at: row.updated_at,
     invalidAt: row.invalid_at, source: row.source, provenance,
     storageScope: row.scope, sourceSessionId, sourceCourseId: scopeOf(sourceScope).courseId || null,
   };
@@ -403,30 +429,98 @@ function parseProvenance(value) {
   try { return value ? JSON.parse(value) : null; } catch (_) { return null; }
 }
 
-function insertArchival(scope, type, text, vec, importance, source, provenance = null) {
+function revisionSnapshot(row) {
+  if (!row) return null;
+  return {
+    id: row.id, scope: row.scope, type: row.type, text: row.text,
+    importance: row.importance, confidence: row.confidence,
+    status: row.status, version: row.version, supersedesId: row.supersedes_id,
+    source: row.source, provenance: parseProvenance(row.provenance),
+    createdAt: row.created_at, updatedAt: row.updated_at,
+    lastVerifiedAt: row.last_verified_at, invalidAt: row.invalid_at,
+  };
+}
+
+function appendMemoryRevision(d, memoryId, action, row, reason = null) {
+  if (!row) return;
+  d.prepare(`INSERT INTO memory_revisions (memory_id,action,snapshot_json,reason,created_at)
+    VALUES (?,?,?,?,?)`).run(memoryId, action, JSON.stringify(revisionSnapshot(row)), reason, now());
+}
+
+function insertArchival(scope, type, text, vec, importance, source, provenance = null, options = {}) {
   const d = init();
   if (!d) return null;
   const t = now();
   const id = `am-${t}-${Math.floor(Math.random() * 10000)}`;
+  // Confidence measures source/evidence strength, not whether a learner has mastered a concept.
+  const confidence = Number.isFinite(options.confidence)
+    ? Math.max(0, Math.min(1, options.confidence))
+    : (provenance?.quote && provenance?.messageHash ? 0.82 : 0.65);
+  const status = options.status === 'verified' ? 'verified' : 'active';
+  const version = Math.max(1, Number(options.version) || 1);
+  const supersedesId = options.supersedesId || null;
   try {
-    d.prepare(`INSERT INTO archival (id,scope,type,text,vec,importance,hits,source,provenance,created_at,updated_at,invalid_at)
-      VALUES (?,?,?,?,?,?,0,?,?,?,?,NULL)`)
+    d.prepare(`INSERT INTO archival
+      (id,scope,type,text,vec,importance,hits,source,provenance,confidence,status,version,supersedes_id,last_verified_at,created_at,updated_at,invalid_at)
+      VALUES (?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,NULL)`)
       .run(id, scope, type, text, vec ? JSON.stringify(vec) : null,
         importance != null ? importance : (TYPE_IMPORTANCE[type] || 0.5), source || null,
-        provenance ? JSON.stringify(provenance) : null, t, t);
-    return { id, type, text, at: t };
+        provenance ? JSON.stringify(provenance) : null, confidence, status, version,
+        supersedesId, options.lastVerifiedAt || null, t, t);
+    const row = d.prepare('SELECT * FROM archival WHERE id=?').get(id);
+    appendMemoryRevision(d, id, 'created', row, 'new memory extracted from source evidence');
+    return archivalRecord(row);
   } catch (_) { return null; }
 }
 
-/** 作废旧记忆（不删除，保留事实演进历史；借鉴 Graphiti 的 invalid_at） */
-function invalidateArchival(id, scope) {
+/** 作废旧记忆前保存快照；替换、删除和归档使用不同状态。 */
+function invalidateArchival(id, scope, options = {}) {
   const d = init();
   if (!d) return false;
   try {
-    const sql = 'UPDATE archival SET invalid_at=?, updated_at=? WHERE id=? AND invalid_at IS NULL';
-    return (scope == null ? d.prepare(sql).run(now(), now(), id)
-      : d.prepare(sql + ' AND scope=?').run(now(), now(), id, scope)).changes > 0;
+    const current = scope == null
+      ? d.prepare('SELECT * FROM archival WHERE id=? AND invalid_at IS NULL').get(id)
+      : d.prepare('SELECT * FROM archival WHERE id=? AND scope=? AND invalid_at IS NULL').get(id, scope);
+    if (!current) return false;
+    const nextStatus = ['superseded', 'invalidated', 'archived'].includes(options.status)
+      ? options.status : 'invalidated';
+    appendMemoryRevision(d, id, nextStatus, current, options.reason || null);
+    const sql = 'UPDATE archival SET invalid_at=?, status=?, updated_at=? WHERE id=? AND invalid_at IS NULL';
+    const result = scope == null
+      ? d.prepare(sql).run(now(), nextStatus, now(), id)
+      : d.prepare(sql + ' AND scope=?').run(now(), nextStatus, now(), id, scope);
+    return result.changes > 0;
   } catch (_) { return false; }
+}
+
+/** 用户明确确认一条记忆；不代表学习掌握度已被验证。 */
+function verifyArchival(id, scope, options = {}) {
+  const d = init();
+  if (!d) return false;
+  try {
+    const row = d.prepare('SELECT * FROM archival WHERE id=? AND scope=? AND invalid_at IS NULL').get(id, scope);
+    if (!row) return false;
+    const confidence = Number.isFinite(options.confidence)
+      ? Math.max(0, Math.min(1, options.confidence)) : Math.max(Number(row.confidence) || 0.65, 0.9);
+    appendMemoryRevision(d, id, 'verified', row, options.reason || 'explicit user confirmation');
+    return d.prepare("UPDATE archival SET status='verified', confidence=?, last_verified_at=?, updated_at=? WHERE id=? AND scope=? AND invalid_at IS NULL")
+      .run(confidence, now(), now(), id, scope).changes > 0;
+  } catch (_) { return false; }
+}
+
+/** 读取某条记忆的不可变变更历史，供审计与 Dreaming 回溯。 */
+function memoryHistory(id) {
+  const d = init();
+  if (!d) return [];
+  try {
+    return d.prepare('SELECT action,snapshot_json,reason,created_at FROM memory_revisions WHERE memory_id=? ORDER BY id')
+      .all(id).map(row => ({
+        action: row.action,
+        snapshot: parseProvenance(row.snapshot_json),
+        reason: row.reason,
+        at: row.created_at,
+      }));
+  } catch (_) { return []; }
 }
 
 /** 超限淘汰：优先作废"低重要度 + 最久未命中"的 */
@@ -443,8 +537,12 @@ function pruneArchival(scope) {
         created_at DESC
       LIMIT ?`).all(scope, ARCHIVAL_MAX_PER_SCOPE).map((r) => r.id);
     const keepSet = new Set(keep);
-    const inv = d.prepare('UPDATE archival SET invalid_at=?, updated_at=? WHERE id=?');
-    for (const r of rows) if (!keepSet.has(r.id)) inv.run(now(), now(), r.id);
+    for (const r of rows) {
+      if (!keepSet.has(r.id)) invalidateArchival(r.id, scope, {
+        status: 'archived',
+        reason: 'scope retention limit: low importance and stale access',
+      });
+    }
   } catch (_) { /* ignore */ }
 }
 
@@ -529,15 +627,30 @@ async function ingestArchival(sessionId, facts, opts = {}) {
       if (!decision) { result.deferred += 1; continue; }
       if (decision && decision.action === 'NONE') continue;
       if (['UPDATE', 'DELETE'].includes(decision.action)) {
-        const replaced = d.transaction(() => {
-          const rec = insertArchival(scope, type, text, vec, decision.importance, sessionId, provenance);
-          const target = near.find((x) => x.m.id === decision.targetId)?.m;
-          if (!rec || !target || !invalidateArchival(target.id, target.storageScope)) throw Error('Memory replacement failed');
-          return rec;
-        });
-        replaced();
-        result.updated += 1;
-        result.invalidated += 1;
+        const target = near.find((x) => x.m.id === decision.targetId)?.m;
+        if (!target) { result.deferred += 1; continue; }
+        d.transaction(() => {
+          if (decision.action === 'UPDATE') {
+            const rec = insertArchival(scope, type, text, vec, decision.importance, sessionId, provenance, {
+              confidence: provenance?.quote && provenance?.messageHash ? 0.82 : 0.65,
+              version: target.version + 1,
+              supersedesId: target.id,
+            });
+            if (!rec) throw Error('Memory replacement insert failed');
+            if (!invalidateArchival(target.id, target.storageScope, {
+              status: 'superseded',
+              reason: `replaced by memory ${rec.id}`,
+            })) throw Error('Memory replacement invalidation failed');
+            result.updated += 1;
+            result.invalidated += 1;
+          } else {
+            if (!invalidateArchival(target.id, target.storageScope, {
+              status: 'invalidated',
+              reason: 'explicit conflict resolution removed this memory',
+            })) throw Error('Memory invalidation failed');
+            result.invalidated += 1;
+          }
+        })();
         continue;
       }
     }
@@ -591,6 +704,7 @@ async function searchArchival(sessionId, query, opts = {}) {
     for (const p of picked) bump.run(now(), p.id);
   } catch (_) { /* ignore */ }
   return picked.map((m) => ({ type: m.type, text: m.text, scope: m.scope, importance: m.importance,
+    confidence: m.confidence, status: m.status, version: m.version,
     sourceCourseId: m.sourceCourseId, sourceSessionId: m.sourceSessionId }));
 }
 
@@ -616,6 +730,11 @@ function clearUid(uidKey) {
   const { uid } = scopeOf(uidKey);
   let n = 0;
   try {
+    const ownedIds = d.prepare('SELECT id FROM archival WHERE scope=? OR substr(scope,1,length(?))=?').all(uid, `${uid}@`, `${uid}@`).map(row => row.id);
+    if (ownedIds.length) {
+      const placeholders = ownedIds.map(() => '?').join(',');
+      d.prepare(`DELETE FROM memory_revisions WHERE memory_id IN (${placeholders})`).run(...ownedIds);
+    }
     n += d.prepare('DELETE FROM archival WHERE scope=? OR substr(scope,1,length(?))=?').run(uid, `${uid}@`, `${uid}@`).changes;
     n += d.prepare('DELETE FROM core_blocks WHERE scope=? OR substr(scope,1,length(?))=?').run(uid, `${uid}@`, `${uid}@`).changes;
     n += d.prepare('DELETE FROM recall_messages WHERE uid=?').run(uid).changes;
@@ -640,6 +759,11 @@ function clearSession(sessionId, { strict = false } = {}) {
     return d.transaction(() => {
       let n = d.prepare('DELETE FROM recall_messages WHERE session_id=?').run(sid).changes;
       if (courseScope !== uid) {
+        const courseIds = d.prepare('SELECT id FROM archival WHERE scope=?').all(courseScope).map(row => row.id);
+        if (courseIds.length) {
+          const placeholders = courseIds.map(() => '?').join(',');
+          d.prepare(`DELETE FROM memory_revisions WHERE memory_id IN (${placeholders})`).run(...courseIds);
+        }
         n += d.prepare('DELETE FROM archival WHERE scope=?').run(courseScope).changes;
         n += d.prepare('DELETE FROM core_blocks WHERE scope=?').run(courseScope).changes;
       }
@@ -658,7 +782,7 @@ module.exports = {
   // ② recall
   appendRecall, searchRecall, recallStats, conversationHistory, conversationTitle,
   // ③ archival
-  ingestArchival, searchArchival, listArchival, invalidateArchival,
+  ingestArchival, searchArchival, listArchival, invalidateArchival, verifyArchival, memoryHistory,
   // 其他
   stats, clearUid, clearSession,
   // 常量（测试与调参用）
