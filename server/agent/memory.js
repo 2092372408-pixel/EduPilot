@@ -18,6 +18,7 @@
 // 延迟加载 llm：llm.js 需要在消息构造时注入记忆，直接 require 会形成 llm↔memory 循环依赖
 function getLlm() { return require('./llm'); }
 const store = require('../store/memoryStore');
+const memoryWiki = require('./memory-wiki');
 const { createHash } = require('node:crypto');
 const execution = require('./execution');
 const courseRegistry = require('../kb/course-registry');
@@ -435,6 +436,14 @@ async function buildMemoryInjection(session, userMessage) {
   const coreBlocks = [store.renderCore(uid), store.renderCore(courseScope)].filter(Boolean);
   if (coreBlocks.length) parts.push(coreBlocks.join('\n'));
 
+  // Memory Wiki：轻量导航摘要；具体事实仍回到带来源的 Archival / Recall。
+  const wikiPages = store.searchWiki(session.id, userMessage, { topK: 2 });
+  if (wikiPages.length) {
+    parts.push(`【学习记忆索引（用于导航，不作为掌握度依据）】${wikiPages.map(page =>
+      `${page.title}：${page.summary}`
+    ).join('；')}`);
+  }
+
   // ③ Archival：与当前问题相关的事实
   const facts = await store.searchArchival(session.id, userMessage);
   if (facts.length) {
@@ -453,12 +462,13 @@ async function upkeep(session, turn, userMessage, context) {
   if (!ENABLED) return;
   execution.throwIfAborted();
   try {
-    recordLearningEvents(session, turn);
+    const newLearningEvents = recordLearningEvents(session, turn);
     recordPainPoints(session, turn, userMessage, context);
     refreshCourseProgress(session);
     store.enqueueDreaming(session.id);
     await maybeExtractMemories(session);
     await maybeSummarize(session);
+    if (newLearningEvents > 0 || turnCountOf(session) % 5 === 0) memoryWiki.sync(session.id);
   } catch (e) {
     execution.throwIfAborted();
     console.warn('[memory] 维护失败:', e.message);
