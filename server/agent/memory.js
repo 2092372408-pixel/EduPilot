@@ -488,12 +488,17 @@ async function buildMemoryInjection(session, userMessage, options = {}) {
       budget);
   }
 
+  const crossCourse = /跨课程|其他课程|所有课程|不同课程|之前学过的课程|across courses|other courses|all courses/i.test(String(userMessage || ''));
+
   // Course agents may use Wiki as a navigation index; general chat should not inherit course-specific maps.
   if (!isGeneral && budget.remaining > 80) {
     const currentKpId = session.learning?.currentKpId;
     const currentKpTitle = currentKpId ? titleOf(session, currentKpId) : '';
     const wikiQuery = [userMessage, currentKpTitle].filter(Boolean).join(' ');
-    const wikiPages = store.searchWiki(session.id, wikiQuery, { topK: agentId === 'review' ? 3 : 2 });
+    const wikiPages = store.searchWiki(session.id, wikiQuery, {
+      topK: agentId === 'review' ? 3 : 2,
+      includeOtherCourses: crossCourse,
+    });
     if (wikiPages.length) {
       appendWithinMemoryBudget(parts,
         `【学习记忆索引（导航信息，不作为掌握度依据）】${wikiPages.map(page =>
@@ -506,7 +511,6 @@ async function buildMemoryInjection(session, userMessage, options = {}) {
   // Retrieve global learner facts plus the active course by default.
   // Cross-course retrieval is enabled only when the learner explicitly asks for a cross-course view.
   if (budget.remaining > 80) {
-    const crossCourse = /跨课程|其他课程|所有课程|不同课程|之前学过的课程|across courses|other courses|all courses/i.test(String(userMessage || ''));
     const currentKpId = session.learning?.currentKpId;
     const currentKpTitle = currentKpId ? titleOf(session, currentKpId) : '';
     const retrievalQuery = [userMessage, currentKpTitle].filter(Boolean).join(' ');
