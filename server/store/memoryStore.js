@@ -105,6 +105,31 @@ function init() {
         created_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_memory_revisions_memory ON memory_revisions(memory_id, id);
+      CREATE TABLE IF NOT EXISTS learning_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT NOT NULL, course_id TEXT NOT NULL,
+        session_id TEXT NOT NULL, turn INTEGER NOT NULL DEFAULT 0, event_key TEXT NOT NULL,
+        event_type TEXT NOT NULL, kp_id TEXT, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL,
+        UNIQUE(session_id, turn, event_key)
+      );
+      CREATE INDEX IF NOT EXISTS idx_learning_events_scope ON learning_events(uid, course_id, id);
+      CREATE TABLE IF NOT EXISTS dreaming_state (
+        scope TEXT PRIMARY KEY, last_event_id INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS dreaming_jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, scope TEXT NOT NULL, uid TEXT NOT NULL,
+        course_id TEXT NOT NULL, session_id TEXT NOT NULL, target_event_id INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued', attempts INTEGER NOT NULL DEFAULT 0,
+        available_at INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+        last_error TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_dreaming_jobs_ready ON dreaming_jobs(status, available_at, id);
+      CREATE INDEX IF NOT EXISTS idx_dreaming_jobs_scope ON dreaming_jobs(scope, status);
+      CREATE TABLE IF NOT EXISTS dreaming_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, job_id INTEGER NOT NULL, scope TEXT NOT NULL,
+        from_event_id INTEGER NOT NULL, to_event_id INTEGER NOT NULL, reflection_json TEXT NOT NULL,
+        promoted_count INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_dreaming_runs_scope ON dreaming_runs(scope, id);
     `);
     if (!db.prepare('PRAGMA table_info(archival)').all().some(column => column.name === 'provenance')) {
       db.exec('ALTER TABLE archival ADD COLUMN provenance TEXT');
@@ -523,6 +548,143 @@ function memoryHistory(id) {
   } catch (_) { return []; }
 }
 
+/** 持久化可信学习事件；仅记录结构化判题证据。 */
+function appendLearningEvent(sessionId, turn, eventKey, eventType, kpId, payload) {
+  const d = init();
+  if (!d || !['answer_correct', 'answer_incorrect'].includes(eventType)) return false;
+  const { uid, courseId } = scopeOf(sessionId);
+  try {
+    const json = JSON.stringify(payload || {});
+    if (json.length > 5000) return false;
+    return d.prepare(`INSERT OR IGNORE INTO learning_events
+      (uid,course_id,session_id,turn,event_key,event_type,kp_id,payload_json,created_at)
+      VALUES (?,?,?,?,?,?,?,?,?)`)
+      .run(uid, courseId, String(sessionId), Number(turn) || 0, String(eventKey), eventType,
+        kpId ? String(kpId).slice(0, 160) : null, json, now()).changes > 0;
+  } catch (_) { return false; }
+}
+
+/** 达到最小新增证据量后，创建或扩展一个持久化 Dreaming 任务。 */
+function enqueueDreaming(sessionId, options = {}) {
+  const d = init();
+  if (!d) return null;
+  const { uid, courseId, courseScope } = scopeOf(sessionId);
+  if (!courseId) return null;
+  const minEvents = Math.max(3, Math.min(Number(options.minEvents) || 5, 30));
+  try {
+    return d.transaction(() => {
+      d.prepare('INSERT OR IGNORE INTO dreaming_state(scope,last_event_id,updated_at) VALUES (?,0,?)').run(courseScope, now());
+      const state = d.prepare('SELECT last_event_id FROM dreaming_state WHERE scope=?').get(courseScope);
+      const latest = d.prepare('SELECT MAX(id) AS id FROM learning_events WHERE uid=? AND course_id=?').get(uid, courseId)?.id || 0;
+      if (latest <= state.last_event_id) return null;
+      const pending = d.prepare("SELECT id,target_event_id FROM dreaming_jobs WHERE scope=? AND status IN ('queued','running') ORDER BY id DESC LIMIT 1").get(courseScope);
+      if (pending) {
+        d.prepare('UPDATE dreaming_jobs SET target_event_id=?, updated_at=? WHERE id=?')
+          .run(Math.max(latest, pending.target_event_id), now(), pending.id);
+        return pending.id;
+      }
+      const count = d.prepare('SELECT COUNT(*) AS n FROM learning_events WHERE uid=? AND course_id=? AND id>? AND id<=?')
+        .get(uid, courseId, state.last_event_id, latest).n;
+      if (count < minEvents) return null;
+      const t = now();
+      return Number(d.prepare(`INSERT INTO dreaming_jobs
+        (scope,uid,course_id,session_id,target_event_id,status,attempts,available_at,created_at,updated_at)
+        VALUES (?,?,?,?,?,'queued',0,?,?,?)`)
+        .run(courseScope, uid, courseId, String(sessionId), latest, t, t, t).lastInsertRowid);
+    })();
+  } catch (_) { return null; }
+}
+
+/** 原子领取任务，并回收进程异常退出留下的过期 running 任务。 */
+function claimDreamingJob() {
+  const d = init();
+  if (!d) return null;
+  try {
+    return d.transaction(() => {
+      const stale = now() - 10 * 60 * 1000;
+      d.prepare("UPDATE dreaming_jobs SET status='queued', available_at=?, updated_at=?, last_error='recovered stale worker lease' WHERE status='running' AND updated_at<?")
+        .run(now(), now(), stale);
+      const job = d.prepare("SELECT * FROM dreaming_jobs WHERE status='queued' AND available_at<=? ORDER BY id LIMIT 1").get(now());
+      if (!job) return null;
+      const changed = d.prepare("UPDATE dreaming_jobs SET status='running', attempts=attempts+1, updated_at=? WHERE id=? AND status='queued'")
+        .run(now(), job.id);
+      return changed.changes ? { ...job, attempts: job.attempts + 1 } : null;
+    })();
+  } catch (_) { return null; }
+}
+
+/** 读取当前游标之后、任务目标之前的可信答题事件及有效记忆。 */
+function getDreamingBatch(job) {
+  const d = init();
+  if (!d || !job) return { events: [], lastEventId: 0, currentCursor: 0, memories: [] };
+  try {
+    const state = d.prepare('SELECT last_event_id FROM dreaming_state WHERE scope=?').get(job.scope);
+    const currentCursor = Number(state?.last_event_id) || 0;
+    const rows = d.prepare(`SELECT id,session_id,turn,event_key,event_type,kp_id,payload_json,created_at
+      FROM learning_events WHERE uid=? AND course_id=? AND id>? AND id<=? ORDER BY id`)
+      .all(job.uid, job.course_id, currentCursor, job.target_event_id);
+    return {
+      events: rows.map(row => ({
+        id: row.id, sessionId: row.session_id, turn: row.turn, eventKey: row.event_key,
+        type: row.event_type, kpId: row.kp_id, payload: parseProvenance(row.payload_json) || {}, at: row.created_at,
+      })),
+      lastEventId: rows.at(-1)?.id || currentCursor,
+      currentCursor,
+      memories: listArchival(job.scope).map(({ id, type, text, confidence, status, version }) => ({ id, type, text, confidence, status, version })),
+    };
+  } catch (_) { return { events: [], lastEventId: 0, currentCursor: 0, memories: [] }; }
+}
+
+/** 成功提交一次 Dreaming 结果并推进事件游标。 */
+function completeDreamingJob(job, batch, reflection, promotedCount = 0) {
+  const d = init();
+  if (!d || !job || !batch) return false;
+  try {
+    return d.transaction(() => {
+      const cursor = Math.max(Number(batch.lastEventId) || 0, Number(batch.currentCursor) || 0);
+      d.prepare(`INSERT INTO dreaming_state(scope,last_event_id,updated_at) VALUES (?,?,?)
+        ON CONFLICT(scope) DO UPDATE SET last_event_id=MAX(last_event_id,excluded.last_event_id), updated_at=excluded.updated_at`)
+        .run(job.scope, cursor, now());
+      d.prepare(`INSERT INTO dreaming_runs
+        (job_id,scope,from_event_id,to_event_id,reflection_json,promoted_count,created_at)
+        VALUES (?,?,?,?,?,?,?)`)
+        .run(job.id, job.scope, Number(batch.currentCursor) || 0, cursor,
+          JSON.stringify(reflection || {}), Number(promotedCount) || 0, now());
+      d.prepare("UPDATE dreaming_jobs SET status='completed', updated_at=?, last_error=NULL WHERE id=?")
+        .run(now(), job.id);
+      return true;
+    })();
+  } catch (_) { return false; }
+}
+
+/** 失败任务采用有上限的指数退避。 */
+function failDreamingJob(job, error) {
+  const d = init();
+  if (!d || !job) return false;
+  try {
+    const attempts = Number(job.attempts) || 1;
+    const terminal = attempts >= 5;
+    const delay = Math.min(5 * 60 * 1000, 5000 * (2 ** Math.max(0, attempts - 1)));
+    return d.prepare("UPDATE dreaming_jobs SET status=?, available_at=?, updated_at=?, last_error=? WHERE id=? AND status='running'")
+      .run(terminal ? 'failed' : 'queued', now() + delay, now(), String(error || 'Dreaming failed').slice(0, 500), job.id).changes > 0;
+  } catch (_) { return false; }
+}
+
+/** Dreaming 运行概览，供评测和后台监控使用。 */
+function dreamingStats(uidKey) {
+  const d = init();
+  if (!d) return { events: 0, queued: 0, failed: 0, runs: 0 };
+  const { uid } = scopeOf(uidKey);
+  try {
+    return {
+      events: d.prepare('SELECT COUNT(*) AS n FROM learning_events WHERE uid=?').get(uid).n,
+      queued: d.prepare("SELECT COUNT(*) AS n FROM dreaming_jobs WHERE uid=? AND status IN ('queued','running')").get(uid).n,
+      failed: d.prepare("SELECT COUNT(*) AS n FROM dreaming_jobs WHERE uid=? AND status='failed'").get(uid).n,
+      runs: d.prepare('SELECT COUNT(*) AS n FROM dreaming_runs WHERE scope=? OR substr(scope,1,length(?))=?').get(uid, `${uid}@`, `${uid}@`).n,
+    };
+  } catch (_) { return { events: 0, queued: 0, failed: 0, runs: 0 }; }
+}
+
 /** 超限淘汰：优先作废"低重要度 + 最久未命中"的 */
 function pruneArchival(scope) {
   const d = init();
@@ -595,7 +757,12 @@ async function ingestArchival(sessionId, facts, opts = {}) {
   const scope = opts.scopeMode === 'uid' ? uid : courseScope;
 
   const items = facts
-    .map((f) => ({ type: TYPES.has(f && f.type) ? f.type : 'fact', text: String((f && f.text) || '').trim().slice(0, 200), provenance: f && f.provenance || null }))
+    .map((f) => ({
+      type: TYPES.has(f && f.type) ? f.type : 'fact',
+      text: String((f && f.text) || '').trim().slice(0, 200),
+      provenance: f && f.provenance || null,
+      confidence: Number.isFinite(f && f.confidence) ? Math.max(0, Math.min(1, f.confidence)) : null,
+    }))
     .filter((x) => x.text);
   if (!items.length) return result;
 
@@ -604,7 +771,7 @@ async function ingestArchival(sessionId, facts, opts = {}) {
 
   for (let i = 0; i < items.length; i++) {
     execution.throwIfAborted();
-    const { type, text, provenance } = items[i];
+    const { type, text, provenance, confidence } = items[i];
     const vec = vecs ? vecs[i] : null;
 
     const existing = listUserArchival(sessionId).filter((m) => m.type === type);
@@ -633,7 +800,7 @@ async function ingestArchival(sessionId, facts, opts = {}) {
         d.transaction(() => {
           if (decision.action === 'UPDATE') {
             const rec = insertArchival(scope, type, text, vec, decision.importance, sessionId, provenance, {
-              confidence: provenance?.quote && provenance?.messageHash ? 0.82 : 0.65,
+              confidence: confidence ?? (provenance?.quote && provenance?.messageHash ? 0.82 : 0.65),
               version: target.version + 1,
               supersedesId: target.id,
             });
@@ -655,7 +822,7 @@ async function ingestArchival(sessionId, facts, opts = {}) {
         continue;
       }
     }
-    const rec = insertArchival(scope, type, text, vec, null, sessionId, provenance);
+    const rec = insertArchival(scope, type, text, vec, null, sessionId, provenance, { confidence });
     if (rec) {
       result.added += 1;
     }
@@ -720,6 +887,7 @@ function stats(uid) {
       coreBlocks: d.prepare('SELECT COUNT(*) n FROM core_blocks WHERE scope=? OR substr(scope,1,length(?))=?').get(sc.uid, `${sc.uid}@`, `${sc.uid}@`).n,
       recall: recallStats(sc.uid),
       archival: d.prepare('SELECT COUNT(*) n FROM archival WHERE invalid_at IS NULL AND (scope=? OR substr(scope,1,length(?))=?)').get(sc.uid, `${sc.uid}@`, `${sc.uid}@`).n,
+      dreaming: dreamingStats(sc.uid),
     };
   } catch (_) { return {}; }
 }
@@ -738,6 +906,10 @@ function clearUid(uidKey) {
     }
     n += d.prepare('DELETE FROM archival WHERE scope=? OR substr(scope,1,length(?))=?').run(uid, `${uid}@`, `${uid}@`).changes;
     n += d.prepare('DELETE FROM core_blocks WHERE scope=? OR substr(scope,1,length(?))=?').run(uid, `${uid}@`, `${uid}@`).changes;
+    d.prepare('DELETE FROM learning_events WHERE uid=?').run(uid);
+    d.prepare('DELETE FROM dreaming_jobs WHERE uid=?').run(uid);
+    d.prepare('DELETE FROM dreaming_runs WHERE scope=? OR substr(scope,1,length(?))=?').run(uid, `${uid}@`, `${uid}@`);
+    d.prepare('DELETE FROM dreaming_state WHERE scope=? OR substr(scope,1,length(?))=?').run(uid, `${uid}@`, `${uid}@`);
     n += d.prepare('DELETE FROM recall_messages WHERE uid=?').run(uid).changes;
   } catch (_) { /* ignore */ }
   return n;
@@ -766,6 +938,10 @@ function clearSession(sessionId, { strict = false } = {}) {
           d.prepare(`DELETE FROM memory_revisions WHERE memory_id IN (${placeholders})`).run(...courseIds);
         }
         n += d.prepare('DELETE FROM archival WHERE scope=?').run(courseScope).changes;
+        d.prepare('DELETE FROM learning_events WHERE uid=? AND course_id=?').run(uid, courseId);
+        d.prepare('DELETE FROM dreaming_jobs WHERE scope=?').run(courseScope);
+        d.prepare('DELETE FROM dreaming_runs WHERE scope=?').run(courseScope);
+        d.prepare('DELETE FROM dreaming_state WHERE scope=?').run(courseScope);
         n += d.prepare('DELETE FROM core_blocks WHERE scope=?').run(courseScope).changes;
       }
       return n;
@@ -784,6 +960,8 @@ module.exports = {
   appendRecall, searchRecall, recallStats, conversationHistory, conversationTitle,
   // ③ archival
   ingestArchival, searchArchival, listArchival, invalidateArchival, verifyArchival, memoryHistory,
+  appendLearningEvent, enqueueDreaming, claimDreamingJob, getDreamingBatch,
+  completeDreamingJob, failDreamingJob, dreamingStats,
   // 其他
   stats, clearUid, clearSession,
   // 常量（测试与调参用）
