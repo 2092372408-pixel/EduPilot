@@ -140,6 +140,7 @@ async function processOne() {
     if (!memoryStore.completeDreamingJob(job, batch, safeReflection, promotedCount)) {
       throw new Error('Unable to commit Dreaming checkpoint');
     }
+    require('./memory-wiki').sync(job.sessionId);
     memoryStore.enqueueDreaming(job.sessionId);
     return true;
   } catch (error) {
