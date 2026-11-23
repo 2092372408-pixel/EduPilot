@@ -57,7 +57,6 @@ function validatePattern(pattern, events) {
       eventIds: evidence.map(event => event.id),
       evidenceCount: evidence.length,
       sessionCount: sessions.size,
-      courseId: evidence[0].kpId ? evidence[0].kpId : null,
       firstEventId: evidence[0].id,
       lastEventId: evidence.at(-1).id,
     },
