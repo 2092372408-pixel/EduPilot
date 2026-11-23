@@ -16,10 +16,12 @@ function itemKey(item) {
 
 function evaluateRetrieval(results, relevantItems, k = 5) {
   const limit = Math.max(1, Math.min(100, Number(k) || 5));
-  const ranked = (Array.isArray(results) ? results : []).slice(0, limit).map(itemKey).filter(Boolean);
+  // Deduplicate while preserving rank: duplicate results must not inflate retrieval quality.
+  const ranked = [...new Set((Array.isArray(results) ? results : []).map(itemKey).filter(Boolean))].slice(0, limit);
   const relevant = new Set((Array.isArray(relevantItems) ? relevantItems : []).map(itemKey).filter(Boolean));
   const hits = ranked.filter(key => relevant.has(key));
-  const precisionAtK = ranked.length ? hits.length / ranked.length : 0;
+  // Conventional Precision@K uses K as the denominator, including unfilled result slots.
+  const precisionAtK = hits.length / limit;
   const recallAtK = relevant.size ? new Set(hits).size / relevant.size : 0;
   const firstRelevantRank = ranked.findIndex(key => relevant.has(key));
   const reciprocalRank = firstRelevantRank >= 0 ? 1 / (firstRelevantRank + 1) : 0;
@@ -107,6 +109,29 @@ function evaluateLifecycle(memory, expected = {}) {
   return { passed: Object.values(checks).every(Boolean), checks };
 }
 
+function evaluateBinaryDecisions(predictions, expectedPositiveIds = []) {
+  const expected = new Set((Array.isArray(expectedPositiveIds) ? expectedPositiveIds : []).map(itemKey).filter(Boolean));
+  const predicted = new Set((Array.isArray(predictions) ? predictions : [])
+    .filter(item => item && item.accepted === true)
+    .map(itemKey).filter(Boolean));
+  const universe = new Set([
+    ...expected,
+    ...(Array.isArray(predictions) ? predictions : []).map(itemKey).filter(Boolean),
+  ]);
+  let truePositive = 0;
+  for (const id of predicted) if (expected.has(id)) truePositive++;
+  const falsePositive = predicted.size - truePositive;
+  const falseNegative = expected.size - truePositive;
+  const trueNegative = Math.max(0, universe.size - truePositive - falsePositive - falseNegative);
+  const precision = truePositive + falsePositive ? truePositive / (truePositive + falsePositive) : 0;
+  const recall = truePositive + falseNegative ? truePositive / (truePositive + falseNegative) : 0;
+  return {
+    truePositive, falsePositive, falseNegative, trueNegative,
+    precision, recall,
+    f1: precision + recall ? 2 * precision * recall / (precision + recall) : 0,
+  };
+}
+
 function aggregateRetrievalCases(cases) {
   const rows = (Array.isArray(cases) ? cases : []).filter(Boolean);
   if (!rows.length) return { cases: 0, precisionAtK: 0, recallAtK: 0, reciprocalRank: 0, ndcgAtK: 0 };
@@ -127,5 +152,6 @@ module.exports = {
   evaluateContext,
   evaluateEvidenceCoverage,
   evaluateLifecycle,
+  evaluateBinaryDecisions,
   aggregateRetrievalCases,
 };
