@@ -698,8 +698,10 @@ function searchWiki(sessionId, query, opts = {}) {
   const { uid, courseScope } = scopeOf(sessionId);
   const topK = Math.max(1, Math.min(Number(opts.topK) || 3, 8));
   try {
-    const rows = d.prepare('SELECT * FROM memory_wiki_pages WHERE uid=? AND (scope=? OR scope=? OR page_type=?) ORDER BY updated_at DESC')
-      .all(uid, uid, courseScope, 'learner');
+    const rows = opts.includeOtherCourses
+      ? d.prepare("SELECT * FROM memory_wiki_pages WHERE uid=? ORDER BY updated_at DESC").all(uid)
+      : d.prepare('SELECT * FROM memory_wiki_pages WHERE uid=? AND (scope=? OR scope=? OR page_type=?) ORDER BY updated_at DESC')
+        .all(uid, uid, courseScope, 'learner');
     if (!rows.length) return [];
     const q = String(query || '').trim();
     let picked;
