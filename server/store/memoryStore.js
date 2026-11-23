@@ -1122,7 +1122,7 @@ function clearSession(sessionId, { strict = false } = {}) {
     if (strict) throw Object.assign(new Error('课程记忆暂时无法清理，请重试。'), { code: 'memory_cleanup_unavailable' });
     return 0;
   }
-  const { uid, courseScope } = scopeOf(sessionId);
+  const { uid, courseId, courseScope } = scopeOf(sessionId);
   const sid = String(sessionId || '');
   try {
     return d.transaction(() => {
