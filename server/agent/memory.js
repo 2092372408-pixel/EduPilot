@@ -93,7 +93,8 @@ function refreshCourseProgress(session) {
     .sort((a, b) => Math.max(b.lastPainAt, b.lastActivityAt) - Math.max(a.lastPainAt, a.lastActivityAt));
   for (const { id, record } of withPain.slice(0, 3)) {
     const recent = record.painPoints.slice(-2).map((point) => point.text).join('；');
-    lines.push(`卡在「${titleOf(session, id)}」：${recent}`);
+    // 这些记录包含判题错误、自述和求助事件，不能一概表述为已确认的长期薄弱点。
+    lines.push(`相关学习事件「${titleOf(session, id)}」：${recent}`);
   }
   store.setCore(store.scopeOf(session.id).courseScope, 'course_progress', lines.join('\n'), { description: '本课程的进度与卡点（自动维护）' });
 }
@@ -164,7 +165,7 @@ async function maybeSummarize(session) {
 
   const recent = session.messages.slice(-10).map((message) => ({
     role: message.role,
-    content: boundedMessage(message.content, message.role === 'assistant' ? 900 : 600),
+    content: redactSensitiveText(boundedMessage(message.content, message.role === 'assistant' ? 900 : 600)),
   }));
   const events = compactTurnEvidence(session);
   const old = session.summary ? session.summary.text : '';
@@ -215,12 +216,15 @@ ${JSON.stringify(events)}
             unresolvedQuestions: list(parsed.unresolved_questions),
             nextRecommendedAction: String(parsed.next_recommended_action || '').trim().slice(0, 240),
           };
-          session.summary = {
-            text: String(parsed.text || '').trim().slice(0, 360),
-            structured,
-            at: Date.now(),
-            turn: n,
-          };
+          const summaryText = String(parsed.text || '').trim().slice(0, 360);
+          if (summaryText) {
+            session.summary = {
+              text: summaryText,
+              structured,
+              at: Date.now(),
+              turn: n,
+            };
+          }
         }
       } catch (_) { /* 兼容非严格 JSON 输出，下面退化为纯文本摘要 */ }
     }
@@ -308,6 +312,13 @@ const SENSITIVE = /(?:api[ _-]?key|password|密码|密钥|凭据|access[ _-]?tok
 function boundedMessage(value, limit = 1200) {
   const text = String(value || '');
   return text.length <= limit ? text : text.slice(0, limit / 2) + '\n[中间省略]\n' + text.slice(-limit / 2);
+}
+
+/** 摘要辅助调用只发送必要文本，并遮蔽常见凭据格式。 */
+function redactSensitiveText(value) {
+  return String(value || '')
+    .replace(/((?:api[ _-]?key|password|passwd|密钥|密码|access[ _-]?token|secret[ _-]?key)\\s*[:=]\\s*)[^\\s,;]+/gi, '$1[REDACTED]')
+    .replace(/\\bsk-[\\w-]{12,}\\b/g, '[REDACTED]');
 }
 
 /**
