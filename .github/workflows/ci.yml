@@ -298,6 +298,94 @@ jobs:
             console.log('Role-aware memory scopes, cross-course opt-in and context assembly passed');
           })().catch(error => { console.error(error); process.exitCode = 1; });
           NODE
+      - name: Evaluate memory retrieval quality and context budgets
+        shell: bash
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const os = require('node:os');
+          const path = require('node:path');
+          process.env.EDUOWL_DB = path.join(os.tmpdir(), 'edupilot-memory-eval-' + process.pid + '.db');
+          process.env.EMBED_PROVIDER = 'dashscope';
+          process.env.DASHSCOPE_API_KEY = '';
+          const store = require('./server/store/memoryStore');
+          const sessionStore = require('./server/store/sessionStore');
+          const memory = require('./server/agent/memory');
+          const metrics = require('./server/agent/memory-evaluation');
+          const database = sessionStore.init();
+          const sessionId = 'memory-eval-ci@python-intro~session-a';
+          (async () => {
+            const currentText = 'Recurring confusion about recursion base cases';
+            const otherText = 'Recurring confusion about regression assumptions';
+            await store.ingestArchival(sessionId, [{
+              type: 'pain', text: currentText,
+              provenance: { sessionId, turn: 1, quote: 'I repeatedly confuse recursion base cases' },
+            }]);
+            await store.ingestArchival('memory-eval-ci@ml-course~session-b', [{
+              type: 'pain', text: otherText,
+              provenance: { sessionId: 'memory-eval-ci@ml-course~session-b', turn: 1, quote: 'I repeatedly confuse regression assumptions' },
+            }]);
+
+            const stats = store.stats('memory-eval-ci');
+            assert.ok(stats.archivalQuality.averageConfidence > 0);
+            assert.ok(stats.memoryRevisions >= 2);
+            assert.equal(stats.archivalQuality.byStatus.active, 2);
+
+            const currentResults = await store.searchArchival(sessionId, 'recursion base cases', { topK: 5 });
+            const currentScore = metrics.evaluateRetrieval(currentResults, [currentText], 5);
+            assert.equal(currentScore.recallAtK, 1);
+            assert.equal(currentScore.precisionAtK, 1);
+            assert.equal(metrics.evaluateScope(currentResults, ['python-intro']).passed, true);
+
+            const explicitCrossCourse = await store.searchArchival(sessionId, 'regression assumptions', {
+              topK: 5, includeOtherCourses: true,
+            });
+            const crossScore = metrics.evaluateRetrieval(explicitCrossCourse, [otherText], 5);
+            assert.equal(crossScore.recallAtK, 1);
+            assert.equal(metrics.evaluateScope(explicitCrossCourse, ['python-intro']).passed, false);
+            assert.equal(metrics.evaluateScope(explicitCrossCourse, ['python-intro', 'ml-course']).passed, true);
+
+            const session = {
+              id: sessionId, activeCourseId: 'python-intro',
+              learning: { currentKpId: null, kps: {} },
+            };
+            const context = await memory.buildMemoryInjection(session, 'Explain recursion base cases', { agentId: 'learn' });
+            const contextScore = metrics.evaluateContext(context, {
+              maxTokens: 1050,
+              forbiddenPhrases: ['regression assumptions'],
+            });
+            assert.equal(contextScore.withinBudget, true);
+            assert.equal(contextScore.leakagePassed, true);
+
+            const known = metrics.evaluateRetrieval(
+              [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+              ['a', 'c'], 2
+            );
+            assert.equal(known.precisionAtK, 0.5);
+            assert.equal(known.recallAtK, 0.5);
+            assert.equal(known.reciprocalRank, 1);
+            assert.ok(Math.abs(known.ndcgAtK - (1 / (1 + 1 / Math.log2(3)))) < 1e-9);
+            const aggregate = metrics.aggregateRetrievalCases([currentScore, crossScore]);
+            assert.equal(aggregate.cases, 2);
+            assert.equal(aggregate.recallAtK, 1);
+            const evidenceCoverage = metrics.evaluateEvidenceCoverage([
+              { provenance: { quote: 'learner statement', messageHash: 'hash-a' } },
+              { provenance: { eventIds: [1, 2] } },
+              { provenance: null },
+            ]);
+            assert.equal(evidenceCoverage.coverage, 2 / 3);
+            assert.equal(metrics.evaluateLifecycle({
+              status: 'superseded', version: 2, supersedesId: 'memory-old',
+              provenance: { eventIds: [4, 5] },
+            }, {
+              status: 'superseded', version: 2, supersedesId: 'memory-old',
+            }).passed, true);
+            assert.equal(metrics.evaluateContext('x'.repeat(300), { maxTokens: 10 }).withinBudget, false);
+
+            database.close();
+            console.log('Memory retrieval precision/recall, ranking, scope isolation and context budget metrics passed');
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          NODE
       - name: Verify SQLite and desktop startup
         shell: bash
         run: |
