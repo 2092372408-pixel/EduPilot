@@ -1123,12 +1123,36 @@ function stats(uid) {
   const d = init();
   if (!d) return {};
   const sc = scopeOf(uid);
+  const prefix = `${sc.uid}@`;
   try {
+    const archivalRows = d.prepare(`SELECT status, COUNT(*) AS count, AVG(confidence) AS average_confidence,
+      SUM(hits) AS total_hits, MAX(last_hit_at) AS last_hit_at
+      FROM archival WHERE invalid_at IS NULL AND (scope=? OR substr(scope,1,length(?))=?)
+      GROUP BY status`).all(sc.uid, prefix, prefix);
+    const archivalByStatus = Object.fromEntries(archivalRows.map(row => [row.status || 'active', row.count]));
+    const archivalQuality = {
+      byStatus: archivalByStatus,
+      averageConfidence: archivalRows.length
+        ? archivalRows.reduce((sum, row) => sum + (Number(row.average_confidence) || 0) * row.count, 0)
+          / archivalRows.reduce((sum, row) => sum + row.count, 0)
+        : 0,
+      totalHits: archivalRows.reduce((sum, row) => sum + (Number(row.total_hits) || 0), 0),
+      lastHitAt: Math.max(0, ...archivalRows.map(row => Number(row.last_hit_at) || 0)) || null,
+    };
+    const memoryRevisions = d.prepare(`SELECT COUNT(*) AS n FROM memory_revisions revision
+      JOIN archival memory ON memory.id=revision.memory_id
+      WHERE memory.scope=? OR substr(memory.scope,1,length(?))=?`).get(sc.uid, prefix, prefix).n;
+    const lastDreamingAt = d.prepare(`SELECT MAX(created_at) AS at FROM dreaming_runs
+      WHERE scope=? OR substr(scope,1,length(?))=?`).get(sc.uid, prefix, prefix).at || null;
     return {
-      coreBlocks: d.prepare('SELECT COUNT(*) n FROM core_blocks WHERE scope=? OR substr(scope,1,length(?))=?').get(sc.uid, `${sc.uid}@`, `${sc.uid}@`).n,
+      coreBlocks: d.prepare('SELECT COUNT(*) n FROM core_blocks WHERE scope=? OR substr(scope,1,length(?))=?').get(sc.uid, prefix, prefix).n,
       recall: recallStats(sc.uid),
-      archival: d.prepare('SELECT COUNT(*) n FROM archival WHERE invalid_at IS NULL AND (scope=? OR substr(scope,1,length(?))=?)').get(sc.uid, `${sc.uid}@`, `${sc.uid}@`).n,
+      archival: d.prepare('SELECT COUNT(*) n FROM archival WHERE invalid_at IS NULL AND (scope=? OR substr(scope,1,length(?))=?)').get(sc.uid, prefix, prefix).n,
+      archivalQuality,
+      memoryRevisions,
+      learningEvents: d.prepare('SELECT COUNT(*) AS n FROM learning_events WHERE uid=?').get(sc.uid).n,
       dreaming: dreamingStats(sc.uid),
+      lastDreamingAt,
       wikiPages: d.prepare('SELECT COUNT(*) AS n FROM memory_wiki_pages WHERE uid=?').get(sc.uid).n,
     };
   } catch (_) { return {}; }
