@@ -61,7 +61,8 @@
     "docs/安装与数据位置指南.md",
     "desktop/app/storage-location.cjs",
     "desktop/app/window-frame.css",
-    "tools/check-storage-location.cjs"
+    "tools/check-storage-location.cjs",
+    "docs/releases/v2.2.0.md"
   ],
   "historicalPolicyCommits": [
     "543d93b14f790febfeaf045be963153ce7d42e6c"
