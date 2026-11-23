@@ -359,7 +359,7 @@ jobs:
             assert.equal(known.precisionAtK, 0.5);
             assert.equal(known.recallAtK, 0.5);
             assert.equal(known.reciprocalRank, 1);
-            assert.equal(known.ndcgAtK, 1);
+            assert.ok(Math.abs(known.ndcgAtK - (1 / (1 + 1 / Math.log2(3)))) < 1e-9);
             const aggregate = metrics.aggregateRetrievalCases([currentScore, crossScore]);
             assert.equal(aggregate.cases, 2);
             assert.equal(aggregate.recallAtK, 1);
