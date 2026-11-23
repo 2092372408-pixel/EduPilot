@@ -95,6 +95,9 @@ function init() {
     if (!db.prepare('PRAGMA table_info(archival)').all().some(column => column.name === 'provenance')) {
       db.exec('ALTER TABLE archival ADD COLUMN provenance TEXT');
     }
+    if (!db.prepare('PRAGMA table_info(archival)').all().some(column => column.name === 'last_hit_at')) {
+      db.exec('ALTER TABLE archival ADD COLUMN last_hit_at INTEGER');
+    }
     if (!db.prepare('PRAGMA table_info(recall_messages)').all().some(column => column.name === 'sources_json')) {
       db.exec('ALTER TABLE recall_messages ADD COLUMN sources_json TEXT');
     }
@@ -434,7 +437,11 @@ function pruneArchival(scope) {
     const rows = d.prepare('SELECT id FROM archival WHERE scope=? AND invalid_at IS NULL').all(scope);
     if (rows.length <= ARCHIVAL_MAX_PER_SCOPE) return;
     const keep = d.prepare(`SELECT id FROM archival WHERE scope=? AND invalid_at IS NULL
-      ORDER BY importance DESC, updated_at DESC LIMIT ?`).all(scope, ARCHIVAL_MAX_PER_SCOPE).map((r) => r.id);
+      ORDER BY importance DESC,
+        COALESCE(last_hit_at, updated_at) DESC,
+        hits DESC,
+        created_at DESC
+      LIMIT ?`).all(scope, ARCHIVAL_MAX_PER_SCOPE).map((r) => r.id);
     const keepSet = new Set(keep);
     const inv = d.prepare('UPDATE archival SET invalid_at=?, updated_at=? WHERE id=?');
     for (const r of rows) if (!keepSet.has(r.id)) inv.run(now(), now(), r.id);
@@ -580,8 +587,8 @@ async function searchArchival(sessionId, query, opts = {}) {
   const picked = order.map((i) => rows[i]).filter(Boolean);
   // 命中计数（用于淘汰与调优）
   try {
-    const bump = d.prepare('UPDATE archival SET hits=hits+1 WHERE id=?');
-    for (const p of picked) bump.run(p.id);
+    const bump = d.prepare('UPDATE archival SET hits=hits+1, last_hit_at=? WHERE id=?');
+    for (const p of picked) bump.run(now(), p.id);
   } catch (_) { /* ignore */ }
   return picked.map((m) => ({ type: m.type, text: m.text, scope: m.scope, importance: m.importance,
     sourceCourseId: m.sourceCourseId, sourceSessionId: m.sourceSessionId }));
