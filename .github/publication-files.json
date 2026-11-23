@@ -62,6 +62,7 @@
     "desktop/app/storage-location.cjs",
     "desktop/app/window-frame.css",
     "tools/check-storage-location.cjs",
+    "tools/evaluate-memory.cjs",
     "docs/releases/v2.2.0.md"
   ],
   "historicalPolicyCommits": [
