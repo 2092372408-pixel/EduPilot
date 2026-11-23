@@ -153,7 +153,9 @@ function schedule(delay = INTERVAL_MS) {
     timer = null;
     if (!stopped && !activeRun) {
       activeRun = processOne();
-      try { await activeRun; } finally { activeRun = null; }
+      try { await activeRun; }
+      catch (error) { console.warn('[dreaming] worker loop failed:', error.message); }
+      finally { activeRun = null; }
     }
     schedule();
   }, delay);
