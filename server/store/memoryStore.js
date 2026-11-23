@@ -670,7 +670,10 @@ function replaceWikiLinks(uidKey, links) {
   const d = init();
   if (!d) return 0;
   const { uid } = scopeOf(uidKey);
-  const rows = Array.isArray(links) ? links.filter(link => link && link.sourcePageId && link.targetPageId && link.relation) : [];
+  const rows = Array.isArray(links) ? links.filter(link =>
+    link && link.sourcePageId && link.targetPageId && link.relation
+    && Array.isArray(link.evidence) && link.evidence.length > 0
+  ) : [];
   try {
     return d.transaction(() => {
       d.prepare('DELETE FROM memory_wiki_links WHERE uid=?').run(uid);
