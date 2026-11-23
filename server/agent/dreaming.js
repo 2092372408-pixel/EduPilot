@@ -80,7 +80,8 @@ async function processOne() {
       return true;
     }
 
-    const compactEvents = batch.events.map(event => ({
+    const analysisEvents = batch.contextEvents?.length ? batch.contextEvents : batch.events;
+    const compactEvents = analysisEvents.map(event => ({
       id: event.id,
       sessionId: event.sessionId,
       turn: event.turn,
@@ -111,7 +112,7 @@ async function processOne() {
     const patterns = Array.isArray(reflection.patterns) ? reflection.patterns.slice(0, 12) : [];
     const promoted = [];
     for (const pattern of patterns) {
-      const candidate = validatePattern(pattern, batch.events);
+      const candidate = validatePattern(pattern, analysisEvents);
       if (candidate) promoted.push(candidate);
     }
 
@@ -134,7 +135,7 @@ async function processOne() {
         kind: ['persistent_difficulty', 'improving', 'mixed'].includes(pattern.kind) ? pattern.kind : 'mixed',
         description: String(pattern.description || '').slice(0, 160),
         eventIds: Array.isArray(pattern.eventIds) ? pattern.eventIds.filter(Number.isSafeInteger).slice(0, 20) : [],
-        promoted: !!validatePattern(pattern, batch.events),
+        promoted: !!validatePattern(pattern, analysisEvents),
       })),
     };
     if (!memoryStore.completeDreamingJob(job, batch, safeReflection, promotedCount)) {
