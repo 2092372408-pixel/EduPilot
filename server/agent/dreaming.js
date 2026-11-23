@@ -70,7 +70,9 @@ async function processOne() {
 
   const job = memoryStore.claimDreamingJob();
   if (!job) return false;
+  const usage = require('./usage');
 
+  return usage.runWithSession(`dreaming:${job.scope}`, async () => {
   try {
     const batch = memoryStore.getDreamingBatch(job);
     if (!batch.events.length) {
@@ -145,6 +147,7 @@ async function processOne() {
     console.warn('[dreaming] background consolidation failed:', error.message);
     return false;
   }
+  });
 }
 
 function schedule(delay = INTERVAL_MS) {
