@@ -153,67 +153,121 @@
     if (!state.graph) return;
     const matching = filtered();
     const visible = matching.slice(0, 60);
-    if (state.selected && matching.some(n => n.id === state.selected) && !visible.some(n => n.id === state.selected)) visible[visible.length - 1] = selected();
+    if (state.selected && matching.some(n => n.id === state.selected) && !visible.some(n => n.id === state.selected) && visible.length) visible[visible.length - 1] = selected();
     $('kgVisibleCount').textContent = state.view === 'list' ? tr('listCount', { n: matching.length }) : tr('shown', { n: visible.length, total: matching.length });
-    $('kgGraphViewport').hidden = state.view !== 'graph'; $('kgList').hidden = state.view !== 'list';
-    $('kgGraphTab').setAttribute('aria-pressed', state.view === 'graph'); $('kgListTab').setAttribute('aria-pressed', state.view === 'list');
+    $('kgGraphViewport').hidden = state.view !== 'graph';
+    $('kgList').hidden = state.view !== 'list';
+    $('kgGraphTab').setAttribute('aria-pressed', state.view === 'graph');
+    $('kgListTab').setAttribute('aria-pressed', state.view === 'list');
     document.querySelector('.kg-zoom').hidden = state.view !== 'graph';
     renderList(matching);
-    const graph = $('kgGraph'); graph.replaceChildren(svg('title', { id: 'kgSvgTitle' }, tr('title')));
+    const graph = $('kgGraph');
+    graph.replaceChildren(svg('title', { id: 'kgSvgTitle' }, tr('title')));
     if (!visible.length) {
-      graph.setAttribute('viewBox', '0 0 1000 500'); graph.setAttribute('height', '500');
-      graph.append(svg('text', { x: 500, y: 220, 'text-anchor': 'middle', fill: '#7b8773', 'font-size': 15 }, tr('noMatch'))); return;
+      graph.setAttribute('viewBox', '0 0 1080 560');
+      graph.style.width = '1080px'; graph.style.height = '560px';
+      graph.append(svg('text', { x: 540, y: 270, 'text-anchor': 'middle', fill: '#778477', 'font-size': 16 }, tr('noMatch')));
+      return;
     }
-    const definitions = svg('defs');
-    const marker = svg('marker', { id: 'kgArrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 5, markerHeight: 5, orient: 'auto-start-reverse' });
-    marker.append(svg('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: '#91ad87' })); definitions.append(marker); graph.append(definitions);
-    const positions = new Map(), allNodes = new Map(state.graph.nodes.map(n => [n.id, n]));
-    let y = 55;
+    const allNodes = new Map(state.graph.nodes.map(node => [node.id, node]));
+    const byCourse = new Map();
+    for (const node of visible) {
+      if (!byCourse.has(node.courseId)) byCourse.set(node.courseId, []);
+      byCourse.get(node.courseId).push(node);
+    }
+    const rows = [];
+    let mapWidth = 1120, mapHeight = 48;
     for (const course of state.graph.courses) {
-      const group = visible.filter(n => n.courseId === course.id); if (!group.length) continue;
-      const start = y;
-      for (const chapterId of [...new Set(group.map(n => n.parent))]) {
-        const members = group.filter(n => n.parent === chapterId), chapterStart = y;
-        for (const node of members) { positions.set(node.id, { x: 620, y, kind: 'concept' }); y += 72; }
-        positions.set(chapterId, { x: 320, y: (chapterStart + y - 72) / 2, kind: 'chapter' }); y += 20;
-      }
-      const firstChapter = allNodes.get(group[0].parent);
-      if (firstChapter) positions.set(firstChapter.parent, { x: 95, y: (start + y - 92) / 2, kind: 'course' });
-      y += 45;
+      const group = byCourse.get(course.id);
+      if (!group || !group.length) continue;
+      const chapterIds = [...new Set(group.map(node => node.parent))];
+      const chapters = chapterIds.map(id => ({ id, chapter: allNodes.get(id), concepts: group.filter(node => node.parent === id) }));
+      const maxItems = Math.max(1, ...chapters.map(item => item.concepts.length));
+      const rowHeight = Math.max(210, 112 + maxItems * 78);
+      mapWidth = Math.max(mapWidth, 340 + chapters.length * 270);
+      rows.push({ course, chapters, top: mapHeight, rowHeight });
+      mapHeight += rowHeight + 42;
     }
-    const height = Math.max(500, y);
-    graph.setAttribute('viewBox', `0 0 1000 ${height}`); graph.setAttribute('height', height * state.zoom); graph.style.width = (state.zoom * 100) + '%';
+    mapHeight = Math.max(560, mapHeight + 12);
+    graph.setAttribute('viewBox', '0 0 ' + mapWidth + ' ' + mapHeight);
+    graph.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+    graph.style.width = Math.round(mapWidth * state.zoom) + 'px';
+    graph.style.height = Math.round(mapHeight * state.zoom) + 'px';
+    const defs = svg('defs');
+    const shadow = svg('filter', { id: 'kgNodeShadow', x: '-20%', y: '-20%', width: '140%', height: '150%' });
+    shadow.append(svg('feDropShadow', { dx: 0, dy: 3, stdDeviation: 4, 'flood-color': '#253c2d', 'flood-opacity': '.08' }));
+    defs.append(shadow);
+    const marker = svg('marker', { id: 'kgArrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto' });
+    marker.append(svg('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: '#6f9a72' }));
+    defs.append(marker); graph.append(defs);
+    const positions = new Map(), meta = new Map();
+    for (const row of rows) {
+      const courseNode = state.graph.nodes.find(node => node.kind === 'course' && node.courseId === row.course.id);
+      if (courseNode) {
+        positions.set(courseNode.id, { x: 140, y: row.top + row.rowHeight / 2, kind: 'course' });
+        meta.set(courseNode.id, { title: courseNode.title, subtitle: tr('concepts') + ' · ' + row.course.includedConcepts });
+      }
+      row.chapters.forEach((item, index) => {
+        const x = 350 + index * 270;
+        const chapter = item.chapter || { title: row.course.title };
+        positions.set(item.id, { x: x + 116, y: row.top + 44, kind: 'chapter' });
+        meta.set(item.id, { title: chapter.title, subtitle: item.concepts.length + ' ' + tr('concepts') });
+        item.concepts.forEach((node, conceptIndex) => {
+          const y = row.top + 112 + conceptIndex * 78;
+          positions.set(node.id, { x: x + 116, y, kind: 'concept' });
+          meta.set(node.id, { title: node.title, subtitle: tr(node.progress.status) });
+        });
+      });
+    }
     for (const edge of state.graph.edges) {
-      const a = positions.get(edge.source), b = positions.get(edge.target); if (!a || !b) continue;
-      let d;
-      if (edge.relation === 'contains') {
-        const fromX = a.x + (a.kind === 'course' ? 22 : 10), toX = b.kind === 'concept' ? 490 : b.x - 10;
-        d = `M ${fromX} ${a.y} C ${(fromX + toX) / 2} ${a.y}, ${(fromX + toX) / 2} ${b.y}, ${toX} ${b.y}`;
+      const from = positions.get(edge.source), to = positions.get(edge.target);
+      if (!from || !to) continue;
+      let d = '';
+      if (edge.relation === 'contains' && from.kind === 'course' && to.kind === 'chapter') {
+        const sx = from.x + 108, ex = to.x - 112, cx = (sx + ex) / 2;
+        d = 'M ' + sx + ' ' + from.y + ' C ' + cx + ' ' + from.y + ', ' + cx + ' ' + to.y + ', ' + ex + ' ' + to.y;
+      } else if (edge.relation === 'contains' && from.kind === 'chapter' && to.kind === 'concept') {
+        d = 'M ' + from.x + ' ' + (from.y + 25) + ' C ' + from.x + ' ' + (from.y + 54) + ', ' + to.x + ' ' + (to.y - 54) + ', ' + to.x + ' ' + (to.y - 31);
       } else {
-        const bow = Math.min(995, 825 + Math.abs(a.y - b.y) * .16);
-        d = `M 798 ${a.y + 9} C ${bow} ${a.y + 9}, ${bow} ${b.y - 9}, 798 ${b.y - 9}`;
+        const direction = to.x >= from.x ? 1 : -1, sx = from.x + direction * 108, ex = to.x - direction * 108;
+        const bend = Math.max(70, Math.abs(ex - sx) * .42);
+        d = 'M ' + sx + ' ' + from.y + ' C ' + (sx + direction * bend) + ' ' + (from.y - 34) + ', ' + (ex - direction * bend) + ' ' + (to.y + 34) + ', ' + ex + ' ' + to.y;
       }
-      const line = svg('path', { d, class: 'kg-edge', 'data-relation': edge.relation,
-        'data-selected': edge.source === state.selected || edge.target === state.selected });
-      if (edge.relation === 'prerequisite') line.setAttribute('marker-end', 'url(#kgArrow)');
-      line.append(svg('title', {}, edge.note || tr('outlineSource'))); graph.append(line);
+      const path = svg('path', { d, class: 'kg-edge', 'data-relation': edge.relation, 'data-selected': edge.source === state.selected || edge.target === state.selected });
+      if (edge.relation === 'prerequisite') path.setAttribute('marker-end', 'url(#kgArrow)');
+      path.append(svg('title', {}, edge.note || tr('outlineSource'))); graph.append(path);
     }
-    for (const [id, p] of positions) {
-      const node = allNodes.get(id); if (!node) continue;
-      const group = svg('g', { class: 'kg-node', 'data-kind': node.kind, transform: `translate(${p.x} ${p.y})` });
-      group.append(svg('title', {}, node.title));
-      if (node.kind === 'concept') {
-        group.setAttribute('data-status', node.progress.status); group.setAttribute('role', 'button'); group.setAttribute('tabindex', '0');
-        group.setAttribute('aria-pressed', node.id === state.selected); group.setAttribute('aria-label', node.title + ', ' + tr(node.progress.status));
-        group.append(svg('rect', { x: -130, y: -24, width: 308, height: 48, rx: 8 }));
-        const title = [...node.title]; group.append(svg('text', { x: -114, y: 4 }, title.length > 29 ? title.slice(0, 28).join('') + '…' : node.title));
-        group.addEventListener('click', () => select(id)); group.addEventListener('keydown', event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); select(id); } });
+    function addCard(id, point) {
+      const node = allNodes.get(id), info = meta.get(id) || {};
+      if (!node) return;
+      const kind = point.kind;
+      const group = svg('g', { class: 'kg-node', 'data-kind': kind, transform: 'translate(' + point.x + ' ' + point.y + ')' });
+      group.append(svg('title', {}, info.title || node.title));
+      if (kind === 'course') {
+        group.append(svg('rect', { x: -108, y: -40, width: 216, height: 80, rx: 15, filter: 'url(#kgNodeShadow)' }));
+        group.append(svg('circle', { cx: -82, cy: -12, r: 5, class: 'kg-node-accent' }));
+        group.append(svg('text', { x: -68, y: -7, class: 'kg-node-title' }, (info.title || node.title).slice(0, 20)));
+        group.append(svg('text', { x: -88, y: 17, class: 'kg-node-subtitle' }, info.subtitle || ''));
+      } else if (kind === 'chapter') {
+        group.append(svg('rect', { x: -112, y: -25, width: 224, height: 50, rx: 12, filter: 'url(#kgNodeShadow)' }));
+        group.append(svg('text', { x: -96, y: 5, class: 'kg-node-title' }, (info.title || node.title).slice(0, 19)));
+        group.append(svg('text', { x: 96, y: 5, 'text-anchor': 'end', class: 'kg-node-count' }, info.subtitle || ''));
       } else {
-        group.append(svg('circle', { r: node.kind === 'course' ? 22 : 9 }));
-        const title = [...node.title]; group.append(svg('text', { x: 0, y: node.kind === 'course' ? 42 : 29, 'text-anchor': 'middle' }, title.length > 20 ? title.slice(0, 19).join('') + '…' : node.title));
+        group.setAttribute('data-status', node.progress.status);
+        group.setAttribute('role', 'button'); group.setAttribute('tabindex', '0');
+        group.setAttribute('aria-pressed', node.id === state.selected);
+        group.setAttribute('aria-label', node.title + ', ' + tr(node.progress.status));
+        group.append(svg('rect', { x: -110, y: -31, width: 220, height: 62, rx: 12, filter: 'url(#kgNodeShadow)' }));
+        group.append(svg('circle', { cx: -91, cy: -9, r: 4.5, class: 'kg-node-status' }));
+        const title = [...node.title];
+        group.append(svg('text', { x: -78, y: -4, class: 'kg-node-title' }, title.slice(0, 16).join('') + (title.length > 16 ? '…' : '')));
+        group.append(svg('text', { x: -78, y: 17, class: 'kg-node-subtitle' }, tr(node.progress.status)));
+        group.addEventListener('click', () => select(id));
+        group.addEventListener('keydown', event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); select(id); } });
       }
       graph.append(group);
     }
+    for (const [id, point] of positions) addCard(id, point);
   }
   function renderList(nodes) {
     $('kgList').replaceChildren();
