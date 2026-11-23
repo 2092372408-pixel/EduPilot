@@ -247,6 +247,54 @@ jobs:
             console.log('Memory Wiki page generation, evidence links, retrieval, idempotency and reset boundaries passed');
           })().catch(error => { console.error(error); process.exitCode = 1; });
           NODE
+      - name: Verify role-aware memory scope and context budgets
+        shell: bash
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const os = require('node:os');
+          const path = require('node:path');
+          process.env.EDUOWL_DB = path.join(os.tmpdir(), 'edupilot-memory-context-' + process.pid + '.db');
+          process.env.EMBED_PROVIDER = 'dashscope';
+          process.env.DASHSCOPE_API_KEY = '';
+          const store = require('./server/store/memoryStore');
+          const sessionStore = require('./server/store/sessionStore');
+          const memory = require('./server/agent/memory');
+          const database = sessionStore.init();
+          const current = 'context-ci@python-intro~session-a';
+          (async () => {
+            await store.ingestArchival(current, [{
+              type: 'preference', text: 'Prefers concise worked examples',
+              provenance: { sessionId: current, turn: 1, quote: 'I prefer concise worked examples' },
+            }], { scopeMode: 'uid' });
+            await store.ingestArchival(current, [{
+              type: 'pain', text: 'Recurring confusion about recursion base cases',
+              provenance: { sessionId: current, turn: 2, quote: 'I repeatedly confuse recursion base cases' },
+            }]);
+            await store.ingestArchival('context-ci@ml-course~session-b', [{
+              type: 'pain', text: 'Recurring confusion about regression assumptions',
+              provenance: { sessionId: 'context-ci@ml-course~session-b', turn: 1, quote: 'I repeatedly confuse regression assumptions' },
+            }]);
+            const session = {
+              id: current, activeCourseId: 'python-intro',
+              learning: { currentKpId: null, kps: {} },
+              summary: { text: 'Recently studied recursion and base cases', turn: 5 },
+            };
+            const courseContext = await memory.buildMemoryInjection(session, 'How do I understand recursion?', { agentId: 'learn' });
+            assert.ok(courseContext.includes('Prefers concise worked examples'));
+            assert.ok(courseContext.includes('recursion base cases'));
+            assert.ok(!courseContext.includes('regression assumptions'), 'Other-course difficulty must not leak into current course context');
+
+            const generalContext = await memory.buildMemoryInjection(session, 'Explain a general learning strategy', { agentId: 'general' });
+            assert.ok(generalContext.includes('Prefers concise worked examples'));
+            assert.ok(!generalContext.includes('recursion base cases'), 'General chat must not inherit course-specific difficulties');
+
+            const crossCourseContext = await memory.buildMemoryInjection(session, '请查看跨课程的学习情况', { agentId: 'coordinator' });
+            assert.ok(crossCourseContext.includes('regression assumptions'), 'Explicit cross-course requests may retrieve other course memories');
+            database.close();
+            console.log('Role-aware memory scopes, cross-course opt-in and context assembly passed');
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          NODE
       - name: Verify SQLite and desktop startup
         shell: bash
         run: |
