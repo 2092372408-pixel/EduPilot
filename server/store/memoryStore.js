@@ -609,7 +609,7 @@ async function ingestArchival(sessionId, facts, opts = {}) {
     const existing = listUserArchival(sessionId).filter((m) => m.type === type);
     const exact = existing.find((m) => m.text === text);
     if (exact) {
-      d.prepare('UPDATE archival SET hits=hits+1, updated_at=? WHERE id=?').run(now(), exact.id);
+      d.prepare('UPDATE archival SET hits=hits+1, last_hit_at=?, updated_at=? WHERE id=?').run(now(), now(), exact.id);
       continue;
     }
     // Similarity selects candidates only; opposite meanings can have near-identical vectors.
