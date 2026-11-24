@@ -1,7 +1,6 @@
 name: Beta testing feedback
 description: Share feedback from a real EduPilot testing session
 title: "[Beta feedback]: "
-labels: ["beta-feedback"]
 body:
   - type: markdown
     attributes:
