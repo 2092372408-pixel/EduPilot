@@ -1,0 +1,79 @@
+name: Beta testing feedback
+description: Share feedback from a real EduPilot testing session
+title: "[Beta feedback]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing EduPilot. Please describe a real workflow and what happened.
+        Do not include API keys, access tokens, private documents, personal learning records, or private contact details.
+  - type: input
+    id: version
+    attributes:
+      label: EduPilot version
+      placeholder: "e.g. 2.2.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS Apple Silicon
+        - macOS Intel
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: workflow
+    attributes:
+      label: What did you test?
+      multiple: true
+      options:
+        - Installation and first launch
+        - Model configuration
+        - Importing learning materials
+        - Course and chapter generation
+        - Learning conversations
+        - Exercises and practice feedback
+        - Review and learning reports
+        - Knowledge graph
+        - Personal learning home and learning card
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: What were you trying to accomplish?
+      description: Describe the learning task or workflow.
+      placeholder: "I wanted to..."
+    validations:
+      required: true
+  - type: textarea
+    id: experience
+    attributes:
+      label: What worked well, and what could be improved?
+      placeholder: "What happened? What did you expect? Include reproduction steps if relevant."
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Overall impact
+      options:
+        - Blocked me from continuing
+        - Major friction
+        - Minor friction
+        - Suggestion or general feedback
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Optional evidence
+      description: Add a screenshot or logs only after removing secrets and personal information.
+    validations:
+      required: false

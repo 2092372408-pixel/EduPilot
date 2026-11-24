@@ -111,6 +111,8 @@ npm start
 - [桌面指南](docs/桌面启动与退出说明.md)：安装、启动退出、数据备份与升级。
 - [下载与存储指引](docs/安装与数据位置指南.md)：选择安装包、程序安装位置、学习数据位置与迁移注意事项。
 - [v2.2.0 更新说明](docs/releases/v2.2.0.md)。
+- [Early Access 内测计划](docs/EARLY_ACCESS_PROGRAM.md)：了解社区内测计划与参与方式。
+- [内测体验指南](docs/BETA_TESTING_GUIDE.md)：查看建议测试流程与反馈方式。
 - [GitHub Issues](https://github.com/2092372408-pixel/EduPilot/issues)：反馈问题与建议。
 - [贡献指南](CONTRIBUTING.md)：开发环境、协作流程与 PR 说明。
 - [开发路线图](ROADMAP.md)：了解当前方向并参与功能讨论。
