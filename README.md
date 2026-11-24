@@ -111,6 +111,8 @@ See the [development guide (Chinese)](docs/桌面启动与退出说明.md#源码
 - [Desktop guide (Chinese)](docs/桌面启动与退出说明.md): installation, launch and exit, backups and upgrades.
 - [Download and data-location guide (Chinese)](docs/安装与数据位置指南.md): choosing installers, installation location and safe data backups.
 - [v2.2.0 release notes](docs/releases/v2.2.0.md).
+- [Early Access Program](docs/EARLY_ACCESS_PROGRAM.md): learn about the community testing program.
+- [Beta Testing Guide](docs/BETA_TESTING_GUIDE.md): suggested workflows and feedback guidance.
 - [GitHub Issues](https://github.com/2092372408-pixel/EduPilot/issues): report a problem or share an idea.
 - [Contributing guide](CONTRIBUTING.md): development setup and collaboration workflow.
 - [Roadmap](ROADMAP.md): current priorities and areas for discussion.
